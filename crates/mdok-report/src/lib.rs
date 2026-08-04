@@ -6,7 +6,8 @@
 
 #![forbid(unsafe_code)]
 
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
 use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
@@ -304,7 +305,7 @@ pub struct EventRecord {
     pub metadata: EventMetadata,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Report {
     pub schema_version: String,
     pub mdok_version: String,
@@ -319,6 +320,45 @@ pub struct Report {
     pub events: Vec<Event>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_metadata: Vec<EventMetadataRecord>,
+}
+
+impl Serialize for Report {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let event_records = self.event_records();
+        let mut fields = 7;
+        if !self.diagnostics.is_empty() {
+            fields += 1;
+        }
+        if !event_records.is_empty() {
+            fields += 1;
+        }
+        if !self.event_metadata.is_empty() {
+            fields += 1;
+        }
+        let mut report = serializer.serialize_struct("Report", fields)?;
+        report.serialize_field("schema_version", &self.schema_version)?;
+        report.serialize_field("mdok_version", &self.mdok_version)?;
+        report.serialize_field("curl_version", &self.curl_version)?;
+        report.serialize_field("started_at", &self.started_at)?;
+        report.serialize_field("duration_ms", &self.duration_ms)?;
+        report.serialize_field("summary", &self.summary)?;
+        report.serialize_field("documents", &self.documents)?;
+        if !self.diagnostics.is_empty() {
+            report.serialize_field("diagnostics", &self.diagnostics)?;
+        }
+        if !event_records.is_empty() {
+            report.serialize_field("events", &event_records)?;
+        }
+        // Keep the additive metadata table for consumers that already use it;
+        // events themselves now carry the same context inline.
+        if !self.event_metadata.is_empty() {
+            report.serialize_field("event_metadata", &self.event_metadata)?;
+        }
+        report.end()
+    }
 }
 
 impl Report {
@@ -431,6 +471,12 @@ impl Report {
                         check.expression
                     );
                 }
+                for capture in &step.captures {
+                    let _ = writeln!(output, "    capture  {}", capture);
+                }
+                for diagnostic in &step.diagnostics {
+                    write_diagnostic(&mut output, diagnostic);
+                }
             }
             for diagnostic in &document.diagnostics {
                 write_diagnostic(&mut output, diagnostic);
@@ -460,31 +506,22 @@ impl Report {
             // correct when a step has several checks or a document has more
             // than one diagnostic.
             let cases = junit_cases(document);
-            let tests = cases.len();
-            let failures = cases.iter().filter(|case| case.failure.is_some()).count();
-            let _ = write!(
-                output,
-                "<testsuite name=\"{}\" tests=\"{}\" failures=\"{}\" time=\"{}\">",
-                xml_escape(&document.path),
-                tests,
-                failures,
-                document.duration_ms as f64 / 1000.0
-            );
-            for case in cases {
-                let _ = write!(
-                    output,
-                    "<testcase name=\"{}\" time=\"{}\">",
-                    xml_escape(&case.name),
-                    case.duration_ms as f64 / 1000.0
-                );
-                if let Some(message) = case.failure {
-                    let _ = write!(output, "<failure message=\"{}\"/>", xml_escape(&message));
-                } else if case.skipped {
-                    output.push_str("<skipped/>");
-                }
-                output.push_str("</testcase>");
-            }
-            output.push_str("</testsuite>");
+            write_junit_suite(&mut output, &document.path, cases, document.duration_ms);
+        }
+        if !self.diagnostics.is_empty() {
+            let cases = self
+                .diagnostics
+                .iter()
+                .enumerate()
+                .map(|(index, diagnostic)| JunitCase {
+                    name: format!("report diagnostic {}", index + 1),
+                    duration_ms: 0,
+                    failure: (diagnostic.severity == Severity::Error)
+                        .then(|| diagnostic.message.clone()),
+                    skipped: diagnostic.severity != Severity::Error,
+                })
+                .collect();
+            write_junit_suite(&mut output, "mdok report", cases, 0);
         }
         output.push_str("</testsuites>\n");
         output
@@ -608,6 +645,34 @@ struct JunitCase {
     duration_ms: u64,
     failure: Option<String>,
     skipped: bool,
+}
+
+fn write_junit_suite(output: &mut String, name: &str, cases: Vec<JunitCase>, duration_ms: u64) {
+    let tests = cases.len();
+    let failures = cases.iter().filter(|case| case.failure.is_some()).count();
+    let _ = write!(
+        output,
+        "<testsuite name=\"{}\" tests=\"{}\" failures=\"{}\" time=\"{}\">",
+        xml_escape(name),
+        tests,
+        failures,
+        duration_ms as f64 / 1000.0
+    );
+    for case in cases {
+        let _ = write!(
+            output,
+            "<testcase name=\"{}\" time=\"{}\">",
+            xml_escape(&case.name),
+            case.duration_ms as f64 / 1000.0
+        );
+        if let Some(message) = case.failure {
+            let _ = write!(output, "<failure message=\"{}\"/>", xml_escape(&message));
+        } else if case.skipped {
+            output.push_str("<skipped/>");
+        }
+        output.push_str("</testcase>");
+    }
+    output.push_str("</testsuite>");
 }
 
 fn junit_cases(document: &DocumentReport) -> Vec<JunitCase> {
@@ -912,6 +977,37 @@ mod tests {
     }
 
     #[test]
+    fn human_and_junit_include_step_and_report_diagnostics() {
+        let mut report = Report::now();
+        report.documents.push(DocumentReport {
+            path: "workflow.md".to_string(),
+            status: Status::Failed,
+            duration_ms: 0,
+            steps: vec![StepReport {
+                name: "request".to_string(),
+                status: Status::Failed,
+                diagnostics: vec![Diagnostic::error(
+                    "MDOK-E600",
+                    "Transfer failed",
+                    "connection refused",
+                )],
+                ..StepReport::default()
+            }],
+            diagnostics: Vec::new(),
+        });
+        report.diagnostics.push(Diagnostic::error(
+            "MDOK-E800",
+            "Report failed",
+            "serialization failed",
+        ));
+
+        let human = report.human(false, false);
+        assert!(human.contains("connection refused"));
+        assert!(report.junit().contains("report diagnostic 1"));
+        assert!(report.junit().contains("serialization failed"));
+    }
+
+    #[test]
     fn metadata_is_additive_and_flattened_for_event_lines() {
         let base = Diagnostic::error("MDOK-E502", "Check failed", "assertion was false");
         let base_json = serde_json::to_value(&base).expect("serialize base diagnostic");
@@ -972,6 +1068,8 @@ mod tests {
 
         let report_json: Value =
             serde_json::from_str(&report.json().expect("serialize report")).expect("parse report");
+        assert_eq!(report_json["events"][0]["run_id"], "run-1");
+        assert_eq!(report_json["events"][0]["step_ordinal"], 1);
         assert_eq!(report_json["event_metadata"][0]["sequence"], 7);
         assert_eq!(report_json["event_metadata"][0]["run_id"], "run-1");
     }

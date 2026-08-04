@@ -1,9 +1,9 @@
 //! `mdok` command line adapter.
 //!
-//! The runtime crate is currently an API placeholder, so this binary uses a
-//! narrow local adapter (`DocumentAdapter`) for fence discovery, validation,
-//! and basic blocking HTTP execution. Its input/output types are deliberately
-//! independent from clap and are shaped like the future runtime plan API.
+//! Rust owns Markdown planning, typed templates, checks, captures, policy, and
+//! reporting. Native vendored libcurl is used for the conservative plain-GET
+//! fast path; the compatibility adapter remains the fallback for the broader
+//! supported option surface.
 
 #![forbid(unsafe_code)]
 
@@ -20,8 +20,9 @@ use mdok_template::{
 };
 use serde::Deserialize;
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
@@ -295,14 +296,33 @@ struct CliError {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    let json = cli.options.json;
+    let json_lines = cli.options.json_lines;
     match run(cli) {
         Ok(code) => ExitCode::from(code),
         Err(error) => {
-            eprintln!(
-                "error[{}]: {}",
-                error.diagnostic.code, error.diagnostic.message
-            );
-            ExitCode::from(error.code)
+            let CliError { code, diagnostic } = *error;
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "schema_version": mdok_report::SCHEMA_VERSION,
+                        "diagnostics": [&diagnostic]
+                    })
+                );
+            } else if json_lines {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "kind": "diagnostic",
+                        "status": "error",
+                        "diagnostic": &diagnostic
+                    })
+                );
+            } else {
+                eprintln!("error[{}]: {}", diagnostic.code, diagnostic.message);
+            }
+            ExitCode::from(code)
         }
     }
 }
@@ -350,62 +370,38 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
     let config = load_config(&paths, &cli.options)?;
     let started = Instant::now();
     let mut report = Report::now();
-    let mut results = Vec::with_capacity(paths.len());
     let parallel = cli.options.jobs.max(config.jobs).min(paths.len().max(1));
-    if cli.options.fail_fast || config.fail_fast || parallel == 1 || paths.len() == 1 {
-        for path in paths {
+    let sequential = cli.options.fail_fast || config.fail_fast || parallel == 1 || paths.len() == 1;
+    let stream_jsonl = cli.options.json_lines && sequential;
+    if stream_jsonl {
+        for (document_ordinal, path) in paths.into_iter().enumerate() {
             let result = process_document(&path, mode, &config, &cli.options);
             let failed = result.status.is_failure();
-            results.push(result);
+            let event_start = report.events.len();
+            append_report_document(&mut report, result, document_ordinal);
+            stream_event_range(&report, event_start)?;
             if failed && (cli.options.fail_fast || config.fail_fast) {
                 break;
             }
         }
     } else {
-        results =
-            process_documents_parallel(paths, mode, config.clone(), cli.options.clone(), parallel);
-    }
-    for (document_ordinal, document) in results.into_iter().enumerate() {
-        let path = document.path.clone();
-        let status = document.status;
-        for (step_ordinal, step) in document.steps.iter().enumerate() {
-            let sequence = report.events.len() as u64;
-            report.push_event(
-                Event {
-                    sequence,
-                    kind: "step.finished".to_string(),
-                    document: Some(path.clone()),
-                    step: Some(step.name.clone()),
-                    status: Some(step.status),
-                    message: None,
-                },
-                Some(EventMetadata {
-                    run_id: Some(report.started_at.clone()),
-                    document_ordinal: Some(document_ordinal),
-                    step_ordinal: Some(step_ordinal),
-                    duration_ms: Some(step.duration_ms),
-                    ..EventMetadata::default()
-                }),
-            );
+        let results = if sequential {
+            let mut results = Vec::with_capacity(paths.len());
+            for path in paths {
+                let result = process_document(&path, mode, &config, &cli.options);
+                let failed = result.status.is_failure();
+                results.push(result);
+                if failed && (cli.options.fail_fast || config.fail_fast) {
+                    break;
+                }
+            }
+            results
+        } else {
+            process_documents_parallel(paths, mode, config.clone(), cli.options.clone(), parallel)
+        };
+        for (document_ordinal, document) in results.into_iter().enumerate() {
+            append_report_document(&mut report, document, document_ordinal);
         }
-        let sequence = report.events.len() as u64;
-        report.push_event(
-            Event {
-                sequence,
-                kind: "document.finished".to_string(),
-                document: Some(path),
-                step: None,
-                status: Some(status),
-                message: None,
-            },
-            Some(EventMetadata {
-                run_id: Some(report.started_at.clone()),
-                document_ordinal: Some(document_ordinal),
-                duration_ms: Some(document.duration_ms),
-                ..EventMetadata::default()
-            }),
-        );
-        report.add_document(document);
     }
     report.duration_ms = started.elapsed().as_millis() as u64;
     let redactor = Redactor::new(config.secret_values().map(str::to_string));
@@ -415,35 +411,29 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
             Diagnostic::error("MDOK-E800", "Report error", error.to_string()),
         )
     })?;
-    emit_report(&report, &cli.options)?;
+    emit_report(&report, &cli.options, mode, stream_jsonl)?;
     Ok(report_exit_code(&report))
 }
 
 fn report_exit_code(report: &Report) -> u8 {
-    let policy_failure = report
-        .documents
-        .iter()
-        .flat_map(|document| {
-            document.diagnostics.iter().chain(
-                document
-                    .steps
-                    .iter()
-                    .flat_map(|step| step.diagnostics.iter()),
-            )
-        })
-        .any(|diagnostic| {
-            matches!(
-                diagnostic.code.as_str(),
-                "MDOK-E302" | "MDOK-E303" | "MDOK-E604"
-            )
-        });
+    let diagnostics = all_report_diagnostics(report);
+    let policy_failure = diagnostics.iter().any(|diagnostic| {
+        matches!(
+            diagnostic.code.as_str(),
+            "MDOK-E302" | "MDOK-E303" | "MDOK-E304" | "MDOK-E602" | "MDOK-E603" | "MDOK-E604"
+        )
+    });
     if policy_failure {
         EXIT_POLICY
-    } else if report.documents.iter().any(|document| {
-        document
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity == Severity::Error)
+    } else if diagnostics.iter().any(|diagnostic| {
+        diagnostic.severity == Severity::Error
+            && (diagnostic.code == "MDOK-E800"
+                || diagnostic.code == "MDOK-E500"
+                || diagnostic.code.starts_with("MDOK-E0")
+                || diagnostic.code.starts_with("MDOK-E1")
+                || diagnostic.code.starts_with("MDOK-E2")
+                || diagnostic.code.starts_with("MDOK-E3")
+                || diagnostic.code.starts_with("MDOK-E4"))
     }) {
         EXIT_INPUT
     } else if report.summary.has_failures() {
@@ -453,6 +443,17 @@ fn report_exit_code(report: &Report) -> u8 {
     }
 }
 
+fn all_report_diagnostics(report: &Report) -> Vec<&Diagnostic> {
+    let mut diagnostics = report.diagnostics.iter().collect::<Vec<_>>();
+    for document in &report.documents {
+        diagnostics.extend(document.diagnostics.iter());
+        for step in &document.steps {
+            diagnostics.extend(step.diagnostics.iter());
+        }
+    }
+    diagnostics
+}
+
 fn print_version(options: &CommonOptions) -> Result<u8, Box<CliError>> {
     if options.json {
         println!(
@@ -460,21 +461,96 @@ fn print_version(options: &CommonOptions) -> Result<u8, Box<CliError>> {
             serde_json::json!({
                 "mdok_version": mdok_report::MDOK_VERSION,
                 "curl_version": mdok_report::CURL_COMPAT_VERSION,
-                "libcurl": "adapter-unavailable",
-                "tls": "reqwest/rustls",
-                "features": {"runtime_adapter": true, "network_execution": true, "native_curl_bridge": false}
+                "libcurl": "8.21.0-vendored-static",
+                "tls": "vendored-libcurl-with-platform-tls-dependencies",
+                "features": {"runtime_adapter": true, "network_execution": true, "native_curl_bridge": true, "native_curl_fast_path": true}
             })
         );
     } else {
         println!("mdok {}", mdok_report::MDOK_VERSION);
         println!("curl compatibility {}", mdok_report::CURL_COMPAT_VERSION);
-        println!("runtime adapter: local-document-adapter");
-        println!("network: reqwest/rustls");
+        println!("libcurl: 8.21.0-vendored-static");
+        println!("native bridge: plain-GET fast path; compatibility adapter fallback");
     }
     Ok(EXIT_OK)
 }
 
-fn emit_report(report: &Report, options: &CommonOptions) -> Result<(), Box<CliError>> {
+fn append_report_document(report: &mut Report, document: DocumentReport, document_ordinal: usize) {
+    let path = document.path.clone();
+    let status = document.status;
+    for (step_ordinal, step) in document.steps.iter().enumerate() {
+        let sequence = report.events.len() as u64;
+        report.push_event(
+            Event {
+                sequence,
+                kind: "step.finished".to_string(),
+                document: Some(path.clone()),
+                step: Some(step.name.clone()),
+                status: Some(step.status),
+                message: None,
+            },
+            Some(EventMetadata {
+                run_id: Some(report.started_at.clone()),
+                document_ordinal: Some(document_ordinal),
+                step_ordinal: Some(step_ordinal),
+                duration_ms: Some(step.duration_ms),
+                ..EventMetadata::default()
+            }),
+        );
+    }
+    let sequence = report.events.len() as u64;
+    report.push_event(
+        Event {
+            sequence,
+            kind: "document.finished".to_string(),
+            document: Some(path),
+            step: None,
+            status: Some(status),
+            message: None,
+        },
+        Some(EventMetadata {
+            run_id: Some(report.started_at.clone()),
+            document_ordinal: Some(document_ordinal),
+            duration_ms: Some(document.duration_ms),
+            ..EventMetadata::default()
+        }),
+    );
+    report.add_document(document);
+}
+
+fn stream_event_range(report: &Report, start: usize) -> Result<(), Box<CliError>> {
+    let records = report.event_records();
+    let stdout = std::io::stdout();
+    let mut output = stdout.lock();
+    for record in records.into_iter().skip(start) {
+        serde_json::to_writer(&mut output, &record).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Event serialization failed", error.to_string()),
+            )
+        })?;
+        output.write_all(b"\n").map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Event output failed", error.to_string()),
+            )
+        })?;
+    }
+    output.flush().map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-E800", "Event output failed", error.to_string()),
+        )
+    })?;
+    Ok(())
+}
+
+fn emit_report(
+    report: &Report,
+    options: &CommonOptions,
+    mode: Mode,
+    suppress_stdout: bool,
+) -> Result<(), Box<CliError>> {
     if let Some(path) = &options.report {
         write_atomic_json(path, report).map_err(|error| {
             cli_error(
@@ -490,6 +566,9 @@ fn emit_report(report: &Report, options: &CommonOptions) -> Result<(), Box<CliEr
                 Diagnostic::error("MDOK-E800", "JUnit write failed", error.to_string()),
             )
         })?;
+    }
+    if suppress_stdout {
+        return Ok(());
     }
     if options.json {
         println!(
@@ -512,7 +591,10 @@ fn emit_report(report: &Report, options: &CommonOptions) -> Result<(), Box<CliEr
             })?
         );
     } else {
-        print!("{}", report.human(!options.no_color, options.verbose));
+        print!(
+            "{}",
+            report.human(!options.no_color, options.verbose || mode == Mode::Plan)
+        );
     }
     Ok(())
 }
@@ -566,11 +648,17 @@ fn process_document(
     let Some(plan) = outcome.plan else {
         return DocumentReport {
             path: path.display().to_string(),
-            status: if outcome
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code == "MDOK-E302" || diagnostic.code == "MDOK-E604")
-            {
+            status: if outcome.diagnostics.iter().any(|diagnostic| {
+                matches!(
+                    diagnostic.code.as_str(),
+                    "MDOK-E302"
+                        | "MDOK-E303"
+                        | "MDOK-E304"
+                        | "MDOK-E602"
+                        | "MDOK-E603"
+                        | "MDOK-E604"
+                )
+            }) {
                 Status::Error
             } else {
                 Status::Failed
@@ -582,8 +670,9 @@ fn process_document(
     };
     let mut document = match mode {
         Mode::Test => execute_plan(&plan, config, options),
-        Mode::Lint => plan_report(&plan, Status::Passed),
-        Mode::Plan | Mode::List => plan_report(&plan, Status::Planned),
+        Mode::Lint => plan_report(&plan, Status::Passed, true),
+        Mode::Plan => plan_report(&plan, Status::Planned, true),
+        Mode::List => plan_report(&plan, Status::Planned, false),
     };
     document.diagnostics.extend(outcome.diagnostics);
     document.path = path.display().to_string();
@@ -591,7 +680,7 @@ fn process_document(
     document
 }
 
-fn plan_report(plan: &DocumentPlan, status: Status) -> DocumentReport {
+fn plan_report(plan: &DocumentPlan, status: Status, include_commands: bool) -> DocumentReport {
     DocumentReport {
         path: plan.path.display().to_string(),
         status,
@@ -602,7 +691,9 @@ fn plan_report(plan: &DocumentPlan, status: Status) -> DocumentReport {
             .map(|step| StepReport {
                 name: step.name.clone(),
                 status,
-                command: step.command.clone(),
+                command: include_commands
+                    .then(|| step.command.clone())
+                    .unwrap_or_default(),
                 checks: step
                     .checks
                     .iter()
@@ -1118,7 +1209,7 @@ fn host_matches(host: &str, pattern: &str) -> bool {
 }
 
 fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
-    let source = match fs::read_to_string(path) {
+    let source = match read_document_source(path) {
         Ok(source) => source,
         Err(error) => {
             return PlanOutcome {
@@ -1486,6 +1577,16 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             plan: Some(plan),
             diagnostics,
         }
+    }
+}
+
+fn read_document_source(path: &Path) -> Result<String, std::io::Error> {
+    if path == Path::new("-") {
+        let mut source = String::new();
+        std::io::stdin().read_to_string(&mut source)?;
+        Ok(source)
+    } else {
+        fs::read_to_string(path)
     }
 }
 
@@ -2118,15 +2219,29 @@ fn toml_to_json(value: toml::Value) -> Value {
 }
 
 fn discover_paths(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, Box<CliError>> {
-    let mut paths = BTreeSet::new();
+    let mut paths = Vec::new();
+    let mut seen = HashSet::new();
+    let mut add_path = |path: PathBuf| {
+        if seen.insert(path.clone()) {
+            paths.push(path);
+        }
+    };
     for input in inputs {
-        if input.is_file() {
-            paths.insert(input.clone());
+        if input == Path::new("-") {
+            add_path(input.clone());
+        } else if input.is_file() {
+            // Explicit files are always honored, even when a parent
+            // .gitignore would exclude them.
+            add_path(input.clone());
         } else if input.is_dir() {
+            let mut discovered = Vec::new();
             for entry in WalkDir::new(input)
                 .follow_links(false)
                 .into_iter()
                 .filter_entry(|entry| {
+                    if entry.path() == input {
+                        return true;
+                    }
                     let name = entry.file_name().to_string_lossy();
                     !entry.file_type().is_dir()
                         || (!name.starts_with('.')
@@ -2142,12 +2257,16 @@ fn discover_paths(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, Box<CliError>> {
                         Diagnostic::error("MDOK-E001", "Discovery failed", error.to_string()),
                     )
                 })?;
-                if entry.file_type().is_file() {
+                if entry.file_type().is_file() && !ignored_by_gitignore(entry.path(), input) {
                     let name = entry.file_name().to_string_lossy();
                     if name.ends_with(".md") || name.ends_with(".mdok.md") {
-                        paths.insert(entry.path().to_path_buf());
+                        discovered.push(entry.path().to_path_buf());
                     }
                 }
+            }
+            discovered.sort();
+            for path in discovered {
+                add_path(path);
             }
         } else {
             return Err(cli_error(
@@ -2166,7 +2285,95 @@ fn discover_paths(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, Box<CliError>> {
             ),
         ));
     }
-    Ok(paths.into_iter().collect())
+    Ok(paths)
+}
+
+fn ignored_by_gitignore(path: &Path, root: &Path) -> bool {
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    let mut directories = Vec::new();
+    let mut current = Some(parent);
+    while let Some(directory) = current {
+        directories.push(directory.to_path_buf());
+        if directory == root {
+            break;
+        }
+        current = directory.parent();
+    }
+    directories.reverse();
+
+    let mut ignored = false;
+    for directory in directories {
+        let ignore_file = directory.join(".gitignore");
+        let Ok(contents) = fs::read_to_string(ignore_file) else {
+            continue;
+        };
+        let relative = path
+            .strip_prefix(&directory)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        for raw in contents.lines() {
+            let raw = raw.trim();
+            if raw.is_empty() || raw.starts_with('#') {
+                continue;
+            }
+            let negated = raw.starts_with('!');
+            let mut pattern = raw.trim_start_matches('!').trim();
+            if pattern.is_empty() {
+                continue;
+            }
+            let directory_pattern = pattern.ends_with('/');
+            let anchored = pattern.starts_with('/');
+            pattern = pattern.trim_matches('/');
+            let matched = if directory_pattern {
+                relative
+                    .split('/')
+                    .any(|component| glob_match(pattern, component))
+            } else if anchored || pattern.contains('/') {
+                glob_match(pattern, &relative)
+            } else {
+                relative
+                    .split('/')
+                    .any(|component| glob_match(pattern, component))
+            };
+            if matched {
+                ignored = !negated;
+            }
+        }
+    }
+    ignored
+}
+
+fn glob_match(pattern: &str, value: &str) -> bool {
+    let pattern = pattern.as_bytes();
+    let value = value.as_bytes();
+    let mut states = vec![vec![false; value.len() + 1]; pattern.len() + 1];
+    states[0][0] = true;
+    for pattern_index in 0..=pattern.len() {
+        for value_index in 0..=value.len() {
+            if !states[pattern_index][value_index] || pattern_index == pattern.len() {
+                continue;
+            }
+            match pattern[pattern_index] {
+                b'*' => {
+                    states[pattern_index + 1][value_index] = true;
+                    if value_index < value.len() {
+                        states[pattern_index][value_index + 1] = true;
+                    }
+                }
+                b'?' if value_index < value.len() => {
+                    states[pattern_index + 1][value_index + 1] = true;
+                }
+                byte if value_index < value.len() && byte == value[value_index] => {
+                    states[pattern_index + 1][value_index + 1] = true;
+                }
+                _ => {}
+            }
+        }
+    }
+    states[pattern.len()][value.len()]
 }
 
 fn load_config(
@@ -2368,7 +2575,9 @@ fn load_config(
 }
 
 fn find_config(path: &Path) -> Option<PathBuf> {
-    let mut directory = if path.is_dir() {
+    let mut directory = if path == Path::new("-") {
+        std::env::current_dir().ok()?
+    } else if path.is_dir() {
         path.to_path_buf()
     } else {
         path.parent()?.to_path_buf()
