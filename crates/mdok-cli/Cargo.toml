@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 mdok-core = { path = "../mdok-core" }
 mdok-curl = { path = "../mdok-curl" }
+mdok-markdown = { path = "../mdok-markdown" }
 mdok-template = { path = "../mdok-template" }
 mdok-report = { path = "../mdok-report" }
 clap.workspace = true

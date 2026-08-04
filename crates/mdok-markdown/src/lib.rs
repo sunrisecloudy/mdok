@@ -62,6 +62,8 @@ pub enum MarkdownError {
     Reference(String),
     #[error("MDOK-E110 invalid TOML variables block: {0}")]
     Variables(String),
+    #[error("{0}")]
+    Core(mdok_core::CoreError),
 }
 
 impl MarkdownError {
@@ -72,6 +74,7 @@ impl MarkdownError {
             Self::StepName(_) => "MDOK-E101",
             Self::Reference(_) => "MDOK-E102",
             Self::Variables(_) => "MDOK-E110",
+            Self::Core(error) => error.code(),
         }
     }
 
@@ -283,8 +286,7 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
             }
         }
     }
-    plan.validate()
-        .map_err(|error| MarkdownError::StepName(error.to_string()))?;
+    plan.validate().map_err(MarkdownError::Core)?;
     Ok(plan)
 }
 

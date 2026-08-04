@@ -995,6 +995,7 @@ dependencies = [
  "jmespath",
  "mdok-core",
  "mdok-curl",
+ "mdok-markdown",
  "mdok-report",
  "mdok-template",
  "percent-encoding",

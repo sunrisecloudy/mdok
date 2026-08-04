@@ -9,9 +9,10 @@
 
 use clap::{Args, Parser, Subcommand};
 use mdok_curl::{CurlError, CurlPlan, CurlPolicy};
+use mdok_markdown::{MarkdownError, parse, plan_document};
 use mdok_report::{
-    CheckReport, Diagnostic, DocumentReport, Event, Redactor, Report, Severity, Status, StepReport,
-    write_atomic_json,
+    CheckReport, Diagnostic, DocumentReport, Event, EventMetadata, Redactor, Report, Severity,
+    Status, StepReport, write_atomic_json,
 };
 use mdok_template::{
     Filter, PathPart, Template, TemplateError, TemplateExpression, TemplatePart,
@@ -364,27 +365,46 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
         results =
             process_documents_parallel(paths, mode, config.clone(), cli.options.clone(), parallel);
     }
-    for document in results {
+    for (document_ordinal, document) in results.into_iter().enumerate() {
         let path = document.path.clone();
         let status = document.status;
-        for step in &document.steps {
-            report.events.push(Event {
-                sequence: report.events.len() as u64,
-                kind: "step.finished".to_string(),
-                document: Some(path.clone()),
-                step: Some(step.name.clone()),
-                status: Some(step.status),
-                message: None,
-            });
+        for (step_ordinal, step) in document.steps.iter().enumerate() {
+            let sequence = report.events.len() as u64;
+            report.push_event(
+                Event {
+                    sequence,
+                    kind: "step.finished".to_string(),
+                    document: Some(path.clone()),
+                    step: Some(step.name.clone()),
+                    status: Some(step.status),
+                    message: None,
+                },
+                Some(EventMetadata {
+                    run_id: Some(report.started_at.clone()),
+                    document_ordinal: Some(document_ordinal),
+                    step_ordinal: Some(step_ordinal),
+                    duration_ms: Some(step.duration_ms),
+                    ..EventMetadata::default()
+                }),
+            );
         }
-        report.events.push(Event {
-            sequence: report.events.len() as u64,
-            kind: "document.finished".to_string(),
-            document: Some(path),
-            step: None,
-            status: Some(status),
-            message: None,
-        });
+        let sequence = report.events.len() as u64;
+        report.push_event(
+            Event {
+                sequence,
+                kind: "document.finished".to_string(),
+                document: Some(path),
+                step: None,
+                status: Some(status),
+                message: None,
+            },
+            Some(EventMetadata {
+                run_id: Some(report.started_at.clone()),
+                document_ordinal: Some(document_ordinal),
+                duration_ms: Some(document.duration_ms),
+                ..EventMetadata::default()
+            }),
+        );
         report.add_document(document);
     }
     report.duration_ms = started.elapsed().as_millis() as u64;
@@ -419,6 +439,13 @@ fn report_exit_code(report: &Report) -> u8 {
         });
     if policy_failure {
         EXIT_POLICY
+    } else if report.documents.iter().any(|document| {
+        document
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == Severity::Error)
+    }) {
+        EXIT_INPUT
     } else if report.summary.has_failures() {
         EXIT_CHECK_FAILED
     } else {
@@ -1103,9 +1130,29 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             };
         }
     };
+    // Keep the Comrak/core plan as the authoritative structural view for
+    // documents that pass the adapter's compatibility checks.  The adapter
+    // still performs CLI-specific template, curl-policy, and secret-taint
+    // validation below, but it no longer has to be the only parser in the
+    // product path.
+    let authoritative = match parse(&source, path.to_path_buf()) {
+        Ok(document) => match plan_document(&document) {
+            Ok(plan) => Ok(plan),
+            Err(error) => Err(error),
+        },
+        Err(error) => Err(error),
+    };
     let fences = parse_fences(&source);
     let mut diagnostics = Vec::new();
     let mut variables = config.vars.clone();
+    if let Ok(core_plan) = &authoritative {
+        for (key, value) in &core_plan.variables {
+            variables.entry(key.clone()).or_insert_with(|| Variable {
+                value: value.clone(),
+                secret: is_secret_name(key),
+            });
+        }
+    }
     let mut steps = Vec::new();
     let mut names = BTreeSet::new();
     let mut inline_names = BTreeSet::new();
@@ -1289,13 +1336,8 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                     );
                     continue;
                 };
-                for expression in fence
-                    .body
-                    .lines()
-                    .map(str::trim)
-                    .filter(|line| !line.is_empty())
-                {
-                    let normalized_expression = normalize_jmespath(expression);
+                for expression in jmespath_expressions(&fence.body, capture) {
+                    let normalized_expression = normalize_jmespath(&expression);
                     if let Err(error) = jmespath::compile(&normalized_expression) {
                         diagnostics.push(
                             Diagnostic::error("MDOK-E500", "Invalid JMESPath", error.to_string())
@@ -1377,11 +1419,51 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             }
         }
     }
-    let plan = DocumentPlan {
+    let mut plan = DocumentPlan {
         path: path.to_path_buf(),
         steps,
         variables,
     };
+    if diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.severity != Severity::Error)
+        && let Err(error) = &authoritative
+    {
+        diagnostics.push(markdown_diagnostic(error, path));
+    }
+    if diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.severity != Severity::Error)
+    {
+        if let Ok(core_plan) = authoritative {
+            let mut by_name = plan
+                .steps
+                .iter()
+                .map(|step| (step.name.clone(), step.clone()))
+                .collect::<BTreeMap<_, _>>();
+            let mut authoritative_steps = Vec::with_capacity(core_plan.steps.len());
+            for core_step in core_plan.steps {
+                let Some(mut step) = by_name.remove(core_step.name.as_str()) else {
+                    continue;
+                };
+                step.raw_command = core_step.curl.source;
+                step.checks = core_step
+                    .checks
+                    .into_iter()
+                    .map(|check| check.expression)
+                    .collect();
+                step.captures = core_step
+                    .captures
+                    .into_iter()
+                    .map(|capture| capture.expression)
+                    .collect();
+                authoritative_steps.push(step);
+            }
+            if authoritative_steps.len() == plan.steps.len() {
+                plan.steps = authoritative_steps;
+            }
+        }
+    }
     for step in &plan.steps {
         for url in positional_args(&step.command) {
             if let Ok(url) = Url::parse(url)
@@ -1404,6 +1486,27 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             plan: Some(plan),
             diagnostics,
         }
+    }
+}
+
+fn markdown_diagnostic(error: &MarkdownError, path: &Path) -> Diagnostic {
+    Diagnostic::error(error.code(), "Markdown planning error", error.to_string()).at_file(path)
+}
+
+fn jmespath_expressions(body: &str, capture: bool) -> Vec<String> {
+    if capture {
+        let expression = body.trim();
+        if expression.is_empty() {
+            Vec::new()
+        } else {
+            vec![expression.to_string()]
+        }
+    } else {
+        body.lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_string)
+            .collect()
     }
 }
 
@@ -2392,4 +2495,58 @@ fn write_text(path: &Path, text: &str) -> Result<(), std::io::Error> {
 
 fn cli_error(code: u8, diagnostic: Diagnostic) -> Box<CliError> {
     Box::new(CliError { code, diagnostic })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capture_fence_is_one_expression_but_checks_are_line_oriented() {
+        let body = "{\n  id: body.id,\n  name: body.name\n}\n";
+        assert_eq!(
+            jmespath_expressions(body, true),
+            vec!["{\n  id: body.id,\n  name: body.name\n}".to_string()]
+        );
+        assert_eq!(
+            jmespath_expressions("status == `200`\nlength(body.items) > `0`\n", false),
+            vec!["status == `200`", "length(body.items) > `0`"]
+        );
+    }
+
+    #[test]
+    fn planning_failures_use_input_exit_code_and_execution_failures_use_check_code() {
+        let mut planning = Report::now();
+        planning.add_document(DocumentReport {
+            path: "plan.md".to_string(),
+            status: Status::Failed,
+            duration_ms: 0,
+            steps: Vec::new(),
+            diagnostics: vec![Diagnostic::error(
+                "MDOK-E500",
+                "Invalid JMESPath",
+                "invalid expression",
+            )],
+        });
+        assert_eq!(report_exit_code(&planning), EXIT_INPUT);
+
+        let mut execution = Report::now();
+        execution.add_document(DocumentReport {
+            path: "run.md".to_string(),
+            status: Status::Failed,
+            duration_ms: 0,
+            steps: vec![StepReport {
+                name: "request".to_string(),
+                status: Status::Failed,
+                diagnostics: vec![Diagnostic::error(
+                    "MDOK-E501",
+                    "Transfer failed",
+                    "connection refused",
+                )],
+                ..StepReport::default()
+            }],
+            diagnostics: Vec::new(),
+        });
+        assert_eq!(report_exit_code(&execution), EXIT_CHECK_FAILED);
+    }
 }

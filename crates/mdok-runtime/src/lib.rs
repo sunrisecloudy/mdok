@@ -70,26 +70,34 @@ impl StepPlan {
 #[derive(Clone, Debug)]
 pub struct CheckPlan {
     pub expression: String,
+    compiled: mdok_jmespath::CompiledExpression,
 }
 impl CheckPlan {
     pub fn new(expression: impl Into<String>) -> Result<Self, RuntimeError> {
         let expression = expression.into();
-        jmespath::compile(&expression)
-            .map_err(|e| RuntimeError::jmes(E_JMES_PARSE, format!("{e}")))?;
-        Ok(Self { expression })
+        let compiled = mdok_jmespath::compile(&expression)
+            .map_err(|e| RuntimeError::jmes(E_JMES_PARSE, e.to_string()))?;
+        Ok(Self {
+            expression,
+            compiled,
+        })
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct CapturePlan {
     pub expression: String,
+    compiled: mdok_jmespath::CompiledExpression,
 }
 impl CapturePlan {
     pub fn new(expression: impl Into<String>) -> Result<Self, RuntimeError> {
         let expression = expression.into();
-        jmespath::compile(&expression)
-            .map_err(|e| RuntimeError::jmes(E_JMES_PARSE, format!("{e}")))?;
-        Ok(Self { expression })
+        let compiled = mdok_jmespath::compile(&expression)
+            .map_err(|e| RuntimeError::jmes(E_JMES_PARSE, e.to_string()))?;
+        Ok(Self {
+            expression,
+            compiled,
+        })
     }
 }
 
@@ -213,7 +221,7 @@ impl DocumentPlan {
             let mut checks = Vec::with_capacity(step.checks.len());
             let mut check_failure = None;
             for check in &step.checks {
-                let result = evaluate(&check.expression, &context);
+                let result = evaluate(&check.compiled, &context);
                 match result {
                     Ok(value) => {
                         if value.as_bool() == Some(true) {
@@ -294,7 +302,7 @@ impl DocumentPlan {
             }
             let mut evaluated_captures = Vec::with_capacity(step.captures.len());
             for capture in &step.captures {
-                let value = evaluate(&capture.expression, &context).map_err(|e| {
+                let value = evaluate(&capture.compiled, &context).map_err(|e| {
                     RuntimeError::diagnostic(E_JMES_TYPE, e, &step.name, &capture.expression, None)
                 })?;
                 evaluated_captures.push((capture.expression.clone(), value));
@@ -329,10 +337,11 @@ impl DocumentPlan {
     }
 }
 
-fn evaluate(expression: &str, context: &Value) -> Result<Value, String> {
-    let compiled = jmespath::compile(expression).map_err(|e| e.to_string())?;
-    let result = compiled.search(context).map_err(|e| e.to_string())?;
-    serde_json::from_str(&result.to_string()).map_err(|e| e.to_string())
+fn evaluate(
+    expression: &mdok_jmespath::CompiledExpression,
+    context: &Value,
+) -> Result<Value, String> {
+    expression.evaluate(context).map_err(|e| e.to_string())
 }
 
 fn resolve_argv(
