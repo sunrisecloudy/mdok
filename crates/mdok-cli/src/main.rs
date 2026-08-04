@@ -488,15 +488,16 @@ fn print_version(options: &CommonOptions) -> Result<u8, Box<CliError>> {
             serde_json::json!({
                 "mdok_version": mdok_report::MDOK_VERSION,
                 "curl_version": mdok_report::CURL_COMPAT_VERSION,
-                "libcurl": "8.21.0-vendored-static",
-                "tls": "vendored-libcurl-with-platform-tls-dependencies",
-                "features": {"runtime_adapter": true, "network_execution": true, "native_curl_bridge": true, "native_curl_fast_path": true}
+                "libcurl": mdok_report::LIBCURL_VERSION,
+                "tls": mdok_report::TLS_BACKEND,
+                "features": {"runtime_adapter": true, "network_execution": true, "native_curl_bridge": true, "native_curl_fast_path": true, "vendored_curl": true}
             })
         );
     } else {
         println!("mdok {}", mdok_report::MDOK_VERSION);
         println!("curl compatibility {}", mdok_report::CURL_COMPAT_VERSION);
-        println!("libcurl: 8.21.0-vendored-static");
+        println!("libcurl: {}", mdok_report::LIBCURL_VERSION);
+        println!("TLS backend: {}", mdok_report::TLS_BACKEND);
         println!("native bridge: plain-GET fast path; compatibility adapter fallback");
     }
     Ok(EXIT_OK)

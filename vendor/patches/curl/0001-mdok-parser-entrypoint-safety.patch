@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MDOK maintainers <maintainers@mdok.dev>
+Date: Tue, 4 Aug 2026 00:00:00 +0700
+Subject: [PATCH] tool: guard the parser entry point for library callers
+
+MDOK embeds curl's command-line parser instead of invoking the curl
+executable.  The upstream entry point assumes process-owned global state has
+already been initialized.  Return the existing parameter error for malformed
+embedding calls so the bridge can report the failure without dereferencing a
+null global or operation configuration.
+---
+ src/tool_getparam.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/tool_getparam.c b/src/tool_getparam.c
+index 35c01b1..05ac372 100644
+--- a/src/tool_getparam.c
++++ b/src/tool_getparam.c
+@@ -3126,7 +3126,14 @@ ParameterError parse_args(int argc, argv_item_t argv[])
+   bool stillflags;
+   const char *orig_opt = NULL;
+   ParameterError err = PARAM_OK;
+-  struct OperationConfig *config = global->first;
++  struct OperationConfig *config;
++
++  /* MDOK calls the curl tool parser as a library entry point.  Keep malformed
++     embedding calls in the normal error-return path instead of dereferencing
++     the process-global parser state. */
++  if(argc <= 0 || !argv || !global || !global->first)
++    return PARAM_BAD_USE;
++  config = global->first;
+ 
+   stillflags = TRUE;
+   for(i = 1; i < argc && !err; i++) {
+-- 
+2.45.2

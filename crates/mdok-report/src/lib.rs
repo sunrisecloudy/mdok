@@ -18,7 +18,14 @@ use thiserror::Error;
 
 pub const SCHEMA_VERSION: &str = "1";
 pub const MDOK_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const CURL_COMPAT_VERSION: &str = "8.21";
+pub const CURL_SOURCE_VERSION: &str = env!("MDOK_CURL_SOURCE_VERSION");
+pub const CURL_COMPAT_VERSION: &str = env!("MDOK_CURL_COMPAT_VERSION");
+pub const LIBCURL_VERSION: &str = concat!(env!("MDOK_CURL_SOURCE_VERSION"), "-vendored-static");
+
+#[cfg(target_os = "windows")]
+pub const TLS_BACKEND: &str = "Schannel";
+#[cfg(not(target_os = "windows"))]
+pub const TLS_BACKEND: &str = "OpenSSL";
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]

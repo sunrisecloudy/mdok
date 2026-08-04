@@ -3126,7 +3126,14 @@ ParameterError parse_args(int argc, argv_item_t argv[])
   bool stillflags;
   const char *orig_opt = NULL;
   ParameterError err = PARAM_OK;
-  struct OperationConfig *config = global->first;
+  struct OperationConfig *config;
+
+  /* MDOK calls the curl tool parser as a library entry point.  Keep malformed
+     embedding calls in the normal error-return path instead of dereferencing
+     the process-global parser state. */
+  if(argc <= 0 || !argv || !global || !global->first)
+    return PARAM_BAD_USE;
+  config = global->first;
 
   stillflags = TRUE;
   for(i = 1; i < argc && !err; i++) {

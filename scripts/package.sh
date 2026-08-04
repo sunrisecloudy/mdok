@@ -24,7 +24,13 @@ case "$target" in
 esac
 cp "$binary" "$stage/$binary_name"
 cp "$root/LICENSE" "$root/THIRD_PARTY.md" "$root/vendor/curl/COPYING" "$stage/"
+mkdir -p "$stage/patches/curl"
+cp "$root/vendor/patches/curl"/*.patch "$stage/patches/curl/"
 python3 "$root/scripts/generate_sbom.py" --output "$stage/mdok.spdx.json"
+python3 "$root/scripts/generate_provenance.py" \
+  --binary "$binary" \
+  --target "$target" \
+  --output "$stage/mdok.provenance.json"
 python3 "$root/scripts/create_reproducible_archive.py" \
   --source "$stage" \
   --prefix "$archive_base" \

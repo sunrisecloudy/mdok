@@ -23,6 +23,8 @@ jobs:
         run: cargo test --locked --workspace --all-features
       - name: Verify vendored curl option policy
         run: python3 scripts/sync_curl_options.py
+      - name: Verify vendored curl patch series
+        run: python3 scripts/verify_curl_patch.py
       - name: Verify corpus manifest
         run: python3 mdok-prd/scripts/validate_corpus.py
       - name: Generate and validate SBOM

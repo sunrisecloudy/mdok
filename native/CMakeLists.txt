@@ -99,7 +99,9 @@ target_compile_definitions(mdok_curl_tool_parser PRIVATE
   HAVE_CONFIG_H
 )
 if(NOT MSVC)
-  target_compile_options(mdok_curl_tool_parser PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(mdok_curl_tool_parser PRIVATE -Wall -Wextra -Wpedantic -Werror)
+else()
+  target_compile_options(mdok_curl_tool_parser PRIVATE /W4 /WX)
 endif()
 
 # The Rust linker sees the bridge archive, not CMake's target graph. Install
@@ -139,7 +141,9 @@ target_include_directories(mdok_curl_bridge PUBLIC include PRIVATE
 target_link_libraries(mdok_curl_bridge PRIVATE mdok_curl_tool_parser libcurl)
 target_compile_definitions(mdok_curl_bridge PRIVATE CURL_STATICLIB=1 HAVE_CONFIG_H)
 if(NOT MSVC)
-  target_compile_options(mdok_curl_bridge PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(mdok_curl_bridge PRIVATE -Wall -Wextra -Wpedantic -Werror)
+else()
+  target_compile_options(mdok_curl_bridge PRIVATE /W4 /WX)
 endif()
 
 install(TARGETS mdok_curl_bridge ARCHIVE DESTINATION lib)
