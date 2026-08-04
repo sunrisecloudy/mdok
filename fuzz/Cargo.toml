@@ -1,0 +1,40 @@
+[package]
+name = "mdok-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mdok-core = { path = "../crates/mdok-core" }
+mdok-curl-sys = { path = "../crates/mdok-curl-sys" }
+mdok-markdown = { path = "../crates/mdok-markdown" }
+mdok-shell = { path = "../crates/mdok-shell" }
+mdok-template = { path = "../crates/mdok-template" }
+serde_json = "1"
+
+[[bin]]
+name = "markdown"
+path = "fuzz_targets/markdown.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "shell_template"
+path = "fuzz_targets/shell_template.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "curl_ffi"
+path = "fuzz_targets/curl_ffi.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

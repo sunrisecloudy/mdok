@@ -1,0 +1,1 @@
+curl --silent --request GET https://example.test/hello --header X-Mdok:one

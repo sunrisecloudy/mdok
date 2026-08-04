@@ -1,0 +1,20 @@
+[package]
+name = "mdok-benchmarks"
+version = "0.0.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+
+[[bench]]
+name = "prd"
+harness = false
+
+[dependencies]
+criterion.workspace = true
+mdok-core = { path = "../mdok-core" }
+mdok-curl = { path = "../mdok-curl" }
+mdok-jmespath = { path = "../mdok-jmespath" }
+mdok-markdown = { path = "../mdok-markdown" }
+mdok-report = { path = "../mdok-report" }
+mdok-shell = { path = "../mdok-shell" }
+serde_json.workspace = true
