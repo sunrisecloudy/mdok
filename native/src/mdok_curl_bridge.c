@@ -1,5 +1,6 @@
 #include "mdok_curl.h"
 #include "mdok_curl_tool_parser.h"
+#include "tool_libinfo.h"
 
 #include <curl/curl.h>
 #include <stdatomic.h>
@@ -102,6 +103,9 @@ static int is_option(const char *value, const char *long_name, const char *short
 
 mdok_curl_status mdok_curl_global_init(void) {
   CURLcode result = curl_global_init(CURL_GLOBAL_DEFAULT);
+  if (result == CURLE_OK) {
+    result = get_libcurl_info();
+  }
   if (result != CURLE_OK) {
     set_error(NULL, (int32_t)result, curl_easy_strerror(result));
     return MDOK_CURL_INTERNAL_ERROR;

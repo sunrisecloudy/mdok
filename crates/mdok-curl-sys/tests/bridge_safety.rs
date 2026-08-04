@@ -277,4 +277,15 @@ fn upstream_tool_parser_normalizes_supported_options_and_rejects_unsafe_shapes()
     .expect("unknown options must be rejected by curl's parser");
     assert_eq!(unknown.status, MDOK_CURL_PARSE_ERROR);
     assert!(unknown.code >= 300);
+
+    let get_with_body = Plan::parse(&[
+        b"curl".as_slice(),
+        b"--get".as_slice(),
+        b"--data".as_slice(),
+        b"query=value".as_slice(),
+        b"file:///dev/null".as_slice(),
+    ])
+    .err()
+    .expect("unsupported --get body semantics must be rejected");
+    assert_eq!(get_with_body.status, MDOK_CURL_PARSE_ERROR);
 }

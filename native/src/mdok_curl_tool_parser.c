@@ -323,6 +323,7 @@ static mdok_curl_status reject_if_unsupported(
      config->mimeroot || config->mimepost || config->upload_flags != CURLULFLAG_SEEN ||
      config->writeout || global->trace_dump || global->libcurl ||
      global->parallel || global->parallel_connect || config->remote_name_all ||
+     config->use_httpget ||
      config->no_body || config->use_resume || config->resume_from_current ||
      config->httpreq == TOOL_HTTPREQ_PUT || config->httpreq == TOOL_HTTPREQ_MIMEPOST ||
      config->httpgetfields) {
@@ -338,6 +339,7 @@ mdok_curl_status mdok_curl_tool_parse(
     mdok_curl_error *out_error)
 {
   char **owned_argv = NULL;
+  size_t owned_argc;
   size_t index;
   ParameterError parse_error;
   struct OperationConfig *config;
@@ -347,7 +349,7 @@ mdok_curl_status mdok_curl_tool_parse(
     memset(out_result, 0, sizeof(*out_result));
   clear_error(out_error);
   if(!out_result || !argv || !argv->argv || argv->argc == 0 ||
-     argv->argc > MDOK_TOOL_MAX_ARGC) {
+     argv->argc >= MDOK_TOOL_MAX_ARGC) {
     set_error(out_error, 1, "invalid curl argv");
     return MDOK_CURL_PARSE_ERROR;
   }
@@ -359,7 +361,8 @@ mdok_curl_status mdok_curl_tool_parse(
   if(status != MDOK_CURL_OK)
     return status;
 
-  owned_argv = (char **)calloc(argv->argc, sizeof(*owned_argv));
+  owned_argc = argv->argc + 1;
+  owned_argv = (char **)calloc(owned_argc, sizeof(*owned_argv));
   if(!owned_argv) {
     set_error(out_error, 0, "curl argv allocation failed");
     return MDOK_CURL_INTERNAL_ERROR;
@@ -369,9 +372,15 @@ mdok_curl_status mdok_curl_tool_parse(
      * Serialize the short parse/copy critical section rather than exposing
      * that mutable state to concurrent FFI callers. */
   }
-  for(index = 0; index < argv->argc; index++) {
-    owned_argv[index] = copy_slice(argv->argv[index]);
-    if(!owned_argv[index]) {
+  owned_argv[0] = duplicate_string("curl");
+  owned_argv[1] = duplicate_string("-q");
+  if(!owned_argv[0] || !owned_argv[1]) {
+    set_error(out_error, 0, "curl parser guard allocation failed");
+    goto parse_error_out;
+  }
+  for(index = 1; index < argv->argc; index++) {
+    owned_argv[index + 1] = copy_slice(argv->argv[index]);
+    if(!owned_argv[index + 1]) {
       set_error(out_error, 1, "invalid or oversized curl argv slice");
       goto parse_error_out;
     }
@@ -384,7 +393,7 @@ mdok_curl_status mdok_curl_tool_parse(
     goto internal_error;
   }
   global->silent = TRUE;
-  parse_error = parse_args((int)argv->argc, owned_argv);
+  parse_error = parse_args((int)owned_argc, owned_argv);
   if(parse_error != PARAM_OK) {
     set_error(out_error, 300 + (int32_t)parse_error,
               "upstream curl tool parser rejected argv");
@@ -434,7 +443,7 @@ mdok_curl_status mdok_curl_tool_parse(
     goto internal_error;
   }
   parser_end();
-  for(index = 0; index < argv->argc; index++)
+  for(index = 0; index < owned_argc; index++)
     free(owned_argv[index]);
   free(owned_argv);
   atomic_flag_clear(&mdok_parser_lock);
@@ -443,7 +452,7 @@ mdok_curl_status mdok_curl_tool_parse(
 internal_error:
   mdok_curl_tool_result_free(out_result);
 parse_error_out:
-  for(index = 0; index < argv->argc; index++)
+  for(index = 0; index < owned_argc; index++)
     free(owned_argv[index]);
   free(owned_argv);
   atomic_flag_clear(&mdok_parser_lock);

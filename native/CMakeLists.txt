@@ -31,6 +31,11 @@ set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "" FORCE)
 if(NOT WIN32)
   find_package(OpenSSL REQUIRED)
   find_package(ZLIB REQUIRED)
+  set(CURL_USE_OPENSSL ON CACHE BOOL "" FORCE)
+else()
+  set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
+  set(CURL_WINDOWS_SSPI ON CACHE BOOL "" FORCE)
+  set(CURL_USE_OPENSSL OFF CACHE BOOL "" FORCE)
 endif()
 
 add_subdirectory(../vendor/curl vendor-curl EXCLUDE_FROM_ALL)
@@ -124,9 +129,15 @@ if(TARGET libcurl_static)
 endif()
 
 add_library(mdok_curl_bridge STATIC src/mdok_curl_bridge.c)
-target_include_directories(mdok_curl_bridge PUBLIC include)
+target_include_directories(mdok_curl_bridge PUBLIC include PRIVATE
+  ../vendor/curl/lib
+  ../vendor/curl/src
+  ../vendor/curl/include
+  ${CMAKE_CURRENT_BINARY_DIR}/vendor-curl/lib
+  ${CMAKE_CURRENT_BINARY_DIR}/vendor-curl/src
+)
 target_link_libraries(mdok_curl_bridge PRIVATE mdok_curl_tool_parser libcurl)
-target_compile_definitions(mdok_curl_bridge PRIVATE CURL_STATICLIB=1)
+target_compile_definitions(mdok_curl_bridge PRIVATE CURL_STATICLIB=1 HAVE_CONFIG_H)
 if(NOT MSVC)
   target_compile_options(mdok_curl_bridge PRIVATE -Wall -Wextra -Wpedantic)
 endif()
