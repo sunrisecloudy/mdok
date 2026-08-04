@@ -1567,11 +1567,13 @@ fn denied_address(address: std::net::IpAddr) -> bool {
 }
 
 fn host_matches_pattern(host: &str, pattern: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    let pattern = pattern.to_ascii_lowercase();
     pattern == "*"
-        || pattern.eq_ignore_ascii_case(host)
-        || pattern.strip_prefix("*.").is_some_and(|suffix| {
-            host.ends_with(&format!(".{suffix}")) || host.eq_ignore_ascii_case(suffix)
-        })
+        || pattern == host
+        || pattern
+            .strip_prefix("*.")
+            .is_some_and(|suffix| host.ends_with(&format!(".{suffix}")) || host == suffix)
 }
 fn parse_resolve(value: &str) -> Result<(String, u16, SocketAddr), CurlError> {
     let mut parts = value.rsplitn(3, ':');
@@ -1806,6 +1808,13 @@ mod tests {
     fn rejects_file_protocol() {
         let e = parse(&["curl", "file:///tmp/a"]).unwrap_err();
         assert_eq!(e.code, E_PROTOCOL_DENIED);
+    }
+
+    #[test]
+    fn host_patterns_are_case_insensitive() {
+        assert!(host_matches_pattern("API.EXAMPLE.COM", "*.Example.Com"));
+        assert!(host_matches_pattern("Example.Com", "*.example.com"));
+        assert!(!host_matches_pattern("api.example.net", "*.Example.Com"));
     }
 
     #[test]

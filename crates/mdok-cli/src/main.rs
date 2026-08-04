@@ -1275,11 +1275,13 @@ fn enforce_policy(url: &Url, config: &EffectiveConfig) -> Result<(), Diagnostic>
 }
 
 fn host_matches(host: &str, pattern: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    let pattern = pattern.to_ascii_lowercase();
     pattern == "*"
-        || pattern.eq_ignore_ascii_case(host)
-        || pattern.strip_prefix("*.").is_some_and(|suffix| {
-            host.ends_with(&format!(".{suffix}")) || host.eq_ignore_ascii_case(suffix)
-        })
+        || pattern == host
+        || pattern
+            .strip_prefix("*.")
+            .is_some_and(|suffix| host.ends_with(&format!(".{suffix}")) || host == suffix)
 }
 
 fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
