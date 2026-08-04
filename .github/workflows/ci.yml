@@ -1,0 +1,35 @@
+name: mdok-ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run Clippy with warnings denied
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - name: Run Rust tests
+        run: cargo test --locked --workspace --all-features
+      - name: Verify vendored curl option policy
+        run: python3 scripts/sync_curl_options.py
+      - name: Verify corpus manifest
+        run: python3 mdok-prd/scripts/validate_corpus.py
+      - name: Generate and validate SBOM
+        run: |
+          python3 scripts/generate_sbom.py --output /tmp/mdok.spdx.json
+          python3 -c 'import json; d=json.load(open("/tmp/mdok.spdx.json")); assert d["spdxVersion"] == "SPDX-2.3" and any(p["name"] == "curl" for p in d["packages"])'
+      - name: Build CLI
+        run: cargo build --locked -p mdok-cli
+      - name: Run plan-stage corpus
+        run: python3 scripts/run_corpus.py --stage plan --binary target/debug/mdok
