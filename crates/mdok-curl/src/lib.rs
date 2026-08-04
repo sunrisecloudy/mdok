@@ -923,6 +923,8 @@ impl CurlPlan {
                     || argument.starts_with("-u")
                     || argument.starts_with("-x")
             })
+            && !self.native_argv_has_file_body()
+            && !self.native_argv_has_empty_header()
             && !matches!(self.body, Some(RequestBody::Multipart(_)))
             && self.user.is_none()
             && self.bearer.is_none()
@@ -936,6 +938,48 @@ impl CurlPlan {
             && self.resolve.is_empty()
             && self.connect_to.is_empty()
             && self.retries == 0
+            && !self.compressed
+    }
+
+    fn native_argv_has_file_body(&self) -> bool {
+        self.native_argv
+            .iter()
+            .enumerate()
+            .any(|(index, argument)| {
+                let (option, attached) = argument
+                    .split_once('=')
+                    .map_or((argument.as_str(), None), |(option, value)| {
+                        (option, Some(value))
+                    });
+                let body_option = matches!(
+                    option,
+                    "--data" | "-d" | "--data-binary" | "--data-urlencode" | "--json"
+                ) || (option == "-d" && argument.len() > 2);
+                if !body_option {
+                    return false;
+                }
+                attached
+                    .or_else(|| self.native_argv.get(index + 1).map(String::as_str))
+                    .is_some_and(|value| value.starts_with('@'))
+            })
+    }
+
+    fn native_argv_has_empty_header(&self) -> bool {
+        self.native_argv
+            .iter()
+            .enumerate()
+            .any(|(index, argument)| {
+                let value = if argument == "--header" || argument == "-H" {
+                    self.native_argv.get(index + 1).map(String::as_str)
+                } else if let Some(value) = argument.strip_prefix("--header=") {
+                    Some(value)
+                } else if argument.starts_with("-H") && argument.len() > 2 {
+                    Some(&argument[2..])
+                } else {
+                    None
+                };
+                value.is_some_and(|value| value.ends_with(':'))
+            })
     }
 
     fn execute_native(&self, policy: &CurlPolicy) -> Result<TransferResponse, CurlError> {
@@ -961,7 +1005,9 @@ impl CurlPlan {
         let transfer = session
             .execute_limited(&parsed, max_body_bytes, policy.max_header_bytes)
             .map_err(|error| {
-                if matches!(
+                if error.code == mdok_curl_sys::TIMEOUT_ERROR_CODE {
+                    CurlError::new(E_TIMEOUT, error.message)
+                } else if matches!(
                     error.code,
                     mdok_curl_sys::BODY_LIMIT_ERROR_CODE | mdok_curl_sys::HEADER_LIMIT_ERROR_CODE
                 ) {

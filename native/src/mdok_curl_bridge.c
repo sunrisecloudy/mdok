@@ -251,6 +251,7 @@ static CURLcode configure_easy(CURL *easy, const mdok_curl_plan *plan, const mdo
   } while (0)
   MDOK_SETOPT(CURLOPT_URL, plan->url);
   MDOK_SETOPT(CURLOPT_CUSTOMREQUEST, plan->method);
+  MDOK_SETOPT(CURLOPT_NOBODY, strcmp(plan->method, "HEAD") == 0);
   MDOK_SETOPT(CURLOPT_HTTPHEADER, plan->headers);
   MDOK_SETOPT(CURLOPT_FOLLOWLOCATION, plan->follow);
   MDOK_SETOPT(CURLOPT_MAXREDIRS, plan->max_redirs);

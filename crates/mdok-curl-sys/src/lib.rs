@@ -79,6 +79,7 @@ pub struct BridgeError {
 
 pub const BODY_LIMIT_ERROR_CODE: i32 = -10_001;
 pub const HEADER_LIMIT_ERROR_CODE: i32 = -10_002;
+pub const TIMEOUT_ERROR_CODE: i32 = 28; // libcurl CURLE_OPERATION_TIMEDOUT
 
 const DEFAULT_NATIVE_BODY_LIMIT: usize = 128 * 1024 * 1024;
 const DEFAULT_NATIVE_HEADER_LIMIT: usize = 16 * 1024 * 1024;
