@@ -104,6 +104,37 @@ pub struct Diagnostic {
     pub hint: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub redactions: Vec<String>,
+    /// Optional machine-readable execution context. These fields are
+    /// additive so reports produced without context retain their existing
+    /// wire representation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cause_chain: Vec<DiagnosticCause>,
+}
+
+/// A redacted, machine-readable cause in a diagnostic's causal chain.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct DiagnosticCause {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed: Option<Value>,
 }
 
 impl Diagnostic {
@@ -124,6 +155,14 @@ impl Diagnostic {
             observed: None,
             hint: None,
             redactions: Vec::new(),
+            run_id: None,
+            document_ordinal: None,
+            step_ordinal: None,
+            check_ordinal: None,
+            capture_ordinal: None,
+            expression: None,
+            result: None,
+            cause_chain: Vec::new(),
         }
     }
 
@@ -134,6 +173,40 @@ impl Diagnostic {
 
     pub fn at_step(mut self, step: impl Into<String>) -> Self {
         self.step = Some(step.into());
+        self
+    }
+
+    pub fn with_run_id(mut self, run_id: impl Into<String>) -> Self {
+        self.run_id = Some(run_id.into());
+        self
+    }
+
+    pub fn with_ordinals(
+        mut self,
+        document: Option<usize>,
+        step: Option<usize>,
+        check: Option<usize>,
+        capture: Option<usize>,
+    ) -> Self {
+        self.document_ordinal = document;
+        self.step_ordinal = step;
+        self.check_ordinal = check;
+        self.capture_ordinal = capture;
+        self
+    }
+
+    pub fn with_expression(mut self, expression: impl Into<String>) -> Self {
+        self.expression = Some(expression.into());
+        self
+    }
+
+    pub fn with_result(mut self, result: Value) -> Self {
+        self.result = Some(result);
+        self
+    }
+
+    pub fn caused_by(mut self, cause: DiagnosticCause) -> Self {
+        self.cause_chain.push(cause);
         self
     }
 }
@@ -181,6 +254,56 @@ pub struct Event {
     pub message: Option<String>,
 }
 
+/// Optional structured context for an event.
+///
+/// `Event` remains source-compatible with the existing CLI's struct literals;
+/// callers that have richer execution context attach it through `Report`.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct EventMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture_ordinal: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+}
+
+impl EventMetadata {
+    pub fn is_empty(&self) -> bool {
+        self.run_id.is_none()
+            && self.document_ordinal.is_none()
+            && self.step_ordinal.is_none()
+            && self.check_ordinal.is_none()
+            && self.capture_ordinal.is_none()
+            && self.timestamp.is_none()
+            && self.duration_ms.is_none()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct EventMetadataRecord {
+    pub sequence: u64,
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+}
+
+/// The JSON-lines representation of an event with optional PRD metadata.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct EventRecord {
+    #[serde(flatten)]
+    pub event: Event,
+    #[serde(flatten)]
+    pub metadata: EventMetadata,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Report {
     pub schema_version: String,
@@ -194,6 +317,8 @@ pub struct Report {
     pub diagnostics: Vec<Diagnostic>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<Event>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub event_metadata: Vec<EventMetadataRecord>,
 }
 
 impl Report {
@@ -208,6 +333,7 @@ impl Report {
             documents: Vec::new(),
             diagnostics: Vec::new(),
             events: Vec::new(),
+            event_metadata: Vec::new(),
         }
     }
 
@@ -227,6 +353,50 @@ impl Report {
                 .count();
         }
         self.documents.push(document);
+    }
+
+    /// Append an event and, when supplied, its optional structured context.
+    /// Existing callers may continue to push directly to `events`.
+    pub fn push_event(&mut self, event: Event, metadata: Option<EventMetadata>) {
+        if let Some(metadata) = metadata {
+            self.set_event_metadata(event.sequence, metadata);
+        }
+        self.events.push(event);
+    }
+
+    pub fn set_event_metadata(&mut self, sequence: u64, metadata: EventMetadata) {
+        if metadata.is_empty() {
+            self.event_metadata
+                .retain(|record| record.sequence != sequence);
+            return;
+        }
+        if let Some(record) = self
+            .event_metadata
+            .iter_mut()
+            .find(|record| record.sequence == sequence)
+        {
+            record.metadata = metadata;
+        } else {
+            self.event_metadata
+                .push(EventMetadataRecord { sequence, metadata });
+        }
+    }
+
+    /// Return events in wire order with optional metadata flattened into each
+    /// record. With no metadata this serializes identically to `Event`.
+    pub fn event_records(&self) -> Vec<EventRecord> {
+        self.events
+            .iter()
+            .map(|event| EventRecord {
+                event: event.clone(),
+                metadata: self
+                    .event_metadata
+                    .iter()
+                    .find(|record| record.sequence == event.sequence)
+                    .map(|record| record.metadata.clone())
+                    .unwrap_or_default(),
+            })
+            .collect()
     }
 
     pub fn json(&self) -> Result<String, ReportError> {
@@ -285,30 +455,31 @@ impl Report {
     pub fn junit(&self) -> String {
         let mut output = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites>");
         for document in &self.documents {
-            let failures = usize::from(document.status.is_failure());
+            // Build the cases first, then derive both attributes from the
+            // cases that are actually emitted. This keeps the JUnit counts
+            // correct when a step has several checks or a document has more
+            // than one diagnostic.
+            let cases = junit_cases(document);
+            let tests = cases.len();
+            let failures = cases.iter().filter(|case| case.failure.is_some()).count();
             let _ = write!(
                 output,
                 "<testsuite name=\"{}\" tests=\"{}\" failures=\"{}\" time=\"{}\">",
                 xml_escape(&document.path),
-                document.steps.len(),
+                tests,
                 failures,
                 document.duration_ms as f64 / 1000.0
             );
-            for step in &document.steps {
+            for case in cases {
                 let _ = write!(
                     output,
                     "<testcase name=\"{}\" time=\"{}\">",
-                    xml_escape(&step.name),
-                    step.duration_ms as f64 / 1000.0
+                    xml_escape(&case.name),
+                    case.duration_ms as f64 / 1000.0
                 );
-                if step.status.is_failure() || !step.diagnostics.is_empty() {
-                    let message = step
-                        .diagnostics
-                        .first()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .unwrap_or("step failed");
-                    let _ = write!(output, "<failure message=\"{}\"/>", xml_escape(message));
-                } else if step.status == Status::Skipped {
+                if let Some(message) = case.failure {
+                    let _ = write!(output, "<failure message=\"{}\"/>", xml_escape(&message));
+                } else if case.skipped {
                     output.push_str("<skipped/>");
                 }
                 output.push_str("</testcase>");
@@ -321,8 +492,8 @@ impl Report {
 
     pub fn json_lines(&self) -> Result<String, ReportError> {
         let mut output = String::new();
-        for event in &self.events {
-            output.push_str(&serde_json::to_string(event).map_err(ReportError::Serialize)?);
+        for event in self.event_records() {
+            output.push_str(&serde_json::to_string(&event).map_err(ReportError::Serialize)?);
             output.push('\n');
         }
         Ok(output)
@@ -431,6 +602,110 @@ fn write_diagnostic(output: &mut String, diagnostic: &Diagnostic) {
     }
 }
 
+#[derive(Debug)]
+struct JunitCase {
+    name: String,
+    duration_ms: u64,
+    failure: Option<String>,
+    skipped: bool,
+}
+
+fn junit_cases(document: &DocumentReport) -> Vec<JunitCase> {
+    let mut cases = Vec::new();
+    for step in &document.steps {
+        let failure = step_has_execution_failure(step).then(|| step_failure_message(step));
+        cases.push(JunitCase {
+            name: step.name.clone(),
+            duration_ms: step.duration_ms,
+            skipped: failure.is_none() && matches!(step.status, Status::Skipped | Status::Planned),
+            failure,
+        });
+
+        let mut failed_check_number = 0;
+        for (index, check) in step.checks.iter().enumerate() {
+            let failure = if check.status.is_failure() {
+                let message = check_failure_message(step, index, failed_check_number, check);
+                failed_check_number += 1;
+                Some(message)
+            } else {
+                None
+            };
+            cases.push(JunitCase {
+                name: format!("{} :: check {}", step.name, index + 1),
+                duration_ms: 0,
+                skipped: failure.is_none()
+                    && matches!(check.status, Status::Skipped | Status::Planned),
+                failure,
+            });
+        }
+    }
+
+    for (index, diagnostic) in document
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == Severity::Error)
+        .enumerate()
+    {
+        cases.push(JunitCase {
+            name: format!("document diagnostic {}", index + 1),
+            duration_ms: 0,
+            failure: Some(diagnostic.message.clone()),
+            skipped: false,
+        });
+    }
+
+    if document.status.is_failure() && !cases.iter().any(|case| case.failure.is_some()) {
+        cases.push(JunitCase {
+            name: "document".to_string(),
+            duration_ms: 0,
+            failure: Some("document failed".to_string()),
+            skipped: false,
+        });
+    }
+    cases
+}
+
+fn step_failure_message(step: &StepReport) -> String {
+    step.diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity == Severity::Error)
+        .map(|diagnostic| diagnostic.message.clone())
+        .unwrap_or_else(|| "step failed".to_string())
+}
+
+fn check_failure_message(
+    step: &StepReport,
+    check_index: usize,
+    failed_check_number: usize,
+    check: &CheckReport,
+) -> String {
+    let diagnostic = step.diagnostics.iter().find(|diagnostic| {
+        diagnostic.severity == Severity::Error
+            && (diagnostic.expression.as_deref() == Some(check.expression.as_str())
+                || diagnostic.check_ordinal == Some(check_index))
+    });
+    let diagnostic = diagnostic.or_else(|| {
+        step.diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.severity == Severity::Error && diagnostic.code == "MDOK-E502"
+            })
+            .nth(failed_check_number)
+    });
+    diagnostic
+        .map(|diagnostic| diagnostic.message.clone())
+        .unwrap_or_else(|| format!("check failed: {}", check.expression))
+}
+
+fn step_has_execution_failure(step: &StepReport) -> bool {
+    let has_failed_check = step.checks.iter().any(|check| check.status.is_failure());
+    let has_non_assertion_error = step
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity == Severity::Error && diagnostic.code != "MDOK-E502");
+    has_non_assertion_error || (step.status.is_failure() && !has_failed_check)
+}
+
 fn xml_escape(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -532,5 +807,239 @@ mod tests {
         let parsed: Report = serde_json::from_str(&fs::read_to_string(path).expect("read report"))
             .expect("parse report");
         assert_eq!(parsed.schema_version, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn junit_counts_each_failed_check_and_execution_separately() {
+        let assertion_diagnostic =
+            || Diagnostic::error("MDOK-E502", "Check failed", "assertion was false");
+        let report = Report {
+            schema_version: SCHEMA_VERSION.to_string(),
+            mdok_version: MDOK_VERSION.to_string(),
+            curl_version: CURL_COMPAT_VERSION.to_string(),
+            started_at: "unix-ms:1".to_string(),
+            duration_ms: 12,
+            summary: Summary::default(),
+            documents: vec![DocumentReport {
+                path: "workflow.md".to_string(),
+                status: Status::Failed,
+                duration_ms: 12,
+                steps: vec![
+                    StepReport {
+                        name: "login".to_string(),
+                        status: Status::Failed,
+                        command: Vec::new(),
+                        checks: vec![
+                            CheckReport {
+                                expression: "status == `200`".to_string(),
+                                status: Status::Failed,
+                                result: Some(Value::Bool(false)),
+                            },
+                            CheckReport {
+                                expression: "body.ok".to_string(),
+                                status: Status::Failed,
+                                result: Some(Value::Bool(false)),
+                            },
+                            CheckReport {
+                                expression: "status == `500`".to_string(),
+                                status: Status::Passed,
+                                result: Some(Value::Bool(true)),
+                            },
+                        ],
+                        captures: Vec::new(),
+                        diagnostics: vec![assertion_diagnostic(), assertion_diagnostic()],
+                        duration_ms: 4,
+                    },
+                    StepReport {
+                        name: "request".to_string(),
+                        status: Status::Error,
+                        command: Vec::new(),
+                        checks: Vec::new(),
+                        captures: Vec::new(),
+                        diagnostics: vec![Diagnostic::error(
+                            "MDOK-E600",
+                            "Transfer failed",
+                            "connection failed",
+                        )],
+                        duration_ms: 8,
+                    },
+                ],
+                diagnostics: Vec::new(),
+            }],
+            diagnostics: Vec::new(),
+            events: Vec::new(),
+            event_metadata: Vec::new(),
+        };
+
+        let junit = report.junit();
+        assert!(junit.contains("tests=\"5\" failures=\"3\""));
+        assert_eq!(junit.matches("<testcase ").count(), 5);
+        assert_eq!(junit.matches("<failure ").count(), 3);
+        assert!(junit.contains("login :: check 1"));
+        assert!(junit.contains("login :: check 2"));
+        assert!(junit.contains("connection failed"));
+    }
+
+    #[test]
+    fn junit_represents_document_errors_without_steps() {
+        let report = Report {
+            schema_version: SCHEMA_VERSION.to_string(),
+            mdok_version: MDOK_VERSION.to_string(),
+            curl_version: CURL_COMPAT_VERSION.to_string(),
+            started_at: "unix-ms:1".to_string(),
+            duration_ms: 0,
+            summary: Summary::default(),
+            documents: vec![DocumentReport {
+                path: "invalid.md".to_string(),
+                status: Status::Error,
+                duration_ms: 0,
+                steps: Vec::new(),
+                diagnostics: vec![Diagnostic::error(
+                    "MDOK-E100",
+                    "Invalid document",
+                    "metadata is malformed",
+                )],
+            }],
+            diagnostics: Vec::new(),
+            events: Vec::new(),
+            event_metadata: Vec::new(),
+        };
+
+        let junit = report.junit();
+        assert!(junit.contains("tests=\"1\" failures=\"1\""));
+        assert!(junit.contains("document diagnostic 1"));
+        assert!(junit.contains("metadata is malformed"));
+    }
+
+    #[test]
+    fn metadata_is_additive_and_flattened_for_event_lines() {
+        let base = Diagnostic::error("MDOK-E502", "Check failed", "assertion was false");
+        let base_json = serde_json::to_value(&base).expect("serialize base diagnostic");
+        assert!(base_json.get("run_id").is_none());
+        assert!(base_json.get("expression").is_none());
+        assert!(base_json.get("cause_chain").is_none());
+
+        let empty_report_json =
+            serde_json::to_value(Report::new("unix-ms:1")).expect("serialize empty report");
+        assert!(empty_report_json.get("event_metadata").is_none());
+
+        let enriched = base
+            .with_run_id("run-1")
+            .with_ordinals(Some(2), Some(1), Some(0), None)
+            .with_expression("status == `200`")
+            .with_result(serde_json::json!({"status": 401}))
+            .caused_by(DiagnosticCause {
+                code: Some("MDOK-E600".to_string()),
+                kind: Some("transport".to_string()),
+                message: "request failed".to_string(),
+                observed: None,
+            });
+        let enriched_json = serde_json::to_value(&enriched).expect("serialize enriched diagnostic");
+        assert_eq!(enriched_json["run_id"], "run-1");
+        assert_eq!(enriched_json["document_ordinal"], 2);
+        assert_eq!(enriched_json["check_ordinal"], 0);
+        assert_eq!(enriched_json["expression"], "status == `200`");
+        assert_eq!(enriched_json["cause_chain"][0]["code"], "MDOK-E600");
+
+        let mut report = Report::new("unix-ms:1");
+        report.push_event(
+            Event {
+                sequence: 7,
+                kind: "check.finished".to_string(),
+                document: Some("workflow.md".to_string()),
+                step: Some("login".to_string()),
+                status: Some(Status::Failed),
+                message: None,
+            },
+            Some(EventMetadata {
+                run_id: Some("run-1".to_string()),
+                document_ordinal: Some(2),
+                step_ordinal: Some(1),
+                check_ordinal: Some(0),
+                capture_ordinal: None,
+                timestamp: Some("unix-ms:2".to_string()),
+                duration_ms: Some(3),
+            }),
+        );
+
+        let event_lines = report.json_lines().expect("serialize event line");
+        let line = event_lines.lines().next().expect("event line");
+        let event_json: Value = serde_json::from_str(line).expect("parse event line");
+        assert_eq!(event_json["sequence"], 7);
+        assert_eq!(event_json["run_id"], "run-1");
+        assert_eq!(event_json["document_ordinal"], 2);
+        assert_eq!(event_json["duration_ms"], 3);
+
+        let report_json: Value =
+            serde_json::from_str(&report.json().expect("serialize report")).expect("parse report");
+        assert_eq!(report_json["event_metadata"][0]["sequence"], 7);
+        assert_eq!(report_json["event_metadata"][0]["run_id"], "run-1");
+    }
+
+    #[test]
+    fn empty_event_metadata_keeps_the_legacy_wire_shape() {
+        let event = Event {
+            sequence: 1,
+            kind: "document.finished".to_string(),
+            document: Some("workflow.md".to_string()),
+            step: None,
+            status: Some(Status::Passed),
+            message: None,
+        };
+        let mut report = Report::new("unix-ms:1");
+        report.push_event(event.clone(), Some(EventMetadata::default()));
+
+        assert!(report.event_metadata.is_empty());
+        let legacy_line = serde_json::to_string(&event).expect("serialize legacy event");
+        assert_eq!(
+            report.json_lines().expect("serialize event lines").trim(),
+            legacy_line
+        );
+        let report_json: Value =
+            serde_json::from_str(&report.json().expect("serialize report")).expect("parse report");
+        assert!(report_json.get("event_metadata").is_none());
+    }
+
+    #[test]
+    fn redactor_covers_structured_diagnostic_context() {
+        let report = Report {
+            schema_version: SCHEMA_VERSION.to_string(),
+            mdok_version: MDOK_VERSION.to_string(),
+            curl_version: CURL_COMPAT_VERSION.to_string(),
+            started_at: "unix-ms:1".to_string(),
+            duration_ms: 0,
+            summary: Summary::default(),
+            documents: Vec::new(),
+            diagnostics: vec![
+                Diagnostic::error("MDOK-E502", "Check failed", "assertion failed")
+                    .with_expression("body.secret == `super-secret`")
+                    .with_result(serde_json::json!({"token": "super-secret"}))
+                    .caused_by(DiagnosticCause {
+                        code: Some("MDOK-E600".to_string()),
+                        kind: Some("transport".to_string()),
+                        message: "secret was observed".to_string(),
+                        observed: Some(Value::String("super-secret".to_string())),
+                    }),
+            ],
+            events: Vec::new(),
+            event_metadata: Vec::new(),
+        };
+
+        let redacted = Redactor::new(["super-secret"])
+            .redact_report(&report)
+            .expect("redact report");
+        let diagnostic = &redacted.diagnostics[0];
+        assert_eq!(
+            diagnostic.expression.as_deref(),
+            Some("body.secret == `[REDACTED]`")
+        );
+        assert_eq!(
+            diagnostic.result,
+            Some(serde_json::json!({"token": "[REDACTED]"}))
+        );
+        assert_eq!(
+            diagnostic.cause_chain[0].observed,
+            Some(Value::String("[REDACTED]".to_string()))
+        );
     }
 }

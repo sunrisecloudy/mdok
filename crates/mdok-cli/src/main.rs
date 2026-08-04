@@ -804,6 +804,8 @@ fn curl_policy(config: &EffectiveConfig) -> CurlPolicy {
     CurlPolicy {
         allowed_schemes: config.allowed_schemes.iter().cloned().collect(),
         allowed_hosts: None,
+        allowed_host_patterns: config.allowed_hosts.clone(),
+        denied_host_patterns: config.denied_hosts.clone(),
         allow_private_network: config.allow_private_network,
         allow_insecure_tls: config.allow_insecure_tls,
         allow_proxy: config.allow_proxy,
@@ -1646,7 +1648,7 @@ fn render_templates(
                 match lookup_template(&values, &expression.path).and_then(|value| {
                     render_expression(expression, &values).map(|rendered| (value, rendered))
                 }) {
-                    Ok((_, rendered)) if variable.secret && redact_secrets => {
+                    Ok((_, _rendered)) if variable.secret && redact_secrets => {
                         output.push_str("[REDACTED]");
                     }
                     Ok((_, rendered)) => output.push_str(&rendered),

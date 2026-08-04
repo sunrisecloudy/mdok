@@ -55,8 +55,16 @@ def main() -> int:
                 command.extend(["--var", f"base_url={args.base_url}"])
         elif args.base_url:
             command.extend(["--var", f"base_url={args.base_url}"])
-        if args.https_base_url:
-            command.extend(["--var", f"https_base_url={args.https_base_url}"])
+        # Plan-only fixtures must still resolve the HTTPS template before the
+        # policy diagnostic is produced, but they never connect.  Use a
+        # deterministic placeholder when the caller did not start the TLS
+        # fixture listener; execute-stage cases continue to require the real
+        # value supplied by --https-base-url/MDOK_FIXTURE_HTTPS_BASE_URL.
+        https_base_url = args.https_base_url
+        if https_base_url is None and case["stage"] == "plan":
+            https_base_url = "https://127.0.0.1:9801"
+        if https_base_url:
+            command.extend(["--var", f"https_base_url={https_base_url}"])
         command.extend(
             [
                 "--var",

@@ -2,7 +2,6 @@
 
 //! Sequential document execution over the owned curl and JMESPath APIs.
 
-use base64::Engine as _;
 use mdok_curl::{CurlError, CurlPlan, CurlPolicy, E_BODY_LIMIT, TransferResponse};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -293,44 +292,19 @@ impl DocumentPlan {
                     steps: results,
                 });
             }
-            let mut pending = BTreeMap::new();
+            let mut evaluated_captures = Vec::with_capacity(step.captures.len());
             for capture in &step.captures {
                 let value = evaluate(&capture.expression, &context).map_err(|e| {
                     RuntimeError::diagnostic(E_JMES_TYPE, e, &step.name, &capture.expression, None)
                 })?;
-                let object = value.as_object().ok_or_else(|| {
-                    RuntimeError::diagnostic(
-                        E_CAPTURE_TYPE,
-                        "capture expression must return an object",
-                        &step.name,
-                        &capture.expression,
-                        Some(value.clone()),
-                    )
-                })?;
-                for (key, value) in object {
-                    if !valid_variable_name(key) {
-                        return Err(RuntimeError::diagnostic(
-                            E_CAPTURE_TYPE,
-                            format!("invalid capture key `{key}`"),
-                            &step.name,
-                            &capture.expression,
-                            None,
-                        ));
-                    }
-                    if pending.contains_key(key)
-                        || (!policy.allow_capture_override && variables.contains_key(key))
-                    {
-                        return Err(RuntimeError::diagnostic(
-                            E_CAPTURE_COLLISION,
-                            format!("capture key `{key}` collides with an existing variable"),
-                            &step.name,
-                            &capture.expression,
-                            None,
-                        ));
-                    }
-                    pending.insert(key.clone(), value.clone());
-                }
+                evaluated_captures.push((capture.expression.clone(), value));
             }
+            let pending = collect_captures(
+                &evaluated_captures,
+                &variables,
+                policy.allow_capture_override,
+                &step.name,
+            )?;
             for (key, value) in &pending {
                 variables.insert(key.clone(), value.clone());
             }
@@ -368,73 +342,49 @@ fn resolve_argv(
     argv.iter().map(|arg| resolve_arg(arg, variables)).collect()
 }
 fn resolve_arg(arg: &str, variables: &BTreeMap<String, Value>) -> Result<String, String> {
-    let mut out = String::with_capacity(arg.len());
-    let mut rest = arg;
-    while let Some(start) = rest.find("{{") {
-        out.push_str(&rest[..start]);
-        let end = rest[start + 2..]
-            .find("}}")
-            .ok_or_else(|| "unterminated template".to_owned())?
-            + start
-            + 2;
-        let token = rest[start + 2..end].trim();
-        let mut pieces = token.split('|').map(str::trim);
-        let path = pieces.next().unwrap_or_default();
-        let filter = pieces.next().unwrap_or("string");
-        if pieces.next().is_some() {
-            return Err("template has more than one filter".into());
-        }
-        let value =
-            lookup_path(path, variables).ok_or_else(|| format!("unknown variable `{path}`"))?;
-        out.push_str(&format_value(value, filter)?);
-        rest = &rest[end + 2..];
-    }
-    out.push_str(rest);
-    Ok(out)
+    mdok_template::render(arg, variables).map_err(|error| error.to_string())
 }
-fn lookup_path<'a>(path: &str, variables: &'a BTreeMap<String, Value>) -> Option<&'a Value> {
-    let (root, tail) = path.split_once('.').map_or((path, ""), |(a, b)| (a, b));
-    let mut value = variables.get(root)?;
-    for segment in tail.split('.').filter(|s| !s.is_empty()) {
-        value = segment
-            .parse::<usize>()
-            .ok()
-            .and_then(|i| value.get(i))
-            .or_else(|| value.get(segment))?;
-    }
-    Some(value)
-}
-fn format_value(value: &Value, filter: &str) -> Result<String, String> {
-    match filter {
-        "string" | "raw" => match value {
-            Value::String(_) | Value::Number(_) | Value::Bool(_) => Ok(value
-                .as_str()
-                .map(str::to_owned)
-                .unwrap_or_else(|| value.to_string())),
-            _ => Err("scalar template filter received an object or array".into()),
-        },
-        "json" => serde_json::to_string(value).map_err(|e| e.to_string()),
-        "url" => Ok(url::form_urlencoded::byte_serialize(
-            value
-                .as_str()
-                .ok_or_else(|| "url filter requires a string")?
-                .as_bytes(),
-        )
-        .collect()),
-        "header" => {
-            let value = format_value(value, "string")?;
-            if value.contains('\r') || value.contains('\n') {
-                Err("header template contains CR/LF".into())
-            } else {
-                Ok(value)
+fn collect_captures(
+    evaluated_captures: &[(String, Value)],
+    variables: &BTreeMap<String, Value>,
+    allow_capture_override: bool,
+    step: &str,
+) -> Result<BTreeMap<String, Value>, RuntimeError> {
+    let mut pending = BTreeMap::new();
+    for (expression, value) in evaluated_captures {
+        let object = value.as_object().ok_or_else(|| {
+            RuntimeError::diagnostic(
+                E_CAPTURE_TYPE,
+                "capture expression must return an object",
+                step,
+                expression,
+                Some(value.clone()),
+            )
+        })?;
+        for (key, value) in object {
+            if !valid_variable_name(key) {
+                return Err(RuntimeError::diagnostic(
+                    E_CAPTURE_COLLISION,
+                    format!("invalid capture key `{key}`"),
+                    step,
+                    expression,
+                    None,
+                ));
             }
+            if !allow_capture_override && (pending.contains_key(key) || variables.contains_key(key))
+            {
+                return Err(RuntimeError::diagnostic(
+                    E_CAPTURE_COLLISION,
+                    format!("capture key `{key}` collides with an existing variable"),
+                    step,
+                    expression,
+                    None,
+                ));
+            }
+            pending.insert(key.clone(), value.clone());
         }
-        "base64" => {
-            let value = format_value(value, "string")?;
-            Ok(base64::engine::general_purpose::STANDARD.encode(value))
-        }
-        _ => Err(format!("unknown template filter `{filter}`")),
     }
+    Ok(pending)
 }
 fn valid_variable_name(name: &str) -> bool {
     let mut chars = name.chars();
@@ -464,6 +414,7 @@ fn body_error(error: CurlError, step: &str) -> RuntimeError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     #[test]
     fn check_and_capture_compile() {
         let step = StepPlan::new("one", vec!["curl".into(), "http://example.test".into()])
@@ -480,6 +431,52 @@ mod tests {
         let args = resolve_argv(&["curl".into(), "{{x|raw}}".into()], &vars).unwrap();
         assert_eq!(args[1], "a;b $(echo no)");
     }
+    #[test]
+    fn interpolation_resolves_nested_array_indexes() {
+        let vars = [("payload".into(), json!({"items": [{"id": "item-7"}]}))]
+            .into_iter()
+            .collect();
+        let args = resolve_argv(&["{{payload.items[0].id}}".into()], &vars).unwrap();
+        assert_eq!(args, vec!["item-7"]);
+    }
+
+    #[test]
+    fn url_filter_uses_rfc3986_component_encoding() {
+        let vars = [("component".into(), json!("a+b c/d?x=y&z"))]
+            .into_iter()
+            .collect();
+        let args = resolve_argv(&["{{component|url}}".into()], &vars).unwrap();
+        assert_eq!(args, vec!["a%2Bb%20c%2Fd%3Fx%3Dy%26z"]);
+    }
+
+    #[test]
+    fn invalid_capture_keys_use_collision_error() {
+        let captures = [("capture".to_owned(), json!({"bad-key": true}))];
+        let error = collect_captures(&captures, &BTreeMap::new(), false, "one").unwrap_err();
+        assert_eq!(error.code(), E_CAPTURE_COLLISION);
+    }
+
+    #[test]
+    fn capture_override_applies_to_existing_and_pending_keys() {
+        let variables = [("token".to_owned(), json!("original"))]
+            .into_iter()
+            .collect();
+        let existing_collision = [("capture".to_owned(), json!({"token": "new"}))];
+        let error = collect_captures(&existing_collision, &variables, false, "one").unwrap_err();
+        assert_eq!(error.code(), E_CAPTURE_COLLISION);
+
+        let duplicate_pending = vec![
+            ("first".to_owned(), json!({"token": "first"})),
+            ("second".to_owned(), json!({"token": "second"})),
+        ];
+        let error =
+            collect_captures(&duplicate_pending, &BTreeMap::new(), false, "one").unwrap_err();
+        assert_eq!(error.code(), E_CAPTURE_COLLISION);
+
+        let captured = collect_captures(&duplicate_pending, &variables, true, "one").unwrap();
+        assert_eq!(captured.get("token"), Some(&json!("second")));
+    }
+
     #[test]
     fn capture_names_are_validated() {
         assert!(valid_variable_name("token_1"));

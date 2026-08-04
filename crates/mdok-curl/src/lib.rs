@@ -43,6 +43,8 @@ pub const E_BODY_LIMIT: &str = "MDOK-E700";
 pub struct CurlPolicy {
     pub allowed_schemes: HashSet<String>,
     pub allowed_hosts: Option<HashSet<String>>,
+    pub allowed_host_patterns: Vec<String>,
+    pub denied_host_patterns: Vec<String>,
     pub allow_private_network: bool,
     pub allow_insecure_tls: bool,
     pub allow_proxy: bool,
@@ -62,6 +64,8 @@ impl Default for CurlPolicy {
         Self {
             allowed_schemes: ["http", "https"].into_iter().map(str::to_owned).collect(),
             allowed_hosts: None,
+            allowed_host_patterns: Vec::new(),
+            denied_host_patterns: Vec::new(),
             allow_private_network: false,
             allow_insecure_tls: false,
             allow_proxy: false,
@@ -104,6 +108,31 @@ impl CurlPolicy {
                     format!("host `{host}` is not allowed"),
                 ));
             }
+        }
+        if !self.denied_host_patterns.is_empty()
+            && self
+                .denied_host_patterns
+                .iter()
+                .any(|pattern| host_matches_pattern(url.host_str().unwrap_or_default(), pattern))
+        {
+            return Err(CurlError::new(
+                E_POLICY,
+                format!("host `{}` is denied", url.host_str().unwrap_or_default()),
+            ));
+        }
+        if !self.allowed_host_patterns.is_empty()
+            && !self
+                .allowed_host_patterns
+                .iter()
+                .any(|pattern| host_matches_pattern(url.host_str().unwrap_or_default(), pattern))
+        {
+            return Err(CurlError::new(
+                E_POLICY,
+                format!(
+                    "host `{}` is not allowed",
+                    url.host_str().unwrap_or_default()
+                ),
+            ));
         }
         if !self.allow_private_network {
             if let Some(host) = url.host_str() {
@@ -1270,6 +1299,14 @@ fn form_encode(value: &str) -> String {
     percent_encode(value.as_bytes(), NON_ALPHANUMERIC)
         .to_string()
         .replace("%20", "+")
+}
+
+fn host_matches_pattern(host: &str, pattern: &str) -> bool {
+    pattern == "*"
+        || pattern.eq_ignore_ascii_case(host)
+        || pattern.strip_prefix("*.").is_some_and(|suffix| {
+            host.ends_with(&format!(".{suffix}")) || host.eq_ignore_ascii_case(suffix)
+        })
 }
 fn parse_resolve(value: &str) -> Result<(String, u16, SocketAddr), CurlError> {
     let mut parts = value.rsplitn(3, ':');

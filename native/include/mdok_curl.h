@@ -50,6 +50,12 @@ void mdok_curl_global_cleanup(void);
 const char *mdok_curl_last_error_message(void);
 void mdok_curl_reserved(void *userdata);
 
+/* Additive lifecycle helpers for callers that want to reuse one easy handle.
+ * Existing callers may continue to pass NULL to mdok_curl_execute. A session
+ * must not be used concurrently or after mdok_curl_global_cleanup. */
+mdok_curl_session *mdok_curl_session_new(void);
+void mdok_curl_session_free(mdok_curl_session *session);
+
 mdok_curl_status mdok_curl_parse(
   const mdok_curl_argv *argv,
   mdok_curl_plan **out_plan,
