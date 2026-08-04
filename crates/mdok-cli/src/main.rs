@@ -8,7 +8,7 @@
 #![forbid(unsafe_code)]
 
 use clap::{Args, Parser, Subcommand};
-use mdok_curl::{CurlError, CurlPlan, CurlPolicy};
+use mdok_curl::{CurlError, CurlPlan, CurlPolicy, ExecutionSession};
 use mdok_markdown::{MarkdownError, parse, plan_document};
 use mdok_report::{
     CheckReport, Diagnostic, DocumentReport, Event, EventMetadata, Redactor, Report, Severity,
@@ -783,6 +783,7 @@ where
 {
     let mut variables = plan.variables.clone();
     let mut step_summaries = Map::new();
+    let mut session = ExecutionSession::new();
     if options.offline {
         let document = DocumentReport {
             path: plan.path.display().to_string(),
@@ -889,6 +890,7 @@ where
             config,
             &variables_to_value(&variables),
             &Value::Object(step_summaries.clone()),
+            &mut session,
         ) {
             Ok(context) => {
                 for expression in &step.checks {
@@ -1019,6 +1021,7 @@ fn transfer(
     config: &EffectiveConfig,
     variables: &Value,
     steps: &Value,
+    session: &mut ExecutionSession,
 ) -> Result<Value, Diagnostic> {
     let policy = curl_policy(config);
     let mut plan = CurlPlan::parse(argv, &policy).map_err(curl_diagnostic)?;
@@ -1029,7 +1032,9 @@ fn transfer(
     if plan.connect_timeout.is_none() {
         plan.connect_timeout = Some(config.connect_timeout);
     }
-    let response = plan.execute(&policy).map_err(curl_diagnostic)?;
+    let response = plan
+        .execute_in_session(&policy, session)
+        .map_err(curl_diagnostic)?;
     response
         .evaluation_json_limited(variables, steps, config.max_body)
         .map_err(curl_diagnostic)

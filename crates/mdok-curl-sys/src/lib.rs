@@ -18,6 +18,7 @@ pub struct mdok_curl_session {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct mdok_curl_slice {
     pub ptr: *const u8,
     pub len: usize,
@@ -46,6 +47,34 @@ pub struct mdok_curl_callbacks {
     pub cancelled: Option<mdok_curl_cancel_cb>,
 }
 
+#[repr(C)]
+#[derive(Default)]
+pub struct mdok_curl_transfer_info {
+    pub response_code: i64,
+    pub http_version: i64,
+    pub total_time_us: i64,
+    pub name_lookup_time_us: i64,
+    pub connect_time_us: i64,
+    pub appconnect_time_us: i64,
+    pub pretransfer_time_us: i64,
+    pub starttransfer_time_us: i64,
+    pub redirect_time_us: i64,
+    pub uploaded_bytes: i64,
+    pub downloaded_bytes: i64,
+    pub request_header_bytes: i64,
+    pub response_header_bytes: i64,
+    pub redirect_count: i64,
+    pub num_connects: i64,
+    pub ssl_verify_result: i64,
+    pub used_proxy: i64,
+    pub primary_port: i64,
+    pub local_port: i64,
+    pub effective_url: mdok_curl_slice,
+    pub primary_ip: mdok_curl_slice,
+    pub local_ip: mdok_curl_slice,
+    pub http_version_name: mdok_curl_slice,
+}
+
 unsafe extern "C" {
     pub fn mdok_curl_global_init() -> c_int;
     pub fn mdok_curl_global_cleanup();
@@ -61,6 +90,14 @@ unsafe extern "C" {
         plan: *const mdok_curl_plan,
         callbacks: *const mdok_curl_callbacks,
         userdata: *mut c_void,
+        out_error: *mut mdok_curl_error,
+    ) -> c_int;
+    pub fn mdok_curl_execute_with_info(
+        session: *mut mdok_curl_session,
+        plan: *const mdok_curl_plan,
+        callbacks: *const mdok_curl_callbacks,
+        userdata: *mut c_void,
+        out_info: *mut mdok_curl_transfer_info,
         out_error: *mut mdok_curl_error,
     ) -> c_int;
     pub fn mdok_curl_plan_free(plan: *mut mdok_curl_plan);
@@ -80,6 +117,7 @@ pub struct BridgeError {
 pub const BODY_LIMIT_ERROR_CODE: i32 = -10_001;
 pub const HEADER_LIMIT_ERROR_CODE: i32 = -10_002;
 pub const TIMEOUT_ERROR_CODE: i32 = 28; // libcurl CURLE_OPERATION_TIMEDOUT
+pub const CANCELLED_STATUS: c_int = 4;
 
 const DEFAULT_NATIVE_BODY_LIMIT: usize = 128 * 1024 * 1024;
 const DEFAULT_NATIVE_HEADER_LIMIT: usize = 16 * 1024 * 1024;
@@ -89,6 +127,41 @@ const DEFAULT_NATIVE_HEADER_LIMIT: usize = 16 * 1024 * 1024;
 pub struct NativeTransfer {
     pub body: Vec<u8>,
     pub headers: Vec<u8>,
+}
+
+/// Metadata copied from libcurl before the reusable native session is used
+/// again. Optional values are absent when the underlying transfer did not
+/// expose them (for example, TLS values on a plain HTTP request).
+#[derive(Debug, Default, PartialEq)]
+pub struct NativeTransferMetadata {
+    pub response_code: Option<u16>,
+    pub http_version: Option<String>,
+    pub effective_url: Option<String>,
+    pub total_time_us: Option<u64>,
+    pub name_lookup_time_us: Option<u64>,
+    pub connect_time_us: Option<u64>,
+    pub appconnect_time_us: Option<u64>,
+    pub pretransfer_time_us: Option<u64>,
+    pub starttransfer_time_us: Option<u64>,
+    pub redirect_time_us: Option<u64>,
+    pub uploaded_bytes: Option<u64>,
+    pub downloaded_bytes: Option<u64>,
+    pub request_header_bytes: Option<u64>,
+    pub response_header_bytes: Option<u64>,
+    pub redirect_count: Option<usize>,
+    pub num_connects: Option<usize>,
+    pub ssl_verify_result: Option<i64>,
+    pub used_proxy: bool,
+    pub primary_ip: Option<String>,
+    pub primary_port: Option<u16>,
+    pub local_ip: Option<String>,
+    pub local_port: Option<u16>,
+}
+
+#[derive(Debug)]
+pub struct NativeTransferResult {
+    pub transfer: NativeTransfer,
+    pub metadata: NativeTransferMetadata,
 }
 
 /// Initialize libcurl once for safe wrapper users. Cleanup is intentionally
@@ -198,18 +271,35 @@ impl Session {
         max_body_bytes: usize,
         max_header_bytes: usize,
     ) -> Result<NativeTransfer, BridgeError> {
+        self.execute_detailed(plan, max_body_bytes, max_header_bytes, None)
+            .map(|result| result.transfer)
+    }
+
+    /// Execute a plan through the reusable multi handle and return both
+    /// captured bytes and copied libcurl transfer metadata. The cancellation
+    /// callback is polled by libcurl's progress callback and is never allowed
+    /// to unwind across the FFI boundary.
+    pub fn execute_detailed(
+        &mut self,
+        plan: &Plan,
+        max_body_bytes: usize,
+        max_header_bytes: usize,
+        cancelled: Option<&dyn Fn() -> bool>,
+    ) -> Result<NativeTransferResult, BridgeError> {
         let mut capture = NativeCapture {
             transfer: NativeTransfer::default(),
             max_body_bytes,
             max_header_bytes,
             body_limit: false,
             header_limit: false,
+            cancelled,
         };
         let callbacks = mdok_curl_callbacks {
             body: Some(append_body),
             header: Some(append_headers),
-            cancelled: None,
+            cancelled: cancelled.map(|_| check_cancel as mdok_curl_cancel_cb),
         };
+        let mut info = mdok_curl_transfer_info::default();
         let mut error = mdok_curl_error {
             code: 0,
             argv_index: 0,
@@ -221,11 +311,12 @@ impl Session {
         // SAFETY: the opaque handles are owned by the session and plan; the
         // callback context remains alive for the synchronous C call.
         let status = unsafe {
-            mdok_curl_execute(
+            mdok_curl_execute_with_info(
                 self.as_ptr(),
                 plan.as_ptr(),
                 &callbacks,
                 &mut capture as *mut NativeCapture as *mut c_void,
+                &mut info,
                 &mut error,
             )
         };
@@ -244,7 +335,10 @@ impl Session {
             });
         }
         if status == 0 {
-            Ok(capture.transfer)
+            Ok(NativeTransferResult {
+                transfer: capture.transfer,
+                metadata: copy_transfer_info(&info),
+            })
         } else {
             Err(copy_error(status, &error))
         }
@@ -291,12 +385,29 @@ fn last_error_message() -> String {
         .into_owned()
 }
 
-struct NativeCapture {
+struct NativeCapture<'a> {
     transfer: NativeTransfer,
     max_body_bytes: usize,
     max_header_bytes: usize,
     body_limit: bool,
     header_limit: bool,
+    cancelled: Option<&'a dyn Fn() -> bool>,
+}
+
+unsafe extern "C" fn check_cancel(userdata: *mut c_void) -> c_int {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if userdata.is_null() {
+            return false;
+        }
+        // SAFETY: the bridge invokes this callback synchronously with the
+        // `NativeCapture` pointer supplied by `Session::execute_detailed`.
+        let capture = unsafe { &*(userdata as *const NativeCapture<'_>) };
+        capture.cancelled.is_some_and(|callback| callback())
+    }));
+    match result {
+        Ok(true) | Err(_) => 1,
+        Ok(false) => 0,
+    }
 }
 
 unsafe extern "C" fn append_body(data: *const u8, length: usize, userdata: *mut c_void) -> usize {
@@ -319,7 +430,7 @@ fn append_bytes(data: *const u8, length: usize, userdata: *mut c_void, headers: 
         // SAFETY: libcurl invokes the callback with a valid buffer for the
         // duration of this callback, and userdata points at the stack-owned
         // transfer in Session::execute.
-        let capture = unsafe { &mut *(userdata as *mut NativeCapture) };
+        let capture = unsafe { &mut *(userdata as *mut NativeCapture<'_>) };
         let target = if headers {
             &mut capture.transfer.headers
         } else {
@@ -348,4 +459,49 @@ fn append_bytes(data: *const u8, length: usize, userdata: *mut c_void, headers: 
         length
     }));
     result.unwrap_or(0)
+}
+
+fn copy_transfer_info(info: &mdok_curl_transfer_info) -> NativeTransferMetadata {
+    NativeTransferMetadata {
+        response_code: nonnegative(info.response_code).and_then(|value| u16::try_from(value).ok()),
+        http_version: copy_slice(info.http_version_name),
+        effective_url: copy_slice(info.effective_url),
+        total_time_us: nonnegative(info.total_time_us),
+        name_lookup_time_us: nonnegative(info.name_lookup_time_us),
+        connect_time_us: nonnegative(info.connect_time_us),
+        appconnect_time_us: nonnegative(info.appconnect_time_us),
+        pretransfer_time_us: nonnegative(info.pretransfer_time_us),
+        starttransfer_time_us: nonnegative(info.starttransfer_time_us),
+        redirect_time_us: nonnegative(info.redirect_time_us),
+        uploaded_bytes: nonnegative(info.uploaded_bytes),
+        downloaded_bytes: nonnegative(info.downloaded_bytes),
+        request_header_bytes: nonnegative(info.request_header_bytes),
+        response_header_bytes: nonnegative(info.response_header_bytes),
+        redirect_count: nonnegative(info.redirect_count)
+            .and_then(|value| usize::try_from(value).ok()),
+        num_connects: nonnegative(info.num_connects).and_then(|value| usize::try_from(value).ok()),
+        ssl_verify_result: nonnegative(info.ssl_verify_result).map(|value| value as i64),
+        used_proxy: info.used_proxy != 0,
+        primary_ip: copy_slice(info.primary_ip),
+        primary_port: nonnegative(info.primary_port).and_then(|value| u16::try_from(value).ok()),
+        local_ip: copy_slice(info.local_ip),
+        local_port: nonnegative(info.local_port).and_then(|value| u16::try_from(value).ok()),
+    }
+}
+
+fn nonnegative(value: i64) -> Option<u64> {
+    (value >= 0).then_some(value as u64)
+}
+
+fn copy_slice(value: mdok_curl_slice) -> Option<String> {
+    if value.ptr.is_null() || value.len == 0 {
+        return None;
+    }
+    // SAFETY: the bridge points at libcurl-owned NUL-terminated strings and
+    // keeps them valid until the next call on this session. This function
+    // copies the bytes immediately before returning to the caller.
+    Some(
+        unsafe { String::from_utf8_lossy(slice::from_raw_parts(value.ptr, value.len)) }
+            .into_owned(),
+    )
 }

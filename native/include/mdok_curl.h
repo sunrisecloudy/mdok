@@ -45,6 +45,36 @@ typedef struct mdok_curl_callbacks {
   mdok_curl_cancel_cb cancelled;
 } mdok_curl_callbacks;
 
+/* Transfer metadata is borrowed from libcurl and remains valid until the
+ * next execution on the same session. Callers must copy any string slices
+ * before issuing another bridge call. Numeric values use -1 for unavailable
+ * values; byte counts and redirect counts use zero when unavailable. */
+typedef struct mdok_curl_transfer_info {
+  int64_t response_code;
+  int64_t http_version;
+  int64_t total_time_us;
+  int64_t name_lookup_time_us;
+  int64_t connect_time_us;
+  int64_t appconnect_time_us;
+  int64_t pretransfer_time_us;
+  int64_t starttransfer_time_us;
+  int64_t redirect_time_us;
+  int64_t uploaded_bytes;
+  int64_t downloaded_bytes;
+  int64_t request_header_bytes;
+  int64_t response_header_bytes;
+  int64_t redirect_count;
+  int64_t num_connects;
+  int64_t ssl_verify_result;
+  int64_t used_proxy;
+  int64_t primary_port;
+  int64_t local_port;
+  mdok_curl_slice effective_url;
+  mdok_curl_slice primary_ip;
+  mdok_curl_slice local_ip;
+  mdok_curl_slice http_version_name;
+} mdok_curl_transfer_info;
+
 mdok_curl_status mdok_curl_global_init(void);
 void mdok_curl_global_cleanup(void);
 const char *mdok_curl_last_error_message(void);
@@ -66,6 +96,16 @@ mdok_curl_status mdok_curl_execute(
   const mdok_curl_plan *plan,
   const mdok_curl_callbacks *callbacks,
   void *userdata,
+  mdok_curl_error *out_error);
+
+/* Additive metadata variant. The existing execute symbol remains available
+ * for callers that do not need transfer information. */
+mdok_curl_status mdok_curl_execute_with_info(
+  mdok_curl_session *session,
+  const mdok_curl_plan *plan,
+  const mdok_curl_callbacks *callbacks,
+  void *userdata,
+  mdok_curl_transfer_info *out_info,
   mdok_curl_error *out_error);
 
 void mdok_curl_plan_free(mdok_curl_plan *plan);

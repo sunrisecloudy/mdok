@@ -2,7 +2,9 @@
 
 //! Sequential document execution over the owned curl and JMESPath APIs.
 
-use mdok_curl::{CurlError, CurlPlan, CurlPolicy, E_BODY_LIMIT, TransferResponse};
+use mdok_curl::{
+    CurlError, CurlPlan, CurlPolicy, E_BODY_LIMIT, ExecutionSession, TransferResponse,
+};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
@@ -200,16 +202,28 @@ impl DocumentPlan {
     /// Execute requests in source order. Captures are committed only after all
     /// checks and all capture expressions for a step have succeeded.
     pub fn execute(&self, policy: &RuntimePolicy) -> Result<DocumentResult, RuntimeError> {
+        self.execute_with_cancel(policy, None)
+    }
+
+    /// Execute requests in source order with a document-scoped native session.
+    /// The cancellation callback is forwarded into libcurl's progress callback
+    /// for native transfers and checked between fallback attempts.
+    pub fn execute_with_cancel(
+        &self,
+        policy: &RuntimePolicy,
+        cancelled: Option<&dyn Fn() -> bool>,
+    ) -> Result<DocumentResult, RuntimeError> {
         let mut variables = self.variables.clone();
         let mut step_summaries = Map::new();
         let mut results = Vec::with_capacity(self.steps.len());
+        let mut session = ExecutionSession::new();
         for step in &self.steps {
             let argv = resolve_argv(&step.argv, &variables)
                 .map_err(|e| RuntimeError::diagnostic("MDOK-E505", e, &step.name, "", None))?;
             let plan =
                 CurlPlan::parse(&argv, &policy.curl).map_err(|e| curl_error(e, &step.name))?;
             let response = plan
-                .execute(&policy.curl)
+                .execute_in_session_with_cancel(&policy.curl, &mut session, cancelled)
                 .map_err(|e| curl_error(e, &step.name))?;
             let context = response
                 .evaluation_json_limited(
@@ -424,6 +438,12 @@ fn body_error(error: CurlError, step: &str) -> RuntimeError {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
+    use std::time::Duration;
     #[test]
     fn check_and_capture_compile() {
         let step = StepPlan::new("one", vec!["curl".into(), "http://example.test".into()])
@@ -490,5 +510,109 @@ mod tests {
     fn capture_names_are_validated() {
         assert!(valid_variable_name("token_1"));
         assert!(!valid_variable_name("1token"));
+    }
+
+    fn read_request(stream: &mut std::net::TcpStream) -> String {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("set request timeout");
+        let mut bytes = Vec::new();
+        let mut chunk = [0_u8; 1024];
+        loop {
+            let count = stream.read(&mut chunk).expect("read request");
+            if count == 0 {
+                break;
+            }
+            bytes.extend_from_slice(&chunk[..count]);
+            if bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+                break;
+            }
+        }
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
+    #[test]
+    fn document_reuses_native_cookie_session_and_propagates_cancellation() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind runtime fixture");
+        let address = listener.local_addr().expect("runtime fixture address");
+        let server = thread::spawn(move || {
+            let mut saw_cookie = false;
+            for request_number in 0..2 {
+                let (mut stream, _) = listener.accept().expect("accept runtime request");
+                let request = read_request(&mut stream);
+                if request_number == 1 {
+                    saw_cookie = request.to_ascii_lowercase().contains("cookie: session=abc");
+                }
+                let response = if request_number == 0 {
+                    b"HTTP/1.1 200 OK\r\nSet-Cookie: session=abc; Path=/\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice()
+                } else if saw_cookie {
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+                        .as_slice()
+                } else {
+                    b"HTTP/1.1 403 Forbidden\r\nContent-Length: 2\r\nConnection: close\r\n\r\nno"
+                        .as_slice()
+                };
+                stream.write_all(response).expect("write runtime response");
+            }
+            saw_cookie
+        });
+
+        let base = format!("http://127.0.0.1:{}", address.port());
+        let document = DocumentPlan::new(
+            "session.md",
+            BTreeMap::new(),
+            vec![
+                StepPlan::new("set", vec!["curl".into(), format!("{base}/set")]),
+                StepPlan::new("check", vec!["curl".into(), format!("{base}/check")]),
+            ],
+        );
+        let policy = RuntimePolicy {
+            curl: CurlPolicy::local_test(),
+            ..RuntimePolicy::default()
+        };
+        let result = document.execute(&policy).expect("execute session document");
+        assert!(result.passed);
+        assert!(server.join().expect("join runtime fixture"));
+
+        let cancel_listener =
+            TcpListener::bind(("127.0.0.1", 0)).expect("bind cancellation fixture");
+        let cancel_address = cancel_listener
+            .local_addr()
+            .expect("cancellation fixture address");
+        let cancellation_server = thread::spawn(move || {
+            let (mut stream, _) = cancel_listener
+                .accept()
+                .expect("accept cancellation request");
+            let _ = read_request(&mut stream);
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 1048576\r\nConnection: close\r\n\r\n",
+            );
+            let _ = stream.write_all(&vec![b'x'; 1024]);
+            thread::sleep(Duration::from_millis(100));
+            let _ = stream.write_all(&vec![b'x'; 1024 * 1024 - 1024]);
+        });
+        let cancelled = DocumentPlan::new(
+            "cancel.md",
+            BTreeMap::new(),
+            vec![StepPlan::new(
+                "cancelled",
+                vec![
+                    "curl".into(),
+                    format!("http://127.0.0.1:{}/cancel", cancel_address.port()),
+                ],
+            )],
+        );
+        let callback_calls = Arc::new(AtomicUsize::new(0));
+        let callback_calls_for_check = Arc::clone(&callback_calls);
+        let cancel_after_start =
+            move || callback_calls_for_check.fetch_add(1, Ordering::SeqCst) >= 1;
+        let error = cancelled
+            .execute_with_cancel(&policy, Some(&cancel_after_start))
+            .expect_err("cancelled document must return an error");
+        assert_eq!(error.code(), mdok_curl::E_CANCELLED);
+        assert!(callback_calls.load(Ordering::SeqCst) >= 2);
+        cancellation_server
+            .join()
+            .expect("join cancellation fixture");
     }
 }

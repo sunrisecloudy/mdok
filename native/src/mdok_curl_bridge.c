@@ -32,6 +32,8 @@ struct mdok_curl_plan {
 
 struct mdok_curl_session {
   CURL *easy;
+  CURLM *multi;
+  CURLSH *share;
   atomic_flag in_use;
 };
 
@@ -121,6 +123,7 @@ void mdok_curl_reserved(void *userdata) { (void)userdata; }
 
 mdok_curl_session *mdok_curl_session_new(void) {
   mdok_curl_session *session = (mdok_curl_session *)calloc(1, sizeof(*session));
+  CURLSHcode share_result;
   if (session == NULL) {
     set_error(NULL, 0, "session allocation failed");
     return NULL;
@@ -130,6 +133,30 @@ mdok_curl_session *mdok_curl_session_new(void) {
   if (session->easy == NULL) {
     free(session);
     set_error(NULL, 0, "curl_easy_init failed");
+    return NULL;
+  }
+  session->multi = curl_multi_init();
+  if (session->multi == NULL) {
+    curl_easy_cleanup(session->easy);
+    free(session);
+    set_error(NULL, 0, "curl_multi_init failed");
+    return NULL;
+  }
+  session->share = curl_share_init();
+  if (session->share == NULL) {
+    curl_multi_cleanup(session->multi);
+    curl_easy_cleanup(session->easy);
+    free(session);
+    set_error(NULL, 0, "curl_share_init failed");
+    return NULL;
+  }
+  share_result = curl_share_setopt(session->share, CURLSHOPT_SHARE, CURL_LOCK_DATA_COOKIE);
+  if (share_result != CURLSHE_OK) {
+    curl_share_cleanup(session->share);
+    curl_multi_cleanup(session->multi);
+    curl_easy_cleanup(session->easy);
+    free(session);
+    set_error(NULL, (int32_t)share_result, curl_share_strerror(share_result));
     return NULL;
   }
   return session;
@@ -143,6 +170,10 @@ void mdok_curl_session_free(mdok_curl_session *session) {
   }
   curl_easy_cleanup(session->easy);
   session->easy = NULL;
+  curl_multi_cleanup(session->multi);
+  session->multi = NULL;
+  curl_share_cleanup(session->share);
+  session->share = NULL;
   free(session);
 }
 
@@ -243,7 +274,105 @@ static int progress_cancel(void *userdata, curl_off_t download_total, curl_off_t
   return 0;
 }
 
-static CURLcode configure_easy(CURL *easy, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, struct callback_context *context) {
+static const char *http_version_name(long version) {
+  switch (version) {
+    case CURL_HTTP_VERSION_1_0: return "1.0";
+    case CURL_HTTP_VERSION_1_1: return "1.1";
+    case CURL_HTTP_VERSION_2_0: return "2";
+    case CURL_HTTP_VERSION_2TLS: return "2";
+    case CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE: return "2";
+#ifdef CURL_HTTP_VERSION_3
+    case CURL_HTTP_VERSION_3: return "3";
+#endif
+    default: return NULL;
+  }
+}
+
+static void clear_transfer_info(mdok_curl_transfer_info *info) {
+  if (info == NULL) return;
+  memset(info, 0, sizeof(*info));
+  info->response_code = -1;
+  info->http_version = -1;
+  info->total_time_us = -1;
+  info->name_lookup_time_us = -1;
+  info->connect_time_us = -1;
+  info->appconnect_time_us = -1;
+  info->pretransfer_time_us = -1;
+  info->starttransfer_time_us = -1;
+  info->redirect_time_us = -1;
+  info->uploaded_bytes = -1;
+  info->downloaded_bytes = -1;
+  info->request_header_bytes = -1;
+  info->response_header_bytes = -1;
+  info->redirect_count = -1;
+  info->num_connects = -1;
+  info->ssl_verify_result = -1;
+  info->primary_port = -1;
+  info->local_port = -1;
+}
+
+static void set_info_string(mdok_curl_slice *out, const char *value) {
+  if (out == NULL || value == NULL) return;
+  out->ptr = (const uint8_t *)value;
+  out->len = strlen(value);
+}
+
+static void fill_transfer_info(CURL *easy, mdok_curl_transfer_info *info) {
+  long long_value;
+  curl_off_t off_value;
+  const char *string_value;
+  if (easy == NULL || info == NULL) return;
+  clear_transfer_info(info);
+  if (curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &long_value) == CURLE_OK)
+    info->response_code = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_HTTP_VERSION, &long_value) == CURLE_OK) {
+    info->http_version = (int64_t)long_value;
+    set_info_string(&info->http_version_name, http_version_name(long_value));
+  }
+  if (curl_easy_getinfo(easy, CURLINFO_TOTAL_TIME_T, &off_value) == CURLE_OK)
+    info->total_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_NAMELOOKUP_TIME_T, &off_value) == CURLE_OK)
+    info->name_lookup_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_CONNECT_TIME_T, &off_value) == CURLE_OK)
+    info->connect_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_APPCONNECT_TIME_T, &off_value) == CURLE_OK)
+    info->appconnect_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_PRETRANSFER_TIME_T, &off_value) == CURLE_OK)
+    info->pretransfer_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_STARTTRANSFER_TIME_T, &off_value) == CURLE_OK)
+    info->starttransfer_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_REDIRECT_TIME_T, &off_value) == CURLE_OK)
+    info->redirect_time_us = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_SIZE_UPLOAD_T, &off_value) == CURLE_OK)
+    info->uploaded_bytes = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_SIZE_DOWNLOAD_T, &off_value) == CURLE_OK)
+    info->downloaded_bytes = (int64_t)off_value;
+  if (curl_easy_getinfo(easy, CURLINFO_HEADER_SIZE, &long_value) == CURLE_OK)
+    info->response_header_bytes = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_REQUEST_SIZE, &long_value) == CURLE_OK)
+    info->request_header_bytes = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_REDIRECT_COUNT, &long_value) == CURLE_OK)
+    info->redirect_count = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_NUM_CONNECTS, &long_value) == CURLE_OK)
+    info->num_connects = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_SSL_VERIFYRESULT, &long_value) == CURLE_OK)
+    info->ssl_verify_result = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_PRIMARY_PORT, &long_value) == CURLE_OK)
+    info->primary_port = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_LOCAL_PORT, &long_value) == CURLE_OK)
+    info->local_port = (int64_t)long_value;
+  if (curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &string_value) == CURLE_OK)
+    set_info_string(&info->effective_url, string_value);
+  if (curl_easy_getinfo(easy, CURLINFO_PRIMARY_IP, &string_value) == CURLE_OK)
+    set_info_string(&info->primary_ip, string_value);
+  if (curl_easy_getinfo(easy, CURLINFO_LOCAL_IP, &string_value) == CURLE_OK)
+    set_info_string(&info->local_ip, string_value);
+  /* The native policy rejects explicit proxies and configure_easy disables
+     inherited proxy settings. Keep this field explicit for callers. */
+  info->used_proxy = 0;
+}
+
+static CURLcode configure_easy(mdok_curl_session *session, CURL *easy, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, struct callback_context *context) {
   CURLcode result;
 #define MDOK_SETOPT(option, value) do { \
     result = curl_easy_setopt(easy, option, value); \
@@ -255,6 +384,12 @@ static CURLcode configure_easy(CURL *easy, const mdok_curl_plan *plan, const mdo
   MDOK_SETOPT(CURLOPT_HTTPHEADER, plan->headers);
   MDOK_SETOPT(CURLOPT_FOLLOWLOCATION, plan->follow);
   MDOK_SETOPT(CURLOPT_MAXREDIRS, plan->max_redirs);
+  if (session != NULL && session->share != NULL) {
+    MDOK_SETOPT(CURLOPT_SHARE, session->share);
+    /* An empty cookie file enables the in-memory cookie engine without
+       reading a filesystem path. The share handle keeps it document-scoped. */
+    MDOK_SETOPT(CURLOPT_COOKIEFILE, "");
+  }
   /* Explicitly disable inherited proxy environment variables.  MDOK only
      reaches this native path for plans whose policy has already rejected
      caller-selected proxies. */
@@ -286,12 +421,42 @@ static CURLcode configure_easy(CURL *easy, const mdok_curl_plan *plan, const mdo
   return CURLE_OK;
 }
 
-mdok_curl_status mdok_curl_execute(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_error *out_error) {
+static CURLMcode perform_multi(CURLM *multi, CURL *easy, CURLcode *out_transfer, int *out_added) {
+  CURLMcode multi_result;
+  int running = 0;
+  int numfds = 0;
+  int messages = 0;
+  CURLMsg *message;
+  if (out_transfer != NULL) *out_transfer = CURLE_FAILED_INIT;
+  if (out_added != NULL) *out_added = 0;
+  if (multi == NULL || easy == NULL) return CURLM_BAD_HANDLE;
+  multi_result = curl_multi_add_handle(multi, easy);
+  if (multi_result != CURLM_OK) return multi_result;
+  if (out_added != NULL) *out_added = 1;
+  do {
+    do {
+      multi_result = curl_multi_perform(multi, &running);
+    } while (multi_result == CURLM_CALL_MULTI_PERFORM);
+    if (multi_result != CURLM_OK || !running) break;
+    multi_result = curl_multi_poll(multi, NULL, 0, 100, &numfds);
+  } while (multi_result == CURLM_OK);
+  if (multi_result != CURLM_OK) return multi_result;
+  while ((message = curl_multi_info_read(multi, &messages)) != NULL) {
+    if (message->msg == CURLMSG_DONE && message->easy_handle == easy && out_transfer != NULL)
+      *out_transfer = message->data.result;
+  }
+  return CURLM_OK;
+}
+
+mdok_curl_status mdok_curl_execute_with_info(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_transfer_info *out_info, mdok_curl_error *out_error) {
   CURL *easy;
   CURLcode result;
+  CURLMcode multi_result = CURLM_OK;
   struct callback_context context = {callbacks, userdata, 0, 0};
   int session_acquired = 0;
   int owns_easy = 0;
+  int added_to_multi = 0;
+  clear_transfer_info(out_info);
   clear_error(out_error);
   if (plan == NULL || plan->url == NULL || plan->method == NULL) { set_error(out_error, 0, "invalid curl plan"); return MDOK_CURL_INTERNAL_ERROR; }
   if (session != NULL) {
@@ -316,10 +481,25 @@ mdok_curl_status mdok_curl_execute(mdok_curl_session *session, const mdok_curl_p
     set_error(out_error, 0, "curl_easy_init failed");
     return MDOK_CURL_INTERNAL_ERROR;
   }
-  result = configure_easy(easy, plan, callbacks, &context);
-  if (result == CURLE_OK) result = curl_easy_perform(easy);
+  result = configure_easy(session, easy, plan, callbacks, &context);
+  if (result == CURLE_OK && session != NULL) {
+    if (session->multi == NULL) {
+      set_error(out_error, 0, "curl session has no multi handle");
+      result = CURLE_FAILED_INIT;
+    } else {
+      multi_result = perform_multi(session->multi, easy, &result, &added_to_multi);
+    }
+  } else if (result == CURLE_OK) {
+    result = curl_easy_perform(easy);
+  }
+  if (out_info != NULL && result != CURLE_FAILED_INIT) fill_transfer_info(easy, out_info);
+  if (added_to_multi) curl_multi_remove_handle(session->multi, easy);
   if (owns_easy) curl_easy_cleanup(easy);
   if (session_acquired) atomic_flag_clear(&session->in_use);
+  if (multi_result != CURLM_OK) {
+    set_error(out_error, (int32_t)multi_result, curl_multi_strerror(multi_result));
+    return MDOK_CURL_TRANSFER_ERROR;
+  }
   if (result != CURLE_OK) {
     if (context.callback_failed) {
       set_error(out_error, (int32_t)CURLE_WRITE_ERROR, "callback did not consume the complete buffer");
@@ -330,6 +510,10 @@ mdok_curl_status mdok_curl_execute(mdok_curl_session *session, const mdok_curl_p
     return MDOK_CURL_TRANSFER_ERROR;
   }
   return MDOK_CURL_OK;
+}
+
+mdok_curl_status mdok_curl_execute(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_error *out_error) {
+  return mdok_curl_execute_with_info(session, plan, callbacks, userdata, NULL, out_error);
 }
 
 void mdok_curl_plan_free(mdok_curl_plan *plan) {

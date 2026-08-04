@@ -38,6 +38,7 @@ pub const E_TRANSFER: &str = "MDOK-E600";
 pub const E_CONNECT_POLICY: &str = "MDOK-E604";
 pub const E_REDIRECT: &str = "MDOK-E603";
 pub const E_TLS: &str = "MDOK-E602";
+pub const E_CANCELLED: &str = "MDOK-E605";
 pub const E_BODY_LIMIT: &str = "MDOK-E700";
 
 #[derive(Clone, Debug)]
@@ -316,7 +317,7 @@ fn native_response(
     plan: &CurlPlan,
     policy: &CurlPolicy,
     transfer: mdok_curl_sys::NativeTransfer,
-    started: Instant,
+    metadata: mdok_curl_sys::NativeTransferMetadata,
 ) -> Result<TransferResponse, CurlError> {
     if transfer.headers.len() > policy.max_header_bytes {
         return Err(CurlError::new(
@@ -324,15 +325,21 @@ fn native_response(
             "response headers exceed the configured limit",
         ));
     }
-    let mut status = None;
-    let mut http_version = None;
+    let mut status = metadata.response_code;
+    let mut http_version = metadata.http_version.clone();
     let mut headers = BTreeMap::<String, Vec<String>>::new();
     for line in String::from_utf8_lossy(&transfer.headers).lines() {
         let line = line.trim_end_matches('\r');
         if let Some(version_and_status) = line.strip_prefix("HTTP/") {
             let mut parts = version_and_status.split_whitespace();
-            http_version = parts.next().map(str::to_owned);
-            status = parts.next().and_then(|value| value.parse::<u16>().ok());
+            let version = parts.next().map(str::to_owned);
+            let code = parts.next().and_then(|value| value.parse::<u16>().ok());
+            if http_version.is_none() {
+                http_version = version;
+            }
+            if status.is_none() {
+                status = code;
+            }
         } else if let Some((name, value)) = line.split_once(':') {
             if name.is_empty() {
                 continue;
@@ -369,31 +376,127 @@ fn native_response(
             truncated: false,
         }
     };
+    let redirects = native_redirects(
+        &transfer.headers,
+        &plan.url,
+        metadata.redirect_count.unwrap_or_default(),
+    );
+    let downloaded_bytes = metadata.downloaded_bytes.unwrap_or(body_len);
+    let response_header_bytes = metadata
+        .response_header_bytes
+        .unwrap_or(transfer.headers.len() as u64);
+    let uploaded_bytes = metadata
+        .uploaded_bytes
+        .or_else(|| plan.body.as_ref().map(request_body_len))
+        .unwrap_or_default();
+    let total_ms = metadata_ms(metadata.total_time_us);
+    let dns_ms = metadata_ms(metadata.name_lookup_time_us);
+    let connect_ms = metadata_ms(metadata.connect_time_us);
+    let tls_ms = match (metadata.connect_time_us, metadata.appconnect_time_us) {
+        (Some(connect), Some(appconnect)) if appconnect >= connect => {
+            metadata_ms(Some(appconnect - connect))
+        }
+        _ => 0.0,
+    };
+    let ttfb_ms = metadata_ms(metadata.starttransfer_time_us);
+    let redirect_ms = metadata_ms(metadata.redirect_time_us);
+    let verify_result = metadata.ssl_verify_result.unwrap_or_default();
     Ok(TransferResponse {
         status: Some(status),
         method: plan.method.clone(),
         url: plan.url.to_string(),
-        effective_url: plan.url.to_string(),
+        effective_url: metadata
+            .effective_url
+            .unwrap_or_else(|| plan.url.to_string()),
         http_version,
         cookies: cookies_from_headers(&headers),
         headers,
         body,
-        redirects: Vec::new(),
+        redirects,
         timings: Timings {
-            total_ms: started.elapsed().as_secs_f64() * 1000.0,
-            ..Timings::default()
+            queue_ms: metadata_ms(metadata.pretransfer_time_us),
+            dns_ms,
+            connect_ms,
+            tls_ms,
+            ttfb_ms,
+            total_ms,
+            redirect_ms,
         },
         transfer: TransferMetrics {
-            downloaded_bytes: body_len,
-            response_header_bytes: transfer.headers.len() as u64,
-            ..TransferMetrics::default()
+            uploaded_bytes,
+            downloaded_bytes,
+            request_header_bytes: metadata.request_header_bytes.unwrap_or_default(),
+            response_header_bytes,
+            primary_ip: metadata.primary_ip,
+            primary_port: metadata.primary_port,
+            local_ip: metadata.local_ip,
+            local_port: metadata.local_port,
+            redirect_count: metadata.redirect_count.unwrap_or_default(),
+            used_proxy: metadata.used_proxy,
         },
         tls: Some(TlsInfo {
-            verified: !plan.insecure,
-            verify_result: if plan.insecure { 1 } else { 0 },
+            verified: !plan.insecure && verify_result == 0,
+            verify_result,
         }),
         error: None,
     })
+}
+
+fn metadata_ms(value: Option<u64>) -> f64 {
+    value
+        .map(|micros| micros as f64 / 1000.0)
+        .unwrap_or_default()
+}
+
+fn native_redirects(headers: &[u8], start: &Url, expected: usize) -> Vec<RedirectHop> {
+    if expected == 0 {
+        return Vec::new();
+    }
+    let mut source = start.clone();
+    let mut status = None;
+    let mut location = None;
+    let mut redirects = Vec::new();
+    for line in String::from_utf8_lossy(headers).split("\r\n") {
+        if let Some(version_and_status) = line.strip_prefix("HTTP/") {
+            push_native_redirect(&mut redirects, &mut source, status.take(), location.take());
+            status = version_and_status
+                .split_whitespace()
+                .nth(1)
+                .and_then(|value| value.parse::<u16>().ok());
+        } else if let Some((name, value)) = line.split_once(':')
+            && name.eq_ignore_ascii_case("location")
+        {
+            location = Some(value.trim().to_owned());
+        } else if line.is_empty() {
+            push_native_redirect(&mut redirects, &mut source, status.take(), location.take());
+        }
+    }
+    push_native_redirect(&mut redirects, &mut source, status.take(), location.take());
+    redirects.truncate(expected);
+    redirects
+}
+
+fn push_native_redirect(
+    redirects: &mut Vec<RedirectHop>,
+    source: &mut Url,
+    status: Option<u16>,
+    location: Option<String>,
+) {
+    let Some(status) = status.filter(|value| (300..400).contains(value)) else {
+        return;
+    };
+    let Some(location) = location else {
+        return;
+    };
+    let Ok(target) = source.join(&location) else {
+        return;
+    };
+    redirects.push(RedirectHop {
+        status,
+        url: source.to_string(),
+        location: Some(target.to_string()),
+    });
+    *source = target;
 }
 
 #[derive(Clone, Debug)]
@@ -441,6 +544,39 @@ pub struct ConnectTo {
     pub port: u16,
     pub target_host: String,
     pub target_port: u16,
+}
+
+/// Per-document native execution state. The opaque bridge session owns one
+/// libcurl multi handle, easy handle, cookie share, and connection cache. It
+/// is intentionally not global: dropping it ends the document's cookie
+/// lifetime and prevents state from crossing documents.
+#[must_use]
+pub struct ExecutionSession {
+    native: Option<mdok_curl_sys::Session>,
+}
+
+impl ExecutionSession {
+    pub fn new() -> Self {
+        Self { native: None }
+    }
+
+    fn native_mut(&mut self) -> Result<&mut mdok_curl_sys::Session, CurlError> {
+        if self.native.is_none() {
+            self.native = Some(mdok_curl_sys::Session::new().map_err(|error| {
+                CurlError::new(
+                    E_TRANSFER,
+                    format!("native curl session failed: {}", error.message),
+                )
+            })?);
+        }
+        Ok(self.native.as_mut().expect("native session initialized"))
+    }
+}
+
+impl Default for ExecutionSession {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CurlPlan {
@@ -650,10 +786,36 @@ impl CurlPlan {
     }
 
     pub fn execute(&self, policy: &CurlPolicy) -> Result<TransferResponse, CurlError> {
+        let mut session = ExecutionSession::new();
+        self.execute_in_session_with_cancel(policy, &mut session, None)
+    }
+
+    /// Execute a plan using a caller-owned per-document session. The existing
+    /// `execute` API remains a one-plan convenience wrapper.
+    pub fn execute_in_session(
+        &self,
+        policy: &CurlPolicy,
+        session: &mut ExecutionSession,
+    ) -> Result<TransferResponse, CurlError> {
+        self.execute_in_session_with_cancel(policy, session, None)
+    }
+
+    /// Execute with a synchronous cancellation check. Native transfers poll
+    /// this callback from libcurl; fallback transfers check it before and
+    /// between blocking attempts.
+    pub fn execute_in_session_with_cancel(
+        &self,
+        policy: &CurlPolicy,
+        session: &mut ExecutionSession,
+        cancelled: Option<&dyn Fn() -> bool>,
+    ) -> Result<TransferResponse, CurlError> {
+        if cancelled.is_some_and(|callback| callback()) {
+            return Err(CurlError::new(E_CANCELLED, "transfer cancelled"));
+        }
         policy.check_url(&self.url)?;
         policy.check_resolved_url(&self.url)?;
         if self.native_eligible() {
-            return self.execute_native(policy);
+            return self.execute_native(policy, session, cancelled);
         }
         let redirects = Arc::new(Mutex::new(Vec::<RedirectHop>::new()));
         let redirect_log = Arc::clone(&redirects);
@@ -758,6 +920,9 @@ impl CurlPlan {
         let mut attempt = 0;
         let retry_deadline = self.retry_max_time.map(|d| started + d);
         loop {
+            if cancelled.is_some_and(|callback| callback()) {
+                return Err(CurlError::new(E_CANCELLED, "transfer cancelled"));
+            }
             if let Ok(mut hops) = redirects.lock() {
                 hops.clear();
             }
@@ -765,6 +930,9 @@ impl CurlPlan {
                 Ok(response)
                     if attempt >= self.retries || !is_retryable_status(response.status) =>
                 {
+                    if cancelled.is_some_and(|callback| callback()) {
+                        return Err(CurlError::new(E_CANCELLED, "transfer cancelled"));
+                    }
                     return Ok(response);
                 }
                 Ok(_) | Err(_)
@@ -773,7 +941,16 @@ impl CurlPlan {
                 {
                     attempt += 1;
                     if !self.retry_delay.is_zero() {
-                        std::thread::sleep(self.retry_delay);
+                        let deadline = Instant::now() + self.retry_delay;
+                        while Instant::now() < deadline {
+                            if cancelled.is_some_and(|callback| callback()) {
+                                return Err(CurlError::new(E_CANCELLED, "transfer cancelled"));
+                            }
+                            std::thread::sleep(
+                                Duration::from_millis(10)
+                                    .min(deadline.saturating_duration_since(Instant::now())),
+                            );
+                        }
                     }
                 }
                 Ok(response) => return Ok(response),
@@ -930,7 +1107,6 @@ impl CurlPlan {
             && self.bearer.is_none()
             && self.cookie.is_none()
             && self.cookie_jar.is_none()
-            && !self.follow_redirects
             && self.http_version.is_none()
             && self.cacert.is_none()
             && self.client_identity.is_none()
@@ -938,7 +1114,6 @@ impl CurlPlan {
             && self.resolve.is_empty()
             && self.connect_to.is_empty()
             && self.retries == 0
-            && !self.compressed
     }
 
     fn native_argv_has_file_body(&self) -> bool {
@@ -982,7 +1157,12 @@ impl CurlPlan {
             })
     }
 
-    fn execute_native(&self, policy: &CurlPolicy) -> Result<TransferResponse, CurlError> {
+    fn execute_native(
+        &self,
+        policy: &CurlPolicy,
+        execution: &mut ExecutionSession,
+        cancelled: Option<&dyn Fn() -> bool>,
+    ) -> Result<TransferResponse, CurlError> {
         let arguments = self
             .native_argv
             .iter()
@@ -994,18 +1174,14 @@ impl CurlPlan {
                 format!("native curl parser failed: {}", error.message),
             )
         })?;
-        let mut session = mdok_curl_sys::Session::new().map_err(|error| {
-            CurlError::new(
-                E_TRANSFER,
-                format!("native curl session failed: {}", error.message),
-            )
-        })?;
-        let started = Instant::now();
         let max_body_bytes = usize::try_from(policy.max_body_bytes).unwrap_or(usize::MAX);
-        let transfer = session
-            .execute_limited(&parsed, max_body_bytes, policy.max_header_bytes)
+        let result = execution
+            .native_mut()?
+            .execute_detailed(&parsed, max_body_bytes, policy.max_header_bytes, cancelled)
             .map_err(|error| {
-                if error.code == mdok_curl_sys::TIMEOUT_ERROR_CODE {
+                if error.status == mdok_curl_sys::CANCELLED_STATUS {
+                    CurlError::new(E_CANCELLED, error.message)
+                } else if error.code == mdok_curl_sys::TIMEOUT_ERROR_CODE {
                     CurlError::new(E_TIMEOUT, error.message)
                 } else if matches!(
                     error.code,
@@ -1019,13 +1195,14 @@ impl CurlPlan {
                     )
                 }
             })?;
+        let mdok_curl_sys::NativeTransferResult { transfer, metadata } = result;
         if transfer.body.len() as u64 > policy.max_body_bytes {
             return Err(CurlError::new(
                 E_BODY_LIMIT,
                 "response body exceeds the configured limit",
             ));
         }
-        native_response(self, policy, transfer, started)
+        native_response(self, policy, transfer, metadata)
     }
 }
 
@@ -1854,6 +2031,49 @@ mod tests {
     fn rejects_file_protocol() {
         let e = parse(&["curl", "file:///tmp/a"]).unwrap_err();
         assert_eq!(e.code, E_PROTOCOL_DENIED);
+    }
+
+    #[test]
+    fn native_metadata_maps_redirects_and_transfer_details() {
+        let plan = parse(&["curl", "https://example.test/start"]).unwrap();
+        let headers = b"HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok".to_vec();
+        let transfer = mdok_curl_sys::NativeTransfer {
+            body: b"ok".to_vec(),
+            headers,
+        };
+        let metadata = mdok_curl_sys::NativeTransferMetadata {
+            response_code: Some(200),
+            http_version: Some("1.1".into()),
+            effective_url: Some("https://example.test/final".into()),
+            total_time_us: Some(12_000),
+            name_lookup_time_us: Some(1_000),
+            connect_time_us: Some(3_000),
+            appconnect_time_us: Some(4_000),
+            pretransfer_time_us: Some(5_000),
+            starttransfer_time_us: Some(7_000),
+            redirect_time_us: Some(2_000),
+            uploaded_bytes: Some(9),
+            downloaded_bytes: Some(2),
+            request_header_bytes: Some(80),
+            response_header_bytes: Some(123),
+            redirect_count: Some(1),
+            num_connects: Some(1),
+            ssl_verify_result: Some(0),
+            used_proxy: false,
+            primary_ip: Some("192.0.2.10".into()),
+            primary_port: Some(443),
+            local_ip: Some("192.0.2.20".into()),
+            local_port: Some(50_000),
+        };
+        let response = native_response(&plan, &CurlPolicy::default(), transfer, metadata).unwrap();
+        assert_eq!(response.status, Some(200));
+        assert_eq!(response.effective_url, "https://example.test/final");
+        assert_eq!(response.redirects.len(), 1);
+        assert_eq!(response.transfer.uploaded_bytes, 9);
+        assert_eq!(response.transfer.primary_port, Some(443));
+        assert_eq!(response.transfer.local_port, Some(50_000));
+        assert!(!response.transfer.used_proxy);
+        assert_eq!(response.timings.total_ms, 12.0);
     }
 
     #[test]

@@ -5,8 +5,13 @@ use mdok_curl_sys::{
 };
 use std::{
     ffi::{c_int, c_void},
-    fs, ptr,
+    fs,
+    io::{Read, Write},
+    net::TcpListener,
+    ptr,
     sync::Once,
+    thread,
+    time::Duration,
 };
 
 const MDOK_CURL_OK: c_int = 0;
@@ -69,6 +74,91 @@ fn write_file_fixture(body: &[u8], suffix: &str) -> (String, std::path::PathBuf)
     ));
     fs::write(&path, body).expect("write file transfer fixture");
     (format!("file://{}", path.display()), path)
+}
+
+fn read_request(stream: &mut std::net::TcpStream) -> String {
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .expect("set request timeout");
+    let mut bytes = Vec::new();
+    let mut chunk = [0_u8; 1024];
+    loop {
+        let count = stream.read(&mut chunk).expect("read request");
+        if count == 0 {
+            break;
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+        if bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+            break;
+        }
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+fn start_cookie_server() -> (String, thread::JoinHandle<bool>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind cookie fixture");
+    let address = listener.local_addr().expect("cookie fixture address");
+    let handle = thread::spawn(move || {
+        let mut saw_cookie = false;
+        for request_number in 0..2 {
+            let (mut stream, _) = listener.accept().expect("accept cookie request");
+            let request = read_request(&mut stream);
+            if request_number == 1 {
+                saw_cookie = request.to_ascii_lowercase().contains("cookie: session=abc");
+            }
+            let response = if request_number == 0 {
+                b"HTTP/1.1 200 OK\r\nSet-Cookie: session=abc; Path=/\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice()
+            } else if saw_cookie {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice()
+            } else {
+                b"HTTP/1.1 403 Forbidden\r\nContent-Length: 2\r\nConnection: close\r\n\r\nno"
+                    .as_slice()
+            };
+            stream.write_all(response).expect("write cookie response");
+        }
+        saw_cookie
+    });
+    (format!("http://127.0.0.1:{}/", address.port()), handle)
+}
+
+fn start_keep_alive_server() -> (String, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind keep-alive fixture");
+    let address = listener.local_addr().expect("keep-alive fixture address");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept keep-alive connection");
+        for request_number in 0..2 {
+            let request = read_request(&mut stream);
+            assert!(!request.is_empty(), "both requests must use one connection");
+            let response = if request_number == 0 {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok"
+                    .as_slice()
+            } else {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice()
+            };
+            stream
+                .write_all(response)
+                .expect("write keep-alive response");
+        }
+    });
+    (format!("http://127.0.0.1:{}/", address.port()), handle)
+}
+
+fn start_redirect_server() -> (String, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind redirect fixture");
+    let address = listener.local_addr().expect("redirect fixture address");
+    let handle = thread::spawn(move || {
+        for request_number in 0..2 {
+            let (mut stream, _) = listener.accept().expect("accept redirect request");
+            let _ = read_request(&mut stream);
+            let response = if request_number == 0 {
+                b"HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".as_slice()
+            } else {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice()
+            };
+            stream.write_all(response).expect("write redirect response");
+        }
+    });
+    (format!("http://127.0.0.1:{}/start", address.port()), handle)
 }
 
 unsafe extern "C" fn short_write(_data: *const u8, _len: usize, _userdata: *mut c_void) -> usize {
@@ -163,6 +253,101 @@ fn owned_plan_and_session_can_reuse_one_easy_handle() {
         };
         assert_eq!(status, MDOK_CURL_OK, "bridge error code {}", error.code);
     }
+}
+
+#[test]
+fn session_preserves_cookies_and_copies_transfer_metadata() {
+    ensure_curl_init();
+    let (base_url, server) = start_cookie_server();
+    let first_url = format!("{base_url}set");
+    let second_url = format!("{base_url}check");
+    let first = Plan::parse(&[b"curl".as_slice(), first_url.as_bytes()]).expect("parse first URL");
+    let second =
+        Plan::parse(&[b"curl".as_slice(), second_url.as_bytes()]).expect("parse second URL");
+    let mut session = Session::new().expect("allocate native session");
+
+    let first_result = session
+        .execute_detailed(&first, 1024, 16 * 1024, None)
+        .expect("execute first request");
+    assert_eq!(first_result.metadata.response_code, Some(200));
+    assert_eq!(first_result.metadata.http_version.as_deref(), Some("1.1"));
+    assert_eq!(
+        first_result.metadata.effective_url.as_deref(),
+        Some(first_url.as_str())
+    );
+    assert_eq!(first_result.metadata.downloaded_bytes, Some(2));
+    assert_eq!(first_result.metadata.uploaded_bytes, Some(0));
+    assert!(
+        first_result
+            .metadata
+            .response_header_bytes
+            .unwrap_or_default()
+            > 0
+    );
+    assert_eq!(
+        first_result.metadata.primary_ip.as_deref(),
+        Some("127.0.0.1")
+    );
+    assert!(first_result.metadata.primary_port.is_some());
+    assert!(first_result.metadata.local_port.is_some());
+    assert!(first_result.metadata.total_time_us.is_some());
+    assert!(!first_result.metadata.used_proxy);
+
+    let second_result = session
+        .execute_detailed(&second, 1024, 16 * 1024, None)
+        .expect("execute second request");
+    assert_eq!(second_result.metadata.response_code, Some(200));
+    assert_eq!(second_result.transfer.body, b"ok");
+    assert!(server.join().expect("join cookie fixture"));
+}
+
+#[test]
+fn session_reuses_one_multi_connection_cache_for_sequential_steps() {
+    ensure_curl_init();
+    let (base_url, server) = start_keep_alive_server();
+    let first_url = format!("{base_url}one");
+    let second_url = format!("{base_url}two");
+    let first = Plan::parse(&[b"curl".as_slice(), first_url.as_bytes()]).expect("parse first URL");
+    let second =
+        Plan::parse(&[b"curl".as_slice(), second_url.as_bytes()]).expect("parse second URL");
+    let mut session = Session::new().expect("allocate native session");
+    assert_eq!(
+        session
+            .execute_detailed(&first, 1024, 16 * 1024, None)
+            .expect("execute first keep-alive request")
+            .metadata
+            .response_code,
+        Some(200)
+    );
+    assert_eq!(
+        session
+            .execute_detailed(&second, 1024, 16 * 1024, None)
+            .expect("execute second keep-alive request")
+            .metadata
+            .response_code,
+        Some(200)
+    );
+    server.join().expect("join keep-alive fixture");
+}
+
+#[test]
+fn native_metadata_reports_effective_url_and_redirect_count() {
+    ensure_curl_init();
+    let (url, server) = start_redirect_server();
+    let plan = Plan::parse(&[b"curl".as_slice(), b"--location".as_slice(), url.as_bytes()])
+        .expect("parse redirect plan");
+    let mut session = Session::new().expect("allocate redirect session");
+    let result = session
+        .execute_detailed(&plan, 1024, 16 * 1024, None)
+        .expect("execute redirect plan");
+    let expected_url = url.replace("/start", "/final");
+    assert_eq!(result.metadata.response_code, Some(200));
+    assert_eq!(
+        result.metadata.effective_url.as_deref(),
+        Some(expected_url.as_str())
+    );
+    assert_eq!(result.metadata.redirect_count, Some(1));
+    server.join().expect("join redirect fixture");
 }
 
 #[test]
