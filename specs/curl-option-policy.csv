@@ -4,7 +4,7 @@ option,classification,area
 --anyauth,unsupported,unclassified-curl-option
 --append,unsupported,unclassified-curl-option
 --aws-sigv4,feature-gated,auth
---basic,unsupported,unclassified-curl-option
+--basic,compatibility-noop,auth
 --ca-native,unsupported,unclassified-curl-option
 --cacert,policy-gated,file/tls
 --capath,unsupported,unclassified-curl-option
@@ -12,7 +12,7 @@ option,classification,area
 --cert-status,unsupported,unclassified-curl-option
 --cert-type,unsupported,unclassified-curl-option
 --ciphers,unsupported,unclassified-curl-option
---compressed,unsupported,unclassified-curl-option
+--compressed,transfer,encoding
 --compressed-ssh,unsupported,unclassified-curl-option
 --config,policy-gated,file/config
 --connect-timeout,transfer,timeout
@@ -29,7 +29,7 @@ option,classification,area
 --data-ascii,unsupported,unclassified-curl-option
 --data-binary,policy-gated,file/body
 --data-raw,transfer,body
---data-urlencode,unsupported,unclassified-curl-option
+--data-urlencode,transfer,body
 --delegation,unsupported,unclassified-curl-option
 --digest,unsupported,unclassified-curl-option
 --disable,unsupported,unclassified-curl-option
@@ -70,7 +70,7 @@ option,classification,area
 --ftp-ssl-ccc,unsupported,unclassified-curl-option
 --ftp-ssl-ccc-mode,unsupported,unclassified-curl-option
 --ftp-ssl-control,unsupported,unclassified-curl-option
---get,unsupported,unclassified-curl-option
+--get,transfer,method/query
 --globoff,unsupported,unclassified-curl-option
 --happy-eyeballs-timeout-ms,unsupported,unclassified-curl-option
 --haproxy-clientip,unsupported,unclassified-curl-option
@@ -83,7 +83,7 @@ option,classification,area
 --hsts,unsupported,unclassified-curl-option
 --http0.9,unsupported,unclassified-curl-option
 --http1.0,unsupported,unclassified-curl-option
---http1.1,unsupported,unclassified-curl-option
+--http1.1,transfer,protocol
 --http2,unsupported,unclassified-curl-option
 --http2-prior-knowledge,unsupported,unclassified-curl-option
 --http3,unsupported,unclassified-curl-option
@@ -126,7 +126,7 @@ option,classification,area
 --netrc-optional,unsupported,unclassified-curl-option
 --next,unsupported,multiple-transfer
 --no-alpn,unsupported,unclassified-curl-option
---no-buffer,unsupported,unclassified-curl-option
+--no-buffer,compatibility-noop,presentation
 --no-clobber,unsupported,unclassified-curl-option
 --no-keepalive,unsupported,unclassified-curl-option
 --no-npn,unsupported,unclassified-curl-option
@@ -189,10 +189,10 @@ option,classification,area
 --pubkey,unsupported,unclassified-curl-option
 --quote,unsupported,unclassified-curl-option
 --random-file,unsupported,unclassified-curl-option
---range,unsupported,unclassified-curl-option
+--range,transfer,range
 --rate,unsupported,unclassified-curl-option
 --raw,unsupported,unclassified-curl-option
---referer,unsupported,unclassified-curl-option
+--referer,transfer,headers
 --remote-header-name,unsupported,unclassified-curl-option
 --remote-name,unsupported,output
 --remote-name-all,unsupported,unclassified-curl-option
@@ -266,7 +266,7 @@ option,classification,area
 --url-query,unsupported,unclassified-curl-option
 --use-ascii,unsupported,unclassified-curl-option
 --user,transfer,auth
---user-agent,unsupported,unclassified-curl-option
+--user-agent,transfer,headers
 --variable,unsupported,unclassified-curl-option
 --verbose,unsupported,unclassified-curl-option
 --version,unsupported,unclassified-curl-option
