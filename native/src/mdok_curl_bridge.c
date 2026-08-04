@@ -1,4 +1,5 @@
 #include "mdok_curl.h"
+#include "mdok_curl_tool_parser.h"
 
 #include <curl/curl.h>
 #include <stdatomic.h>
@@ -99,25 +100,6 @@ static int is_option(const char *value, const char *long_name, const char *short
   return strcmp(value, long_name) == 0 || (short_name != NULL && strcmp(value, short_name) == 0);
 }
 
-static int needs_argument(const char *option) {
-  return is_option(option, "--request", "-X") || is_option(option, "--header", "-H") ||
-         is_option(option, "--data", "-d") || is_option(option, "--data-raw", NULL) ||
-         is_option(option, "--data-binary", NULL) || is_option(option, "--data-urlencode", NULL) ||
-         is_option(option, "--json", NULL) || is_option(option, "--form", "-F") ||
-         is_option(option, "--upload-file", "-T") || is_option(option, "--user", "-u") ||
-         is_option(option, "--oauth2-bearer", NULL) || is_option(option, "--cookie", "-b") ||
-         is_option(option, "--cookie-jar", "-c") || is_option(option, "--max-redirs", NULL) ||
-         is_option(option, "--connect-timeout", NULL) || is_option(option, "--max-time", "-m") ||
-         is_option(option, "--retry", NULL) || is_option(option, "--retry-delay", NULL) ||
-         is_option(option, "--retry-max-time", NULL) || is_option(option, "--range", "-r") ||
-         is_option(option, "--user-agent", "-A") || is_option(option, "--referer", "-e") ||
-         is_option(option, "--cacert", NULL) || is_option(option, "--cert", NULL) ||
-         is_option(option, "--key", NULL) || is_option(option, "--proxy", "-x") ||
-         is_option(option, "--resolve", NULL) || is_option(option, "--connect-to", NULL) ||
-         is_option(option, "--output", "-o") || is_option(option, "--write-out", "-w") ||
-         is_option(option, "--config", "-K") || is_option(option, "--libcurl", NULL);
-}
-
 mdok_curl_status mdok_curl_global_init(void) {
   CURLcode result = curl_global_init(CURL_GLOBAL_DEFAULT);
   if (result != CURLE_OK) {
@@ -161,98 +143,45 @@ void mdok_curl_session_free(mdok_curl_session *session) {
 }
 
 mdok_curl_status mdok_curl_parse(const mdok_curl_argv *argv, mdok_curl_plan **out_plan, mdok_curl_error *out_error) {
-  mdok_curl_plan *plan;
-  size_t index;
-  size_t url_count = 0;
-  if (out_plan != NULL) *out_plan = NULL;
+  mdok_curl_plan *plan = NULL;
+  mdok_curl_tool_result parsed;
+  mdok_curl_status status;
+  if(out_plan != NULL)
+    *out_plan = NULL;
   clear_error(out_error);
-  if (out_plan == NULL || argv == NULL || argv->argc == 0 || argv->argc > MDOK_CURL_MAX_ARGC || argv->argv == NULL) {
-    set_error(out_error, 1, "invalid curl argv");
+  if(!out_plan) {
+    set_error(out_error, 1, "missing curl plan output");
     return MDOK_CURL_PARSE_ERROR;
   }
-  for (index = 0; index < argv->argc; index++) {
-    if (!valid_slice(argv->argv[index])) {
-      set_error_at(out_error, 1, "invalid curl argv slice", index);
-      return MDOK_CURL_PARSE_ERROR;
-    }
-  }
-  if (!slice_equals_literal(argv->argv[0], "curl")) {
-    set_error(out_error, 1, "argv must begin with curl");
-    return MDOK_CURL_PARSE_ERROR;
+  status = mdok_curl_tool_parse(argv, &parsed, out_error);
+  if(status != MDOK_CURL_OK)
+    return status;
+  if(!parsed.url || strstr(parsed.url, "://") == NULL) {
+    mdok_curl_tool_result_free(&parsed);
+    set_error(out_error, 302, "only HTTP and HTTPS URLs are allowed");
+    return MDOK_CURL_POLICY_ERROR;
   }
   plan = (mdok_curl_plan *)calloc(1, sizeof(*plan));
-  if (plan == NULL) { set_error(out_error, 0, "allocation failed"); return MDOK_CURL_INTERNAL_ERROR; }
-  plan->method = duplicate_string("GET");
-  plan->max_redirs = 50;
-  if (plan->method == NULL) { mdok_curl_plan_free(plan); set_error(out_error, 0, "allocation failed"); return MDOK_CURL_INTERNAL_ERROR; }
-  for (index = 1; index < argv->argc; index++) {
-    char *value = copy_slice(argv->argv[index]);
-    if (value == NULL) { mdok_curl_plan_free(plan); set_error_at(out_error, 0, "allocation failed", index); return MDOK_CURL_INTERNAL_ERROR; }
-    if (strcmp(value, "-q") == 0 || strcmp(value, "--silent") == 0 || strcmp(value, "-s") == 0 ||
-        strcmp(value, "--show-error") == 0 || strcmp(value, "-S") == 0 || strcmp(value, "--compressed") == 0 ||
-        strcmp(value, "--no-buffer") == 0 || strcmp(value, "--location") == 0 || strcmp(value, "-L") == 0 ||
-        strcmp(value, "--http1.0") == 0 || strcmp(value, "--http1.1") == 0 || strcmp(value, "--http2") == 0 ||
-        strcmp(value, "--insecure") == 0 || strcmp(value, "-k") == 0) {
-      if (strcmp(value, "--compressed") == 0) plan->compressed = 1;
-      if (strcmp(value, "--location") == 0 || strcmp(value, "-L") == 0) plan->follow = 1;
-      if (strcmp(value, "--insecure") == 0 || strcmp(value, "-k") == 0) plan->insecure = 1;
-      free(value);
-      continue;
-    }
-    if (strcmp(value, "--parallel") == 0 || strcmp(value, "--parallel-immediate") == 0 || strcmp(value, "--next") == 0 ||
-        strcmp(value, "--output") == 0 || strcmp(value, "-o") == 0 || strcmp(value, "--remote-name") == 0 ||
-        strcmp(value, "-O") == 0 || strcmp(value, "--write-out") == 0 || strcmp(value, "-w") == 0 ||
-        strcmp(value, "--libcurl") == 0 || strcmp(value, "--trace") == 0 || strcmp(value, "--trace-ascii") == 0 ||
-        strcmp(value, "--config") == 0 || strcmp(value, "-K") == 0) {
-      free(value); mdok_curl_plan_free(plan); set_error(out_error, 301, "unsupported or multiple-transfer option"); return MDOK_CURL_PARSE_ERROR;
-    }
-    if (value[0] == '-' && !needs_argument(value)) {
-      free(value); mdok_curl_plan_free(plan); set_error_at(out_error, 300, "unknown curl option", index); return MDOK_CURL_PARSE_ERROR;
-    }
-    if (needs_argument(value)) {
-      char *argument;
-      if (index + 1 >= argv->argc) { free(value); mdok_curl_plan_free(plan); set_error_at(out_error, 300, "missing option argument", index); return MDOK_CURL_PARSE_ERROR; }
-      argument = copy_slice(argv->argv[++index]);
-      if (argument == NULL) { free(value); mdok_curl_plan_free(plan); set_error_at(out_error, 0, "allocation failed", index); return MDOK_CURL_INTERNAL_ERROR; }
-      if (is_option(value, "--request", "-X")) { free(plan->method); plan->method = argument; argument = NULL; }
-      else if (is_option(value, "--header", "-H")) {
-        struct curl_slist *headers = curl_slist_append(plan->headers, argument);
-        if (headers == NULL) {
-          free(argument); free(value); mdok_curl_plan_free(plan); set_error(out_error, 0, "header allocation failed"); return MDOK_CURL_INTERNAL_ERROR;
-        }
-        plan->headers = headers;
-      }
-      else if (is_option(value, "--data", "-d") || is_option(value, "--data-raw", NULL) || is_option(value, "--data-binary", NULL) || is_option(value, "--json", NULL) || is_option(value, "--data-urlencode", NULL)) {
-        size_t argument_len = strlen(argument);
-        size_t separator = plan->body_len ? 1 : 0;
-        size_t new_len;
-        unsigned char *body;
-        if (plan->body_len > MDOK_CURL_MAX_BODY_BYTES || separator > MDOK_CURL_MAX_BODY_BYTES - plan->body_len || argument_len > MDOK_CURL_MAX_BODY_BYTES - plan->body_len - separator) {
-          free(argument); free(value); mdok_curl_plan_free(plan); set_error(out_error, 300, "request body is too large"); return MDOK_CURL_PARSE_ERROR;
-        }
-        new_len = plan->body_len + separator + argument_len;
-        body = (unsigned char *)realloc(plan->body, new_len == 0 ? 1 : new_len);
-        if (body == NULL) { free(argument); free(value); mdok_curl_plan_free(plan); set_error(out_error, 0, "allocation failed"); return MDOK_CURL_INTERNAL_ERROR; }
-        plan->body = body;
-        if (separator) plan->body[plan->body_len++] = '&';
-        if (argument_len != 0) memcpy(plan->body + plan->body_len, argument, argument_len);
-        plan->body_len += argument_len;
-        free(plan->method); plan->method = duplicate_string("POST");
-        if (plan->method == NULL) { free(argument); free(value); mdok_curl_plan_free(plan); set_error(out_error, 0, "allocation failed"); return MDOK_CURL_INTERNAL_ERROR; }
-      } else if (is_option(value, "--range", "-r")) { plan->range = argument; argument = NULL; }
-      else if (is_option(value, "--max-time", "-m")) { plan->timeout_ms = (long)(atof(argument) * 1000.0); }
-      else if (is_option(value, "--connect-timeout", NULL)) { plan->connect_timeout_ms = (long)(atof(argument) * 1000.0); }
-      else if (is_option(value, "--max-redirs", NULL)) { plan->max_redirs = atol(argument); }
-      else if (is_option(value, "--user-agent", "-A")) { free(plan->user_agent); plan->user_agent = argument; argument = NULL; }
-      else if (is_option(value, "--referer", "-e")) { free(plan->referer); plan->referer = argument; argument = NULL; }
-      free(argument); free(value);
-      continue;
-    }
-    if (strstr(value, "://") == NULL) { free(value); mdok_curl_plan_free(plan); set_error(out_error, 302, "only HTTP and HTTPS URLs are allowed"); return MDOK_CURL_POLICY_ERROR; }
-    if (url_count++ != 0) { free(value); mdok_curl_plan_free(plan); set_error(out_error, 304, "multiple URLs are not allowed"); return MDOK_CURL_POLICY_ERROR; }
-    plan->url = value;
+  if(!plan) {
+    mdok_curl_tool_result_free(&parsed);
+    set_error(out_error, 0, "allocation failed");
+    return MDOK_CURL_INTERNAL_ERROR;
   }
-  if (url_count != 1) { mdok_curl_plan_free(plan); set_error(out_error, 304, "exactly one URL is required"); return MDOK_CURL_POLICY_ERROR; }
+  plan->url = parsed.url;
+  plan->method = parsed.method;
+  plan->body = parsed.body;
+  plan->body_len = parsed.body_len;
+  plan->headers = parsed.headers;
+  plan->timeout_ms = parsed.timeout_ms;
+  plan->connect_timeout_ms = parsed.connect_timeout_ms;
+  plan->max_redirs = parsed.max_redirs;
+  plan->follow = parsed.follow;
+  plan->insecure = parsed.insecure;
+  plan->compressed = parsed.compressed;
+  plan->range = parsed.range;
+  plan->user_agent = parsed.user_agent;
+  plan->referer = parsed.referer;
+  memset(&parsed, 0, sizeof(parsed));
   *out_plan = plan;
   return MDOK_CURL_OK;
 }

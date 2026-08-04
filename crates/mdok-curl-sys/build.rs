@@ -1,6 +1,7 @@
 fn main() {
     let dst = cmake::Config::new("../../native").build();
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
+    println!("cargo:rustc-link-lib=static=mdok_curl_tool_parser");
     println!("cargo:rustc-link-lib=static=mdok_curl_bridge");
     println!("cargo:rustc-link-lib=static=curl");
     let link_file = dst.join("mdok-curl-link-files.txt");

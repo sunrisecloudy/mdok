@@ -83,7 +83,7 @@ unsafe extern "C" fn cancel_immediately(_userdata: *mut c_void) -> c_int {
 fn malformed_argv_is_rejected_without_dereference_or_stale_plan() {
     ensure_curl_init();
 
-    let mut plan = 1usize as *mut mdok_curl_plan;
+    let mut plan = std::ptr::dangling_mut::<mdok_curl_plan>();
     // SAFETY: null input/output pointers are explicitly part of this FFI
     // safety test; the bridge must return a parse error without dereferencing.
     let status = unsafe { mdok_curl_parse(ptr::null(), &mut plan, ptr::null_mut()) };
@@ -239,4 +239,42 @@ fn null_session_free_is_safe() {
     let session = unsafe { mdok_curl_session_new() };
     assert!(!session.is_null());
     unsafe { mdok_curl_session_free(session) };
+}
+
+#[test]
+fn upstream_tool_parser_normalizes_supported_options_and_rejects_unsafe_shapes() {
+    ensure_curl_init();
+    let supported = Plan::parse(&[
+        b"curl".as_slice(),
+        b"--request".as_slice(),
+        b"POST".as_slice(),
+        b"--header".as_slice(),
+        b"X-Mdok: yes".as_slice(),
+        b"--data".as_slice(),
+        b"payload".as_slice(),
+        b"file:///dev/null".as_slice(),
+    ]);
+    assert!(
+        supported.is_ok(),
+        "upstream parser rejected supported options"
+    );
+
+    let parallel = Plan::parse(&[
+        b"curl".as_slice(),
+        b"--parallel".as_slice(),
+        b"file:///dev/null".as_slice(),
+    ])
+    .err()
+    .expect("parallel execution must not enter the single-transfer bridge");
+    assert_eq!(parallel.status, MDOK_CURL_PARSE_ERROR);
+
+    let unknown = Plan::parse(&[
+        b"curl".as_slice(),
+        b"--mdok-not-a-curl-option".as_slice(),
+        b"file:///dev/null".as_slice(),
+    ])
+    .err()
+    .expect("unknown options must be rejected by curl's parser");
+    assert_eq!(unknown.status, MDOK_CURL_PARSE_ERROR);
+    assert!(unknown.code >= 300);
 }
