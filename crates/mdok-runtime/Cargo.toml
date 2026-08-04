@@ -1,0 +1,19 @@
+[package]
+name = "mdok-runtime"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mdok-core = { path = "../mdok-core" }
+mdok-curl = { path = "../mdok-curl" }
+mdok-jmespath = { path = "../mdok-jmespath" }
+mdok-markdown = { path = "../mdok-markdown" }
+mdok-shell = { path = "../mdok-shell" }
+mdok-template = { path = "../mdok-template" }
+base64.workspace = true
+jmespath.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true

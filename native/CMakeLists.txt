@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.24)
+project(mdok_curl_bridge C)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+
+find_package(CURL REQUIRED)
+add_library(mdok_curl_bridge STATIC src/mdok_curl_bridge.c)
+target_include_directories(mdok_curl_bridge PUBLIC include)
+target_link_libraries(mdok_curl_bridge PRIVATE CURL::libcurl)
+target_compile_definitions(mdok_curl_bridge PRIVATE CURL_STATICLIB=1)
+
+install(TARGETS mdok_curl_bridge ARCHIVE DESTINATION lib)
+install(FILES include/mdok_curl.h DESTINATION include)

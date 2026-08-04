@@ -1,0 +1,8 @@
+/target/
+__pycache__/
+.DS_Store
+*.swp
+*.tmp
+mdok-report.json
+tests/artifacts/*
+!tests/artifacts/.gitkeep

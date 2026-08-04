@@ -11,6 +11,6 @@ allowed_schemes = ["http", "https"]
 [policy]
 allowed_hosts = ["127.0.0.1", "localhost"]
 allowed_read_paths = ["tests/fixtures/**"]
-allowed_write_paths = []
+allowed_write_paths = ["tests/artifacts/**"]
 allow_insecure_tls = false
 allow_proxy = false

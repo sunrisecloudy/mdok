@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdok.dev/schema/corpus-manifest-v1.json",
+  "type": "object",
+  "required": [
+    "id",
+    "path",
+    "category",
+    "stage",
+    "expected",
+    "description",
+    "tags"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^T[0-9]{4}$"
+    },
+    "path": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "stage": {
+      "enum": [
+        "markdown",
+        "plan",
+        "execute",
+        "report"
+      ]
+    },
+    "expected": {
+      "enum": [
+        "pass",
+        "error"
+      ]
+    },
+    "error_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

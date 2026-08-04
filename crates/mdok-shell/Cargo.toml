@@ -1,0 +1,13 @@
+[package]
+name = "mdok-shell"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mdok-core = { path = "../mdok-core" }
+mdok-template = { path = "../mdok-template" }
+serde_json.workspace = true
+tree-sitter.workspace = true
+tree-sitter-bash.workspace = true
+thiserror.workspace = true
