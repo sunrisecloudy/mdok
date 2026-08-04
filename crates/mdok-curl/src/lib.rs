@@ -2,11 +2,11 @@
 
 //! Curl-compatible request planning and bounded HTTP execution.
 //!
-//! The repository does not contain the pinned curl source release described by
-//! the PRD.  This crate therefore keeps the public plan independent of curl's
-//! private structs and implements the version-1 option subset directly.  The
-//! transfer itself is still performed in-process by reqwest/libcurl-backed
-//! platform networking; no shell or child process is started.
+//! A pinned curl release is linked into the native bridge. The public plan
+//! remains independent of curl's private structs and the conservative plain
+//! `curl URL` path uses that bridge directly. The broader compatibility option
+//! subset uses the in-process Rust adapter; no shell or child process is
+//! started.
 
 use base64::Engine as _;
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
@@ -35,6 +35,7 @@ pub const E_FILE_DENIED: &str = "MDOK-E303";
 pub const E_POLICY: &str = "MDOK-E304";
 pub const E_TIMEOUT: &str = "MDOK-E601";
 pub const E_TRANSFER: &str = "MDOK-E600";
+pub const E_CONNECT_POLICY: &str = "MDOK-E604";
 pub const E_REDIRECT: &str = "MDOK-E603";
 pub const E_TLS: &str = "MDOK-E602";
 pub const E_BODY_LIMIT: &str = "MDOK-E700";
@@ -140,12 +141,7 @@ impl CurlPolicy {
                     || host == "localhost.localdomain"
                     || host
                         .parse::<std::net::IpAddr>()
-                        .map(|ip| match ip {
-                            std::net::IpAddr::V4(ip) => {
-                                ip.is_loopback() || ip.is_private() || ip.is_unspecified()
-                            }
-                            std::net::IpAddr::V6(ip) => ip.is_loopback() || ip.is_unspecified(),
-                        })
+                        .map(denied_address)
                         .unwrap_or(false);
                 if private {
                     return Err(CurlError::new(
@@ -154,6 +150,47 @@ impl CurlPolicy {
                     ));
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn check_socket_address(&self, address: SocketAddr) -> Result<(), CurlError> {
+        if !self.allow_private_network && denied_address(address.ip()) {
+            return Err(CurlError::new(
+                E_CONNECT_POLICY,
+                format!("resolved destination `{address}` is private or link-local"),
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_resolved_url(&self, url: &Url) -> Result<(), CurlError> {
+        if self.allow_private_network {
+            return Ok(());
+        }
+        let Some(host) = url.host_str() else {
+            return Ok(());
+        };
+        let port = url
+            .port_or_known_default()
+            .ok_or_else(|| CurlError::new(E_POLICY, "URL has no known port"))?;
+        let addresses = (host, port)
+            .to_socket_addrs()
+            .map_err(|error| {
+                CurlError::new(
+                    E_CONNECT_POLICY,
+                    format!("destination cannot resolve: {error}"),
+                )
+            })?
+            .collect::<Vec<_>>();
+        if addresses.is_empty() {
+            return Err(CurlError::new(
+                E_CONNECT_POLICY,
+                "destination has no resolved addresses",
+            ));
+        }
+        for address in addresses {
+            self.check_socket_address(address)?;
         }
         Ok(())
     }
@@ -275,6 +312,90 @@ fn join_body_parts(parts: &[Vec<u8>]) -> Option<Vec<u8>> {
     Some(joined)
 }
 
+fn native_response(
+    plan: &CurlPlan,
+    policy: &CurlPolicy,
+    transfer: mdok_curl_sys::NativeTransfer,
+    started: Instant,
+) -> Result<TransferResponse, CurlError> {
+    if transfer.headers.len() > policy.max_header_bytes {
+        return Err(CurlError::new(
+            E_BODY_LIMIT,
+            "response headers exceed the configured limit",
+        ));
+    }
+    let mut status = None;
+    let mut http_version = None;
+    let mut headers = BTreeMap::<String, Vec<String>>::new();
+    for line in String::from_utf8_lossy(&transfer.headers).lines() {
+        let line = line.trim_end_matches('\r');
+        if let Some(version_and_status) = line.strip_prefix("HTTP/") {
+            let mut parts = version_and_status.split_whitespace();
+            http_version = parts.next().map(str::to_owned);
+            status = parts.next().and_then(|value| value.parse::<u16>().ok());
+        } else if let Some((name, value)) = line.split_once(':') {
+            if name.is_empty() {
+                continue;
+            }
+            headers
+                .entry(name.to_ascii_lowercase())
+                .or_default()
+                .push(value.trim().to_owned());
+        }
+    }
+    let Some(status) = status else {
+        return Err(CurlError::new(
+            E_TRANSFER,
+            "native curl response did not contain a status line",
+        ));
+    };
+    let body_len = transfer.body.len() as u64;
+    let body = if transfer.body.len() <= policy.memory_body_threshold_bytes {
+        BodyStorage {
+            len: body_len,
+            memory: Some(transfer.body),
+            spool: None,
+            truncated: false,
+        }
+    } else {
+        let mut file =
+            NamedTempFile::new().map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+        file.write_all(&transfer.body)
+            .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+        BodyStorage {
+            len: body_len,
+            memory: None,
+            spool: Some(file.into_temp_path()),
+            truncated: false,
+        }
+    };
+    Ok(TransferResponse {
+        status: Some(status),
+        method: plan.method.clone(),
+        url: plan.url.to_string(),
+        effective_url: plan.url.to_string(),
+        http_version,
+        cookies: cookies_from_headers(&headers),
+        headers,
+        body,
+        redirects: Vec::new(),
+        timings: Timings {
+            total_ms: started.elapsed().as_secs_f64() * 1000.0,
+            ..Timings::default()
+        },
+        transfer: TransferMetrics {
+            downloaded_bytes: body_len,
+            response_header_bytes: transfer.headers.len() as u64,
+            ..TransferMetrics::default()
+        },
+        tls: Some(TlsInfo {
+            verified: !plan.insecure,
+            verify_result: if plan.insecure { 1 } else { 0 },
+        }),
+        error: None,
+    })
+}
+
 #[derive(Clone, Debug)]
 pub struct CurlPlan {
     pub url: Url,
@@ -304,6 +425,7 @@ pub struct CurlPlan {
     pub resolve: Vec<(String, u16, SocketAddr)>,
     pub connect_to: Vec<ConnectTo>,
     pub no_buffer: bool,
+    native_argv: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -477,7 +599,9 @@ impl CurlPlan {
                     if !p.policy.allow_resolve {
                         return Err(CurlError::new(E_POLICY, "--resolve is denied by policy").at(i));
                     }
-                    p.resolve.push(parse_resolve(&value(&mut i)?)?);
+                    let resolved = parse_resolve(&value(&mut i)?)?;
+                    p.policy.check_socket_address(resolved.2)?;
+                    p.resolve.push(resolved);
                     Ok(())
                 }
                 "--connect-to" => {
@@ -520,11 +644,17 @@ impl CurlPlan {
         if p.urls.len() != 1 {
             return Err(CurlError::new(E_POLICY, "exactly one URL is required"));
         }
-        p.finish()
+        let mut plan = p.finish()?;
+        plan.native_argv = argv.to_owned();
+        Ok(plan)
     }
 
     pub fn execute(&self, policy: &CurlPolicy) -> Result<TransferResponse, CurlError> {
         policy.check_url(&self.url)?;
+        policy.check_resolved_url(&self.url)?;
+        if self.native_eligible() {
+            return self.execute_native(policy);
+        }
         let redirects = Arc::new(Mutex::new(Vec::<RedirectHop>::new()));
         let redirect_log = Arc::clone(&redirects);
         let max_redirs = self.max_redirs;
@@ -532,6 +662,9 @@ impl CurlPlan {
             let redirect_policy = policy.clone();
             reqwest::redirect::Policy::custom(move |attempt| {
                 if let Err(error) = redirect_policy.check_url(attempt.url()) {
+                    return attempt.error(RedirectPolicyError(error.to_string()));
+                }
+                if let Err(error) = redirect_policy.check_resolved_url(attempt.url()) {
                     return attempt.error(RedirectPolicyError(error.to_string()));
                 }
                 if attempt.previous().len() > max_redirs {
@@ -590,13 +723,22 @@ impl CurlPlan {
             let _ = port;
         }
         for mapping in &self.connect_to {
-            let addr = (mapping.target_host.as_str(), mapping.target_port)
+            let addresses = (mapping.target_host.as_str(), mapping.target_port)
                 .to_socket_addrs()
                 .map_err(|e| {
                     CurlError::new(E_POLICY, format!("connect-to target cannot resolve: {e}"))
                 })?
-                .next()
-                .ok_or_else(|| CurlError::new(E_POLICY, "connect-to target has no address"))?;
+                .collect::<Vec<_>>();
+            if addresses.is_empty() {
+                return Err(CurlError::new(
+                    E_CONNECT_POLICY,
+                    "connect-to target has no address",
+                ));
+            }
+            for addr in &addresses {
+                policy.check_socket_address(*addr)?;
+            }
+            let addr = addresses[0];
             builder = builder.resolve(&mapping.host, addr);
         }
         match self.http_version {
@@ -745,6 +887,76 @@ impl CurlPlan {
             }),
             error: None,
         })
+    }
+
+    fn native_eligible(&self) -> bool {
+        self.native_argv.len() == 2
+            && self.native_argv.first().map(String::as_str) == Some("curl")
+            && self.native_argv.get(1).map(String::as_str) == Some(self.url.as_str())
+            && self.method == "GET"
+            && self.headers.is_empty()
+            && self.body.is_none()
+            && self.user.is_none()
+            && self.bearer.is_none()
+            && self.cookie.is_none()
+            && self.cookie_jar.is_none()
+            && !self.follow_redirects
+            && self.range.is_none()
+            && self.user_agent.is_none()
+            && self.referer.is_none()
+            && self.http_version.is_none()
+            && !self.insecure
+            && self.cacert.is_none()
+            && self.client_identity.is_none()
+            && self.proxy.is_none()
+            && self.resolve.is_empty()
+            && self.connect_to.is_empty()
+            && self.retries == 0
+            && !self.compressed
+    }
+
+    fn execute_native(&self, policy: &CurlPolicy) -> Result<TransferResponse, CurlError> {
+        let arguments = self
+            .native_argv
+            .iter()
+            .map(String::as_bytes)
+            .collect::<Vec<_>>();
+        let parsed = mdok_curl_sys::Plan::parse(&arguments).map_err(|error| {
+            CurlError::new(
+                E_TRANSFER,
+                format!("native curl parser failed: {}", error.message),
+            )
+        })?;
+        let mut session = mdok_curl_sys::Session::new().map_err(|error| {
+            CurlError::new(
+                E_TRANSFER,
+                format!("native curl session failed: {}", error.message),
+            )
+        })?;
+        let started = Instant::now();
+        let max_body_bytes = usize::try_from(policy.max_body_bytes).unwrap_or(usize::MAX);
+        let transfer = session
+            .execute_limited(&parsed, max_body_bytes, policy.max_header_bytes)
+            .map_err(|error| {
+                if matches!(
+                    error.code,
+                    mdok_curl_sys::BODY_LIMIT_ERROR_CODE | mdok_curl_sys::HEADER_LIMIT_ERROR_CODE
+                ) {
+                    CurlError::new(E_BODY_LIMIT, error.message)
+                } else {
+                    CurlError::new(
+                        E_TRANSFER,
+                        format!("native curl transfer failed: {}", error.message),
+                    )
+                }
+            })?;
+        if transfer.body.len() as u64 > policy.max_body_bytes {
+            return Err(CurlError::new(
+                E_BODY_LIMIT,
+                "response body exceeds the configured limit",
+            ));
+        }
+        native_response(self, policy, transfer, started)
     }
 }
 
@@ -910,6 +1122,9 @@ impl ParserState {
         let mut url = Url::parse(&self.urls.remove(0))
             .map_err(|e| CurlError::new(E_POLICY, format!("invalid URL: {e}")))?;
         self.policy.check_url(&url)?;
+        for (_, _, address) in &self.resolve {
+            self.policy.check_socket_address(*address)?;
+        }
         let joined = join_body_parts(&self.body_parts);
         if self.get {
             if self.body.is_some() {
@@ -972,6 +1187,7 @@ impl ParserState {
             resolve: self.resolve,
             connect_to: self.connect_to,
             no_buffer: self.no_buffer,
+            native_argv: Vec::new(),
         })
     }
 }
@@ -1301,6 +1517,32 @@ fn form_encode(value: &str) -> String {
         .replace("%20", "+")
 }
 
+fn denied_address(address: std::net::IpAddr) -> bool {
+    match address {
+        std::net::IpAddr::V4(ip) => {
+            let octets = ip.octets();
+            ip.is_loopback()
+                || ip.is_private()
+                || ip.is_unspecified()
+                || ip.is_link_local()
+                || ip.is_broadcast()
+                || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+                || (octets[0] == 169 && octets[1] == 254)
+                || (octets[0] == 192 && octets[1] == 0 && octets[2] == 0)
+                || (octets[0] == 192 && octets[1] == 0 && octets[2] == 2)
+                || (octets[0] == 198 && octets[1] == 51 && octets[2] == 100)
+                || (octets[0] == 203 && octets[1] == 0 && octets[2] == 113)
+                || address == std::net::IpAddr::V4(std::net::Ipv4Addr::new(169, 254, 169, 254))
+        }
+        std::net::IpAddr::V6(ip) => {
+            ip.is_loopback()
+                || ip.is_unspecified()
+                || ip.is_unique_local()
+                || ip.is_unicast_link_local()
+        }
+    }
+}
+
 fn host_matches_pattern(host: &str, pattern: &str) -> bool {
     pattern == "*"
         || pattern.eq_ignore_ascii_case(host)
@@ -1541,5 +1783,22 @@ mod tests {
     fn rejects_file_protocol() {
         let e = parse(&["curl", "file:///tmp/a"]).unwrap_err();
         assert_eq!(e.code, E_PROTOCOL_DENIED);
+    }
+
+    #[test]
+    fn resolved_private_addresses_require_local_test_policy() {
+        let policy = CurlPolicy::default();
+        let error = policy
+            .check_socket_address("127.0.0.1:80".parse().unwrap())
+            .unwrap_err();
+        assert_eq!(error.code, E_CONNECT_POLICY);
+        assert!(
+            CurlPolicy::local_test()
+                .check_socket_address("127.0.0.1:80".parse().unwrap())
+                .is_ok()
+        );
+        assert!(denied_address(std::net::IpAddr::V4(
+            std::net::Ipv4Addr::new(169, 254, 169, 254)
+        )));
     }
 }

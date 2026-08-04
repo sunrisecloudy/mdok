@@ -2,8 +2,10 @@
 
 use std::{
     ffi::{c_char, c_int, c_void},
+    panic::{AssertUnwindSafe, catch_unwind},
     ptr::NonNull,
     slice,
+    sync::OnceLock,
 };
 
 #[repr(C)]
@@ -75,6 +77,39 @@ pub struct BridgeError {
     pub message: String,
 }
 
+pub const BODY_LIMIT_ERROR_CODE: i32 = -10_001;
+pub const HEADER_LIMIT_ERROR_CODE: i32 = -10_002;
+
+const DEFAULT_NATIVE_BODY_LIMIT: usize = 128 * 1024 * 1024;
+const DEFAULT_NATIVE_HEADER_LIMIT: usize = 16 * 1024 * 1024;
+
+/// Bytes captured from one synchronous native transfer.
+#[derive(Debug, Default)]
+pub struct NativeTransfer {
+    pub body: Vec<u8>,
+    pub headers: Vec<u8>,
+}
+
+/// Initialize libcurl once for safe wrapper users. Cleanup is intentionally
+/// process-scoped because sessions may be dropped in any order.
+pub fn initialize() -> Result<(), BridgeError> {
+    static RESULT: OnceLock<Result<(), BridgeError>> = OnceLock::new();
+    RESULT
+        .get_or_init(|| {
+            let status = unsafe { mdok_curl_global_init() };
+            if status == 0 {
+                Ok(())
+            } else {
+                Err(BridgeError {
+                    status,
+                    code: status,
+                    message: last_error_message(),
+                })
+            }
+        })
+        .clone()
+}
+
 /// An owned curl plan. The raw plan remains opaque and is released on drop.
 #[must_use]
 pub struct Plan(NonNull<mdok_curl_plan>);
@@ -135,6 +170,7 @@ pub struct Session(NonNull<mdok_curl_session>);
 
 impl Session {
     pub fn new() -> Result<Self, BridgeError> {
+        initialize()?;
         // SAFETY: the constructor takes no borrowed pointers and returns an
         // owned opaque handle or null.
         let raw = unsafe { mdok_curl_session_new() };
@@ -147,6 +183,70 @@ impl Session {
 
     pub fn as_ptr(&mut self) -> *mut mdok_curl_session {
         self.0.as_ptr()
+    }
+
+    /// Execute a parsed plan while keeping all callback state owned by Rust.
+    pub fn execute(&mut self, plan: &Plan) -> Result<NativeTransfer, BridgeError> {
+        self.execute_limited(plan, DEFAULT_NATIVE_BODY_LIMIT, DEFAULT_NATIVE_HEADER_LIMIT)
+    }
+
+    /// Execute a plan with hard callback-side body and header limits.
+    pub fn execute_limited(
+        &mut self,
+        plan: &Plan,
+        max_body_bytes: usize,
+        max_header_bytes: usize,
+    ) -> Result<NativeTransfer, BridgeError> {
+        let mut capture = NativeCapture {
+            transfer: NativeTransfer::default(),
+            max_body_bytes,
+            max_header_bytes,
+            body_limit: false,
+            header_limit: false,
+        };
+        let callbacks = mdok_curl_callbacks {
+            body: Some(append_body),
+            header: Some(append_headers),
+            cancelled: None,
+        };
+        let mut error = mdok_curl_error {
+            code: 0,
+            argv_index: 0,
+            message: mdok_curl_slice {
+                ptr: std::ptr::null(),
+                len: 0,
+            },
+        };
+        // SAFETY: the opaque handles are owned by the session and plan; the
+        // callback context remains alive for the synchronous C call.
+        let status = unsafe {
+            mdok_curl_execute(
+                self.as_ptr(),
+                plan.as_ptr(),
+                &callbacks,
+                &mut capture as *mut NativeCapture as *mut c_void,
+                &mut error,
+            )
+        };
+        if capture.body_limit {
+            return Err(BridgeError {
+                status: 3,
+                code: BODY_LIMIT_ERROR_CODE,
+                message: "native response body exceeded the configured limit".to_owned(),
+            });
+        }
+        if capture.header_limit {
+            return Err(BridgeError {
+                status: 3,
+                code: HEADER_LIMIT_ERROR_CODE,
+                message: "native response headers exceeded the configured limit".to_owned(),
+            });
+        }
+        if status == 0 {
+            Ok(capture.transfer)
+        } else {
+            Err(copy_error(status, &error))
+        }
     }
 }
 
@@ -188,4 +288,63 @@ fn last_error_message() -> String {
     unsafe { std::ffi::CStr::from_ptr(ptr) }
         .to_string_lossy()
         .into_owned()
+}
+
+struct NativeCapture {
+    transfer: NativeTransfer,
+    max_body_bytes: usize,
+    max_header_bytes: usize,
+    body_limit: bool,
+    header_limit: bool,
+}
+
+unsafe extern "C" fn append_body(data: *const u8, length: usize, userdata: *mut c_void) -> usize {
+    append_bytes(data, length, userdata, false)
+}
+
+unsafe extern "C" fn append_headers(
+    data: *const u8,
+    length: usize,
+    userdata: *mut c_void,
+) -> usize {
+    append_bytes(data, length, userdata, true)
+}
+
+fn append_bytes(data: *const u8, length: usize, userdata: *mut c_void, headers: bool) -> usize {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if userdata.is_null() || (length != 0 && data.is_null()) {
+            return 0;
+        }
+        // SAFETY: libcurl invokes the callback with a valid buffer for the
+        // duration of this callback, and userdata points at the stack-owned
+        // transfer in Session::execute.
+        let capture = unsafe { &mut *(userdata as *mut NativeCapture) };
+        let target = if headers {
+            &mut capture.transfer.headers
+        } else {
+            &mut capture.transfer.body
+        };
+        let max_bytes = if headers {
+            capture.max_header_bytes
+        } else {
+            capture.max_body_bytes
+        };
+        if length > max_bytes.saturating_sub(target.len()) {
+            if headers {
+                capture.header_limit = true;
+            } else {
+                capture.body_limit = true;
+            }
+            return 0;
+        }
+        if length != 0 {
+            let bytes = unsafe { slice::from_raw_parts(data, length) };
+            if target.try_reserve(length).is_err() {
+                return 0;
+            }
+            target.extend_from_slice(bytes);
+        }
+        length
+    }));
+    result.unwrap_or(0)
 }
