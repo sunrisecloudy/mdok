@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdok.dev/schema/report-v1.json",
+  "title": "MDOK report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "mdok_version",
+    "curl_version",
+    "started_at",
+    "duration_ms",
+    "summary",
+    "documents"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "mdok_version": {
+      "type": "string"
+    },
+    "curl_version": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "duration_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "summary": {
+      "type": "object"
+    },
+    "documents": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,9 @@
+This file is a patch placeholder, not a fabricated patch.
+
+Phase 0 must create a minimal patch against curl 8.21.0 that:
+- builds selected curl tool parser/operation code as a static internal library;
+- replaces process exit/fatal paths with returned errors;
+- exposes parse/free/execute entry points used only by mdok_curl_bridge.c;
+- leaves upstream source otherwise unchanged.
+
+The patch must be generated from a real working spike and tested on all Tier 1 targets.

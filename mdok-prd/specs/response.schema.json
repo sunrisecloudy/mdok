@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdok.dev/schema/response-v1.json",
+  "title": "MDOK transfer evaluation object",
+  "type": "object",
+  "required": [
+    "status",
+    "method",
+    "url",
+    "effective_url",
+    "headers",
+    "body_kind",
+    "timings",
+    "transfer",
+    "variables",
+    "steps"
+  ],
+  "properties": {
+    "status": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 100,
+      "maximum": 999
+    },
+    "method": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "effective_url": {
+      "type": "string"
+    },
+    "http_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "body": {},
+    "body_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "body_base64": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "body_kind": {
+      "enum": [
+        "json",
+        "text",
+        "binary",
+        "empty",
+        "truncated"
+      ]
+    },
+    "cookies": {
+      "type": "array"
+    },
+    "redirects": {
+      "type": "array"
+    },
+    "timings": {
+      "type": "object"
+    },
+    "transfer": {
+      "type": "object"
+    },
+    "tls": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "variables": {
+      "type": "object"
+    },
+    "steps": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}
