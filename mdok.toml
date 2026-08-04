@@ -1,0 +1,16 @@
+language = "1"
+curl_compat = "8.21"
+
+[execution]
+max_body_bytes = 8388608
+memory_body_threshold_bytes = 262144
+connect_timeout = "5s"
+total_timeout = "30s"
+allowed_schemes = ["http", "https"]
+
+[policy]
+allowed_hosts = ["127.0.0.1", "localhost"]
+allowed_read_paths = ["tests/fixtures/**"]
+allowed_write_paths = []
+allow_insecure_tls = false
+allow_proxy = false
