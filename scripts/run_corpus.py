@@ -25,6 +25,10 @@ def main() -> int:
         "--base-url",
         default=os.environ.get("MDOK_FIXTURE_BASE_URL", "http://127.0.0.1:9800"),
     )
+    parser.add_argument(
+        "--https-base-url",
+        default=os.environ.get("MDOK_FIXTURE_HTTPS_BASE_URL"),
+    )
     parser.add_argument("--fixture-dir", type=Path, default=Path("tests/fixtures"))
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
@@ -51,8 +55,8 @@ def main() -> int:
                 command.extend(["--var", f"base_url={args.base_url}"])
         elif args.base_url:
             command.extend(["--var", f"base_url={args.base_url}"])
-        if args.base_url:
-            command.extend(["--var", f"https_base_url={args.base_url}"])
+        if args.https_base_url:
+            command.extend(["--var", f"https_base_url={args.https_base_url}"])
         command.extend(
             [
                 "--var",

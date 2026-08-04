@@ -1502,28 +1502,9 @@ fn validate_command(tokens: &[String], path: &Path, config: &EffectiveConfig) ->
 }
 
 fn has_url_glob(tokens: &[String]) -> bool {
-    let mut index = 1;
-    while index < tokens.len() {
-        let token = &tokens[index];
-        if token == "--url" {
-            if tokens
-                .get(index + 1)
-                .is_some_and(|value| value.contains(['[', ']']))
-            {
-                return true;
-            }
-            index += 2;
-            continue;
-        }
-        if token.starts_with("--url=") && token.contains(['[', ']']) {
-            return true;
-        }
-        if !token.starts_with('-') && token.contains(['[', ']']) {
-            return true;
-        }
-        index += 1;
-    }
-    false
+    positional_args(tokens)
+        .iter()
+        .any(|value| value.contains(['[', ']']))
 }
 
 fn normalize_command(
@@ -1560,6 +1541,7 @@ fn positional_args(tokens: &[String]) -> Vec<&String> {
         "--data-raw",
         "--data-binary",
         "--data-urlencode",
+        "--json",
         "--proxy",
         "-x",
         "--output",

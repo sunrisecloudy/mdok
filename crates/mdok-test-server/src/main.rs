@@ -461,6 +461,18 @@ fn echo(request: &Request) -> Response {
             }
         }
     }
+    let query = request
+        .query
+        .iter()
+        .map(|(key, values)| {
+            let value = if values.len() == 1 {
+                Value::String(values[0].clone())
+            } else {
+                Value::Array(values.iter().cloned().map(Value::String).collect())
+            };
+            (key.clone(), value)
+        })
+        .collect::<Map<String, Value>>();
     let json_body = serde_json::from_slice::<Value>(&request.body).ok();
     let body = json_body
         .clone()
@@ -479,7 +491,7 @@ fn echo(request: &Request) -> Response {
         "method": request.method,
         "path": request.path,
         "target": request.target,
-        "query": request.query,
+        "query": query,
         "headers": headers,
         "cookies": parse_cookies(request.header("cookie")),
         "body": body,
