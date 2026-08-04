@@ -15,4 +15,9 @@ sha256sum -c curl.sha256
 rm -rf curl
 tar -xf "$archive"
 mv "curl-${version}" curl
+for patch_file in "$root/vendor/patches/curl"/*.patch; do
+  [ -e "$patch_file" ] || continue
+  patch -f -N -F 0 -p1 -d "$root/vendor/curl" < "$patch_file"
+  printf 'Applied %s\n' "$(basename "$patch_file")"
+done
 printf 'Vendored curl %s\n' "$version"

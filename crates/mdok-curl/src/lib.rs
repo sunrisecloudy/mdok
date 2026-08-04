@@ -3,10 +3,10 @@
 //! Curl-compatible request planning and bounded HTTP execution.
 //!
 //! A pinned curl release is linked into the native bridge. The public plan
-//! remains independent of curl's private structs and the conservative plain
-//! `curl URL` path uses that bridge directly. The broader compatibility option
-//! subset uses the in-process Rust adapter; no shell or child process is
-//! started.
+//! remains independent of curl's private structs. Transfer options that the
+//! bridge can represent use the vendored parser/libcurl path; the broader
+//! compatibility subset uses the in-process Rust adapter. No shell or child
+//! process is started.
 
 use base64::Engine as _;
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
@@ -890,29 +890,52 @@ impl CurlPlan {
     }
 
     fn native_eligible(&self) -> bool {
-        self.native_argv.len() == 2
+        self.native_argv.len() >= 2
             && self.native_argv.first().map(String::as_str) == Some("curl")
-            && self.native_argv.get(1).map(String::as_str) == Some(self.url.as_str())
-            && self.method == "GET"
-            && self.headers.is_empty()
-            && self.body.is_none()
+            && !self.native_argv.iter().skip(1).any(|argument| {
+                matches!(
+                    argument.as_str(),
+                    "--get"
+                        | "-G"
+                        | "--form"
+                        | "-F"
+                        | "--upload-file"
+                        | "-T"
+                        | "--user"
+                        | "-u"
+                        | "--proxy"
+                        | "-x"
+                        | "--resolve"
+                        | "--connect-to"
+                        | "--cacert"
+                        | "--cert"
+                        | "--key"
+                ) || argument.starts_with("--form=")
+                    || argument.starts_with("--upload-file=")
+                    || argument.starts_with("--user=")
+                    || argument.starts_with("--proxy=")
+                    || argument.starts_with("--resolve=")
+                    || argument.starts_with("--connect-to=")
+                    || argument.starts_with("--cacert=")
+                    || argument.starts_with("--cert=")
+                    || argument.starts_with("--key=")
+                    || argument.starts_with("-T")
+                    || argument.starts_with("-u")
+                    || argument.starts_with("-x")
+            })
+            && !matches!(self.body, Some(RequestBody::Multipart(_)))
             && self.user.is_none()
             && self.bearer.is_none()
             && self.cookie.is_none()
             && self.cookie_jar.is_none()
             && !self.follow_redirects
-            && self.range.is_none()
-            && self.user_agent.is_none()
-            && self.referer.is_none()
             && self.http_version.is_none()
-            && !self.insecure
             && self.cacert.is_none()
             && self.client_identity.is_none()
             && self.proxy.is_none()
             && self.resolve.is_empty()
             && self.connect_to.is_empty()
             && self.retries == 0
-            && !self.compressed
     }
 
     fn execute_native(&self, policy: &CurlPolicy) -> Result<TransferResponse, CurlError> {

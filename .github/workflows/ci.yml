@@ -33,5 +33,10 @@ jobs:
           python3 -c 'import json; d=json.load(open("/tmp/mdok.spdx.json")); assert d["spdxVersion"] == "SPDX-2.3" and any(p["name"] == "curl" for p in d["packages"])'
       - name: Build CLI
         run: cargo build --locked -p mdok-cli
+      - name: Generate and validate build provenance
+        run: |
+          target=$(rustc -vV | awk '/^host:/ { print $2 }')
+          python3 scripts/generate_provenance.py --binary target/debug/mdok --target "$target" --output /tmp/mdok.provenance.json
+          python3 -c 'import json; d=json.load(open("/tmp/mdok.provenance.json")); assert d["subject"] and d["predicateType"].endswith("provenance/v1")'
       - name: Run plan-stage corpus
         run: python3 scripts/run_corpus.py --stage plan --binary target/debug/mdok

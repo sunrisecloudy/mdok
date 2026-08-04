@@ -254,6 +254,11 @@ static CURLcode configure_easy(CURL *easy, const mdok_curl_plan *plan, const mdo
   MDOK_SETOPT(CURLOPT_HTTPHEADER, plan->headers);
   MDOK_SETOPT(CURLOPT_FOLLOWLOCATION, plan->follow);
   MDOK_SETOPT(CURLOPT_MAXREDIRS, plan->max_redirs);
+  /* Explicitly disable inherited proxy environment variables.  MDOK only
+     reaches this native path for plans whose policy has already rejected
+     caller-selected proxies. */
+  MDOK_SETOPT(CURLOPT_PROXY, "");
+  MDOK_SETOPT(CURLOPT_NOPROXY, "*");
   MDOK_SETOPT(CURLOPT_SSL_VERIFYPEER, plan->insecure ? 0L : 1L);
   MDOK_SETOPT(CURLOPT_SSL_VERIFYHOST, plan->insecure ? 0L : 2L);
   MDOK_SETOPT(CURLOPT_ACCEPT_ENCODING, plan->compressed ? "" : NULL);
