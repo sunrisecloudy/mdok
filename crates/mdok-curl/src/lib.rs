@@ -1118,6 +1118,7 @@ impl CurlPlan {
             && !self.native_argv_has_file_body()
             && !self.native_argv_has_empty_header()
             && !matches!(self.body, Some(RequestBody::Multipart(_)))
+            && !self.compressed
             && self.user.is_none()
             && self.bearer.is_none()
             && self.cookie.is_none()
@@ -1198,6 +1199,8 @@ impl CurlPlan {
                     CurlError::new(E_CANCELLED, error.message)
                 } else if error.code == mdok_curl_sys::TIMEOUT_ERROR_CODE {
                     CurlError::new(E_TIMEOUT, error.message)
+                } else if error.code == mdok_curl_sys::TOO_MANY_REDIRECTS_ERROR_CODE {
+                    CurlError::new(E_REDIRECT, error.message)
                 } else if matches!(
                     error.code,
                     mdok_curl_sys::BODY_LIMIT_ERROR_CODE | mdok_curl_sys::HEADER_LIMIT_ERROR_CODE
