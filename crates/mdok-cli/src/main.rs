@@ -691,9 +691,11 @@ fn plan_report(plan: &DocumentPlan, status: Status, include_commands: bool) -> D
             .map(|step| StepReport {
                 name: step.name.clone(),
                 status,
-                command: include_commands
-                    .then(|| step.command.clone())
-                    .unwrap_or_default(),
+                command: if include_commands {
+                    step.command.clone()
+                } else {
+                    Vec::new()
+                },
                 checks: step
                     .checks
                     .iter()
@@ -1122,7 +1124,7 @@ fn normalize_jmespath(expression: &str) -> String {
 
         let mut literal = String::new();
         let mut closed = false;
-        while let Some(value) = chars.next() {
+        for value in chars.by_ref() {
             if value == '`' {
                 closed = true;
                 break;
@@ -1500,14 +1502,14 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                 .at_step(step.name.clone()),
             );
         }
-        if !step.command.iter().any(|argument| argument.contains("{{")) {
-            if let Err(error) = CurlPlan::parse(&step.command, &curl_policy(config)) {
-                diagnostics.push(
-                    curl_diagnostic(error)
-                        .at_file(path)
-                        .at_step(step.name.clone()),
-                );
-            }
+        if !step.command.iter().any(|argument| argument.contains("{{"))
+            && let Err(error) = CurlPlan::parse(&step.command, &curl_policy(config))
+        {
+            diagnostics.push(
+                curl_diagnostic(error)
+                    .at_file(path)
+                    .at_step(step.name.clone()),
+            );
         }
     }
     let mut plan = DocumentPlan {
@@ -1525,34 +1527,33 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
     if diagnostics
         .iter()
         .all(|diagnostic| diagnostic.severity != Severity::Error)
+        && let Ok(core_plan) = authoritative
     {
-        if let Ok(core_plan) = authoritative {
-            let mut by_name = plan
-                .steps
-                .iter()
-                .map(|step| (step.name.clone(), step.clone()))
-                .collect::<BTreeMap<_, _>>();
-            let mut authoritative_steps = Vec::with_capacity(core_plan.steps.len());
-            for core_step in core_plan.steps {
-                let Some(mut step) = by_name.remove(core_step.name.as_str()) else {
-                    continue;
-                };
-                step.raw_command = core_step.curl.source;
-                step.checks = core_step
-                    .checks
-                    .into_iter()
-                    .map(|check| check.expression)
-                    .collect();
-                step.captures = core_step
-                    .captures
-                    .into_iter()
-                    .map(|capture| capture.expression)
-                    .collect();
-                authoritative_steps.push(step);
-            }
-            if authoritative_steps.len() == plan.steps.len() {
-                plan.steps = authoritative_steps;
-            }
+        let mut by_name = plan
+            .steps
+            .iter()
+            .map(|step| (step.name.clone(), step.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let mut authoritative_steps = Vec::with_capacity(core_plan.steps.len());
+        for core_step in core_plan.steps {
+            let Some(mut step) = by_name.remove(core_step.name.as_str()) else {
+                continue;
+            };
+            step.raw_command = core_step.curl.source;
+            step.checks = core_step
+                .checks
+                .into_iter()
+                .map(|check| check.expression)
+                .collect();
+            step.captures = core_step
+                .captures
+                .into_iter()
+                .map(|capture| capture.expression)
+                .collect();
+            authoritative_steps.push(step);
+        }
+        if authoritative_steps.len() == plan.steps.len() {
+            plan.steps = authoritative_steps;
         }
     }
     for step in &plan.steps {
@@ -1934,10 +1935,10 @@ fn validate_template_token(
         Err(error) => {
             let before = diagnostics.len();
             push_template_error(error, path, diagnostics);
-            if diagnostics.len() > before {
-                if let Some(last) = diagnostics.last_mut() {
-                    last.step = Some(step.to_string());
-                }
+            if diagnostics.len() > before
+                && let Some(last) = diagnostics.last_mut()
+            {
+                last.step = Some(step.to_string());
             }
             return;
         }
@@ -1967,10 +1968,10 @@ fn validate_template_token(
         {
             let before = diagnostics.len();
             push_template_error(error, path, diagnostics);
-            if diagnostics.len() > before {
-                if let Some(last) = diagnostics.last_mut() {
-                    last.step = Some(step.to_string());
-                }
+            if diagnostics.len() > before
+                && let Some(last) = diagnostics.last_mut()
+            {
+                last.step = Some(step.to_string());
             }
         }
     }
@@ -2242,6 +2243,9 @@ fn discover_paths(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, Box<CliError>> {
                     if entry.path() == input {
                         return true;
                     }
+                    if entry.file_type().is_dir() && ignored_by_gitignore(entry.path(), input) {
+                        return false;
+                    }
                     let name = entry.file_name().to_string_lossy();
                     !entry.file_type().is_dir()
                         || (!name.starts_with('.')
@@ -2288,7 +2292,35 @@ fn discover_paths(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, Box<CliError>> {
     Ok(paths)
 }
 
+#[derive(Debug, Clone)]
+struct GitIgnoreRule {
+    negated: bool,
+    directory_only: bool,
+    pattern: String,
+}
+
 fn ignored_by_gitignore(path: &Path, root: &Path) -> bool {
+    if path == root || !path.starts_with(root) {
+        return false;
+    }
+
+    // An ignored directory prevents Git from visiting anything below it. The
+    // ancestor check preserves that rule even when a later negation matches a
+    // descendant file.
+    let mut ancestor = path.parent();
+    while let Some(directory) = ancestor {
+        if directory == root {
+            break;
+        }
+        if ignored_path_state(directory, root, true) {
+            return true;
+        }
+        ancestor = directory.parent();
+    }
+    ignored_path_state(path, root, false)
+}
+
+fn ignored_path_state(path: &Path, root: &Path, is_directory: bool) -> bool {
     let Some(parent) = path.parent() else {
         return false;
     };
@@ -2314,66 +2346,159 @@ fn ignored_by_gitignore(path: &Path, root: &Path) -> bool {
             .unwrap_or(path)
             .to_string_lossy()
             .replace(std::path::MAIN_SEPARATOR, "/");
-        for raw in contents.lines() {
-            let raw = raw.trim();
-            if raw.is_empty() || raw.starts_with('#') {
-                continue;
-            }
-            let negated = raw.starts_with('!');
-            let mut pattern = raw.trim_start_matches('!').trim();
-            if pattern.is_empty() {
-                continue;
-            }
-            let directory_pattern = pattern.ends_with('/');
-            let anchored = pattern.starts_with('/');
-            pattern = pattern.trim_matches('/');
-            let matched = if directory_pattern {
-                relative
-                    .split('/')
-                    .any(|component| glob_match(pattern, component))
-            } else if anchored || pattern.contains('/') {
-                glob_match(pattern, &relative)
-            } else {
-                relative
-                    .split('/')
-                    .any(|component| glob_match(pattern, component))
-            };
-            if matched {
-                ignored = !negated;
+        for rule in parse_gitignore(&contents) {
+            if gitignore_rule_matches(&rule, &relative, is_directory) {
+                ignored = !rule.negated;
             }
         }
     }
     ignored
 }
 
+fn parse_gitignore(contents: &str) -> Vec<GitIgnoreRule> {
+    contents
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim_end();
+            if line.is_empty() {
+                return None;
+            }
+            let escaped_comment = line.starts_with(r"\#");
+            let line = if escaped_comment { &line[1..] } else { line };
+            if !escaped_comment && line.starts_with('#') {
+                return None;
+            }
+            let escaped_negation = line.starts_with(r"\!");
+            let negated = !escaped_negation && line.starts_with('!');
+            let line = if escaped_negation { &line[1..] } else { line };
+            let line = if negated { &line[1..] } else { line };
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
+            }
+            let directory_only = line.ends_with('/');
+            let pattern = line
+                .trim_start_matches('/')
+                .trim_end_matches('/')
+                .to_string();
+            (!pattern.is_empty()).then_some(GitIgnoreRule {
+                negated,
+                directory_only,
+                pattern,
+            })
+        })
+        .collect()
+}
+
+fn gitignore_rule_matches(rule: &GitIgnoreRule, relative: &str, is_directory: bool) -> bool {
+    if rule.directory_only && !is_directory {
+        return false;
+    }
+    if rule.pattern.contains('/') {
+        glob_match(&rule.pattern, relative)
+    } else {
+        relative
+            .split('/')
+            .any(|component| glob_match(&rule.pattern, component))
+    }
+}
+
 fn glob_match(pattern: &str, value: &str) -> bool {
+    fn matches(
+        pattern: &[u8],
+        value: &[u8],
+        pattern_index: usize,
+        value_index: usize,
+        memo: &mut [Option<bool>],
+    ) -> bool {
+        let slot = pattern_index * (value.len() + 1) + value_index;
+        if let Some(result) = memo[slot] {
+            return result;
+        }
+        let result = if pattern_index == pattern.len() {
+            value_index == value.len()
+        } else if pattern[pattern_index] == b'*' {
+            let double_star =
+                pattern_index + 1 < pattern.len() && pattern[pattern_index + 1] == b'*';
+            if double_star {
+                let mut end = pattern_index + 2;
+                while end < pattern.len() && pattern[end] == b'*' {
+                    end += 1;
+                }
+                if end < pattern.len() && pattern[end] == b'/' {
+                    // `**/` may consume zero or more complete path segments.
+                    matches(pattern, value, end + 1, value_index, memo)
+                        || (value_index..value.len()).any(|index| {
+                            value[index] == b'/'
+                                && matches(pattern, value, end + 1, index + 1, memo)
+                        })
+                } else {
+                    matches(pattern, value, end, value_index, memo)
+                        || value_index < value.len()
+                            && matches(pattern, value, pattern_index, value_index + 1, memo)
+                }
+            } else {
+                matches(pattern, value, pattern_index + 1, value_index, memo)
+                    || (value_index < value.len()
+                        && value[value_index] != b'/'
+                        && matches(pattern, value, pattern_index, value_index + 1, memo))
+            }
+        } else if pattern[pattern_index] == b'?' {
+            value_index < value.len()
+                && value[value_index] != b'/'
+                && matches(pattern, value, pattern_index + 1, value_index + 1, memo)
+        } else if pattern[pattern_index] == b'[' {
+            if let Some((end, matched)) = class_match(pattern, value, pattern_index, value_index) {
+                matched && matches(pattern, value, end, value_index + 1, memo)
+            } else {
+                value_index < value.len()
+                    && pattern[pattern_index] == value[value_index]
+                    && matches(pattern, value, pattern_index + 1, value_index + 1, memo)
+            }
+        } else {
+            value_index < value.len()
+                && pattern[pattern_index] == value[value_index]
+                && matches(pattern, value, pattern_index + 1, value_index + 1, memo)
+        };
+        memo[slot] = Some(result);
+        result
+    }
+
     let pattern = pattern.as_bytes();
     let value = value.as_bytes();
-    let mut states = vec![vec![false; value.len() + 1]; pattern.len() + 1];
-    states[0][0] = true;
-    for pattern_index in 0..=pattern.len() {
-        for value_index in 0..=value.len() {
-            if !states[pattern_index][value_index] || pattern_index == pattern.len() {
-                continue;
-            }
-            match pattern[pattern_index] {
-                b'*' => {
-                    states[pattern_index + 1][value_index] = true;
-                    if value_index < value.len() {
-                        states[pattern_index][value_index + 1] = true;
-                    }
-                }
-                b'?' if value_index < value.len() => {
-                    states[pattern_index + 1][value_index + 1] = true;
-                }
-                byte if value_index < value.len() && byte == value[value_index] => {
-                    states[pattern_index + 1][value_index + 1] = true;
-                }
-                _ => {}
-            }
+    let mut memo = vec![None; (pattern.len() + 1) * (value.len() + 1)];
+    matches(pattern, value, 0, 0, &mut memo)
+}
+
+fn class_match(
+    pattern: &[u8],
+    value: &[u8],
+    start: usize,
+    value_index: usize,
+) -> Option<(usize, bool)> {
+    if value_index >= value.len() || value[value_index] == b'/' {
+        return None;
+    }
+    let mut index = start + 1;
+    let negated = matches!(pattern.get(index), Some(b'!' | b'^'));
+    if negated {
+        index += 1;
+    }
+    let mut matched = false;
+    let mut has_item = false;
+    while index < pattern.len() && pattern[index] != b']' {
+        has_item = true;
+        let first = pattern[index];
+        if index + 2 < pattern.len() && pattern[index + 1] == b'-' && pattern[index + 2] != b']' {
+            matched |= (first..=pattern[index + 2]).contains(&value[value_index]);
+            index += 3;
+        } else {
+            matched |= first == value[value_index];
+            index += 1;
         }
     }
-    states[pattern.len()][value.len()]
+    (has_item && index < pattern.len())
+        .then_some((index + 1, if negated { !matched } else { matched }))
 }
 
 fn load_config(
@@ -2757,5 +2882,72 @@ mod tests {
             diagnostics: Vec::new(),
         });
         assert_eq!(report_exit_code(&execution), EXIT_CHECK_FAILED);
+    }
+
+    #[test]
+    fn glob_match_distinguishes_single_segment_and_double_star_patterns() {
+        assert!(glob_match("a/**/b.md", "a/b.md"));
+        assert!(glob_match("a/**/b.md", "a/one/two/b.md"));
+        assert!(!glob_match("a/*/b.md", "a/one/two/b.md"));
+        assert!(glob_match("file[0-2].md", "file1.md"));
+        assert!(!glob_match("file[0-2].md", "file3.md"));
+    }
+
+    #[test]
+    fn discovery_honors_gitignore_negation_directory_rules_and_explicit_roots() {
+        let root = std::env::temp_dir().join(format!(
+            "mdok-cli-discovery-{}-gitignore",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("generated/nested")).unwrap();
+        fs::create_dir_all(root.join("important/generated")).unwrap();
+        fs::create_dir_all(root.join("docs/nested")).unwrap();
+        fs::create_dir_all(root.join("blocked")).unwrap();
+        fs::create_dir_all(root.join("vendor")).unwrap();
+        fs::create_dir_all(root.join(".hidden")).unwrap();
+        fs::write(
+            root.join(".gitignore"),
+            "*.md\n!keep.md\nblocked/\n!blocked/keep.md\n**/generated/\n!important/generated/\n!important/generated/keep.md\n/docs/*.md\n!docs/nested/keep.md\nvendor/\n",
+        )
+        .unwrap();
+        fs::write(root.join("keep.md"), "# keep").unwrap();
+        fs::write(root.join("generated/drop.md"), "# drop").unwrap();
+        fs::write(root.join("generated/nested/drop.md"), "# drop").unwrap();
+        fs::write(root.join("important/generated/keep.md"), "# keep").unwrap();
+        fs::write(root.join("blocked/keep.md"), "# blocked").unwrap();
+        fs::write(root.join("docs/top.md"), "# drop").unwrap();
+        fs::write(root.join("docs/nested/keep.md"), "# keep").unwrap();
+        fs::write(root.join("docs/nested/drop.md"), "# drop").unwrap();
+        fs::write(root.join("vendor/visible.md"), "# vendor").unwrap();
+        fs::write(root.join(".hidden/hidden.md"), "# hidden").unwrap();
+
+        let discovered = discover_paths(std::slice::from_ref(&root)).unwrap();
+        let mut relative = discovered
+            .iter()
+            .map(|path| path.strip_prefix(&root).unwrap().display().to_string())
+            .collect::<Vec<_>>();
+        relative.sort();
+        assert_eq!(
+            relative,
+            vec![
+                "docs/nested/keep.md",
+                "important/generated/keep.md",
+                "keep.md",
+            ]
+        );
+
+        // The selected root is a discovery boundary: an outer .gitignore and
+        // the default vendor/hidden-directory skips do not suppress it.
+        assert_eq!(
+            discover_paths(&[root.join("vendor")]).unwrap(),
+            vec![root.join("vendor/visible.md")]
+        );
+        assert_eq!(
+            discover_paths(&[root.join(".hidden")]).unwrap(),
+            vec![root.join(".hidden/hidden.md")]
+        );
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

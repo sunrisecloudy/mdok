@@ -259,7 +259,7 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
                 };
                 plan.steps[index]
                     .checks
-                    .extend(source.lines().enumerate().filter_map(|(_, line)| {
+                    .extend(source.lines().filter_map(|line| {
                         let expression = line.trim();
                         (!expression.is_empty()).then(|| CheckPlan {
                             expression: expression.to_owned(),
@@ -362,16 +362,14 @@ fn classify(
 }
 
 fn source_offset(source: &str, line: usize, column: usize) -> usize {
-    let mut current_line = 1;
     let mut offset: usize = 0;
-    for part in source.split_inclusive('\n') {
+    for (current_line, part) in (1..).zip(source.split_inclusive('\n')) {
         if current_line == line {
             return offset
                 .saturating_add(column.saturating_sub(1))
                 .min(source.len());
         }
         offset += part.len();
-        current_line += 1;
     }
     offset.min(source.len())
 }

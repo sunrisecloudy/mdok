@@ -606,15 +606,7 @@ fn referenced_steps(expression: &str) -> BTreeSet<String> {
         if index >= characters.len() {
             continue;
         }
-        if characters[index] == '.' {
-            index += 1;
-            while index < characters.len() && characters[index].is_ascii_whitespace() {
-                index += 1;
-            }
-            if let Some(reference) = read_reference_segment(&characters, &mut index) {
-                references.insert(reference);
-            }
-        } else if characters[index] == '[' {
+        if matches!(characters[index], '.' | '[') {
             index += 1;
             while index < characters.len() && characters[index].is_ascii_whitespace() {
                 index += 1;

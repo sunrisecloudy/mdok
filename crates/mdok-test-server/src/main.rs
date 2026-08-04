@@ -624,7 +624,7 @@ fn login(request: &Request) -> Response {
             json!({"authenticated":false, "error":"invalid_credentials"}),
         );
     }
-    let user_id = format!("user-{}", digest_hex(email.as_bytes())[..12].to_string());
+    let user_id = format!("user-{}", &digest_hex(email.as_bytes())[..12]);
     Response::json(
         200,
         json!({
@@ -660,7 +660,7 @@ fn users_collection(request: &Request, state: &Arc<Mutex<ServerState>>) -> Respo
         .get("id")
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .unwrap_or_else(|| format!("user-{}", digest_hex(&request.body)[..12].to_string()));
+        .unwrap_or_else(|| format!("user-{}", &digest_hex(&request.body)[..12]));
     let user = user_map(&id, input.into_iter().collect());
     state
         .lock()
@@ -1080,10 +1080,8 @@ fn reason_phrase(status: u16) -> &'static str {
 
 fn spawn_proxy(listener: TcpListener) {
     thread::spawn(move || {
-        for stream in listener.incoming() {
-            if let Ok(stream) = stream {
-                thread::spawn(move || proxy_connection(stream));
-            }
+        for stream in listener.incoming().flatten() {
+            thread::spawn(move || proxy_connection(stream));
         }
     });
 }

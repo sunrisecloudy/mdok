@@ -206,7 +206,7 @@ pub fn parse_expression(source: &str) -> Result<(Vec<PathPart>, Filter), Templat
         .first()
         .and_then(|value| Filter::parse(value))
         .unwrap_or(Filter::String);
-    if filters.first().is_some() && Filter::parse(filters[0]).is_none() {
+    if !filters.is_empty() && Filter::parse(filters[0]).is_none() {
         return Err(TemplateError::Syntax(format!(
             "unknown filter `{}`",
             filters[0]

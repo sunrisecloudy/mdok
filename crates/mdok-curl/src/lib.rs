@@ -135,20 +135,20 @@ impl CurlPolicy {
                 ),
             ));
         }
-        if !self.allow_private_network {
-            if let Some(host) = url.host_str() {
-                let private = host == "localhost"
-                    || host == "localhost.localdomain"
-                    || host
-                        .parse::<std::net::IpAddr>()
-                        .map(denied_address)
-                        .unwrap_or(false);
-                if private {
-                    return Err(CurlError::new(
-                        E_POLICY,
-                        "private and loopback destinations are denied",
-                    ));
-                }
+        if !self.allow_private_network
+            && let Some(host) = url.host_str()
+        {
+            let private = host == "localhost"
+                || host == "localhost.localdomain"
+                || host
+                    .parse::<std::net::IpAddr>()
+                    .map(denied_address)
+                    .unwrap_or(false);
+            if private {
+                return Err(CurlError::new(
+                    E_POLICY,
+                    "private and loopback destinations are denied",
+                ));
             }
         }
         Ok(())
@@ -1044,9 +1044,7 @@ impl ParserState {
         Ok(())
     }
     fn data(&mut self, value: String, raw: bool, binary: bool) -> Result<(), CurlError> {
-        let bytes = if !raw && value.starts_with('@') {
-            self.policy.read_file(&value[1..])?
-        } else if binary && value.starts_with('@') {
+        let bytes = if (!raw || binary) && value.starts_with('@') {
             self.policy.read_file(&value[1..])?
         } else {
             value.into_bytes()
@@ -1109,8 +1107,8 @@ impl ParserState {
         Ok(())
     }
     fn upload(&mut self, value: String) -> Result<(), CurlError> {
-        let bytes = if value.starts_with('@') {
-            self.policy.read_file(&value[1..])?
+        let bytes = if let Some(path) = value.strip_prefix('@') {
+            self.policy.read_file(path)?
         } else {
             self.policy.read_file(&value)?
         };
@@ -1202,6 +1200,9 @@ pub struct BodyStorage {
 impl BodyStorage {
     pub fn len(&self) -> u64 {
         self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
     pub fn is_spooled(&self) -> bool {
         self.spool.is_some()
@@ -1307,11 +1308,10 @@ pub struct TransferFailure {
     pub message: String,
 }
 
+type BodyValue = Result<(Value, &'static str, Option<String>, Option<String>), CurlError>;
+
 impl TransferResponse {
-    pub fn body_value(
-        &self,
-        max_json_bytes: usize,
-    ) -> Result<(Value, &'static str, Option<String>, Option<String>), CurlError> {
+    pub fn body_value(&self, max_json_bytes: usize) -> BodyValue {
         let bytes = self.body.bytes(max_json_bytes)?;
         if bytes.is_empty() {
             return Ok((Value::Null, "empty", Some(String::new()), None));

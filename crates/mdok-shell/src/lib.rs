@@ -2,7 +2,7 @@
 
 use mdok_core::{SourceSpan, ValueMap};
 use mdok_template::{TemplateExpression, TemplatePart, parse as parse_template, render_expression};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WordSegment {
@@ -348,7 +348,7 @@ fn finish_word(
     arguments: &mut Vec<Argument>,
     current: &mut Vec<WordSegment>,
     start: &mut Option<usize>,
-    path: &PathBuf,
+    path: &Path,
     end: usize,
     source: &str,
 ) {
@@ -378,10 +378,10 @@ fn next_char(source: &str, index: &mut usize) -> String {
     character.to_string()
 }
 
-fn span(path: &PathBuf, start: usize, end: usize, source: &str) -> SourceSpan {
+fn span(path: &Path, start: usize, end: usize, source: &str) -> SourceSpan {
     let before = &source[..start.min(source.len())];
     SourceSpan::new(
-        path.clone(),
+        path.to_path_buf(),
         start,
         end,
         before.bytes().filter(|byte| *byte == b'\n').count() as u32 + 1,
@@ -392,13 +392,7 @@ fn span(path: &PathBuf, start: usize, end: usize, source: &str) -> SourceSpan {
     )
 }
 
-fn error(
-    code: &'static str,
-    message: &str,
-    path: &PathBuf,
-    start: usize,
-    end: usize,
-) -> ShellError {
+fn error(code: &'static str, message: &str, path: &Path, start: usize, end: usize) -> ShellError {
     ShellError::new(
         code,
         message,
