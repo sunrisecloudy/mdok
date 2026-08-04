@@ -21,3 +21,24 @@ The bare form `mdok file.md` is an alias for `mdok test file.md`. Use `mdok-test
 
 MDOK performs whole-document planning before a request is sent. Interpolated values are data inside one argv element; they are never reparsed as shell source. HTTP/HTTPS and loopback-safe local testing are the default execution surface.
 
+## Release signing
+
+`scripts/package.sh` produces deterministic unsigned local archives by default. Checksums are generated with the Python standard library, so the sidecars do not depend on `shasum` or `sha256sum`. A release operator can supply an Ed25519 PEM key through `MDOK_SIGNING_KEY`; signing writes base64 `.sig` sidecars and a signed `mdok-<version>-<target>.release.json` manifest. The verifier accepts the corresponding public PEM key (or the private key) through `MDOK_SIGNING_PUBLIC_KEY`.
+
+```sh
+openssl genpkey -algorithm ED25519 -out mdok-release-key.pem
+openssl pkey -in mdok-release-key.pem -pubout -out mdok-release-key.pub.pem
+MDOK_SIGNING_KEY="$PWD/mdok-release-key.pem" \
+MDOK_SIGNING_PUBLIC_KEY="$PWD/mdok-release-key.pub.pem" \
+MDOK_REQUIRE_SIGNATURE=1 \
+./scripts/package.sh
+
+python3 scripts/verify_release.py \
+  --key mdok-release-key.pub.pem \
+  --manifest dist/mdok-0.0.0-$(rustc -vV | awk '/host:/ { print $2 }').release.json
+python3 scripts/release_smoke.py \
+  --key mdok-release-key.pub.pem \
+  --manifest dist/mdok-0.0.0-$(rustc -vV | awk '/host:/ { print $2 }').release.json
+```
+
+Signed packaging fails closed when the key is absent or the checkout is dirty. `MDOK_ALLOW_DIRTY_RELEASE=1` is an explicit local exception; its signed manifest and embedded provenance retain the `HEAD` revision, a dirty flag, and a hash of the complete porcelain status. `MDOK_RELEASE_SMOKE=1` verifies signatures before extracting and running the packaged binary. Unsigned local packaging remains available without that release gate.
