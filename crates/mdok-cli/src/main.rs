@@ -1848,6 +1848,7 @@ fn positional_args(tokens: &[String]) -> Vec<&String> {
         "--retry-max-time",
         "--connect-timeout",
         "--max-time",
+        "-m",
         "--cookie",
         "-b",
         "--cookie-jar",

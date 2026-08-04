@@ -608,15 +608,29 @@ impl CurlPlan {
                 })
             };
             let result = match option {
-                "-q" | "--disable" | "--silent" | "-s" | "--show-error" | "-S" | "--no-buffer" => {
+                "--silent" | "-s" | "--show-error" | "-S" | "--no-buffer" | "-N" => {
                     p.no_buffer |= option == "--no-buffer";
                     Ok(())
                 }
-                "--get" => {
+                "-q" | "--disable" | "--no-disable" => Ok(()),
+                "-G" | "--get" => {
                     p.get = true;
                     Ok(())
                 }
-                "--basic" => Ok(()),
+                "--basic" | "--no-basic" => Ok(()),
+                "--no-compressed" => {
+                    p.compressed = false;
+                    Ok(())
+                }
+                "--no-get" => {
+                    p.get = false;
+                    Ok(())
+                }
+                "--no-location" => {
+                    p.follow_redirects = false;
+                    Ok(())
+                }
+                "--no-show-error" | "--no-silent" => Ok(()),
                 "-X" | "--request" => {
                     p.method = value(&mut i)?;
                     Ok(())
@@ -689,10 +703,11 @@ impl CurlPlan {
                     p.referer = Some(value(&mut i)?);
                     Ok(())
                 }
-                "--http1.0" => {
-                    p.http_version = Some(HttpVersion::Http10);
-                    Ok(())
-                }
+                "--http1.0" => Err(CurlError::new(
+                    E_UNSUPPORTED,
+                    "option `--http1.0` is not supported in an MDOK transfer",
+                )
+                .at(i)),
                 "--http1.1" => {
                     p.http_version = Some(HttpVersion::Http11);
                     Ok(())

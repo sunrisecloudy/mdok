@@ -32,7 +32,7 @@ option,classification,area
 --data-urlencode,transfer,body
 --delegation,unsupported,unclassified-curl-option
 --digest,unsupported,unclassified-curl-option
---disable,unsupported,unclassified-curl-option
+--disable,compatibility-noop,presentation
 --disable-eprt,unsupported,unclassified-curl-option
 --disable-epsv,unsupported,unclassified-curl-option
 --disallow-username-in-url,unsupported,unclassified-curl-option
@@ -84,7 +84,7 @@ option,classification,area
 --http0.9,unsupported,unclassified-curl-option
 --http1.0,unsupported,unclassified-curl-option
 --http1.1,transfer,protocol
---http2,unsupported,unclassified-curl-option
+--http2,compatibility-noop,protocol
 --http2-prior-knowledge,unsupported,unclassified-curl-option
 --http3,unsupported,unclassified-curl-option
 --http3-only,unsupported,unclassified-curl-option
