@@ -18,7 +18,7 @@ use thiserror::Error;
 
 pub const SCHEMA_VERSION: &str = "1";
 pub const MDOK_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const CURL_COMPAT_VERSION: &str = "8.21.0";
+pub const CURL_COMPAT_VERSION: &str = "8.21";
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]

@@ -375,11 +375,38 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
     let stream_jsonl = cli.options.json_lines && sequential;
     if stream_jsonl {
         for (document_ordinal, path) in paths.into_iter().enumerate() {
-            let result = process_document(&path, mode, &config, &cli.options);
+            let document_path = path.display().to_string();
+            let mut stream_error = None;
+            let result = process_document_with_hook(
+                &path,
+                mode,
+                &config,
+                &cli.options,
+                |step_ordinal, step| {
+                    if stream_error.is_some() {
+                        return;
+                    }
+                    let event_start = report.events.len();
+                    append_step_event(
+                        &mut report,
+                        &document_path,
+                        document_ordinal,
+                        step_ordinal,
+                        step,
+                    );
+                    if let Err(error) = stream_event_range(&report, event_start) {
+                        stream_error = Some(error);
+                    }
+                },
+            );
+            if let Some(error) = stream_error {
+                return Err(error);
+            }
             let failed = result.status.is_failure();
             let event_start = report.events.len();
-            append_report_document(&mut report, result, document_ordinal);
+            append_document_event(&mut report, &result, document_ordinal);
             stream_event_range(&report, event_start)?;
+            report.add_document(result);
             if failed && (cli.options.fail_fast || config.fail_fast) {
                 break;
             }
@@ -476,36 +503,49 @@ fn print_version(options: &CommonOptions) -> Result<u8, Box<CliError>> {
 }
 
 fn append_report_document(report: &mut Report, document: DocumentReport, document_ordinal: usize) {
-    let path = document.path.clone();
-    let status = document.status;
     for (step_ordinal, step) in document.steps.iter().enumerate() {
-        let sequence = report.events.len() as u64;
-        report.push_event(
-            Event {
-                sequence,
-                kind: "step.finished".to_string(),
-                document: Some(path.clone()),
-                step: Some(step.name.clone()),
-                status: Some(step.status),
-                message: None,
-            },
-            Some(EventMetadata {
-                run_id: Some(report.started_at.clone()),
-                document_ordinal: Some(document_ordinal),
-                step_ordinal: Some(step_ordinal),
-                duration_ms: Some(step.duration_ms),
-                ..EventMetadata::default()
-            }),
-        );
+        append_step_event(report, &document.path, document_ordinal, step_ordinal, step);
     }
+    append_document_event(report, &document, document_ordinal);
+    report.add_document(document);
+}
+
+fn append_step_event(
+    report: &mut Report,
+    path: &str,
+    document_ordinal: usize,
+    step_ordinal: usize,
+    step: &StepReport,
+) {
+    let sequence = report.events.len() as u64;
+    report.push_event(
+        Event {
+            sequence,
+            kind: "step.finished".to_string(),
+            document: Some(path.to_string()),
+            step: Some(step.name.clone()),
+            status: Some(step.status),
+            message: None,
+        },
+        Some(EventMetadata {
+            run_id: Some(report.started_at.clone()),
+            document_ordinal: Some(document_ordinal),
+            step_ordinal: Some(step_ordinal),
+            duration_ms: Some(step.duration_ms),
+            ..EventMetadata::default()
+        }),
+    );
+}
+
+fn append_document_event(report: &mut Report, document: &DocumentReport, document_ordinal: usize) {
     let sequence = report.events.len() as u64;
     report.push_event(
         Event {
             sequence,
             kind: "document.finished".to_string(),
-            document: Some(path),
+            document: Some(document.path.clone()),
             step: None,
-            status: Some(status),
+            status: Some(document.status),
             message: None,
         },
         Some(EventMetadata {
@@ -515,7 +555,6 @@ fn append_report_document(report: &mut Report, document: DocumentReport, documen
             ..EventMetadata::default()
         }),
     );
-    report.add_document(document);
 }
 
 fn stream_event_range(report: &Report, start: usize) -> Result<(), Box<CliError>> {
@@ -643,6 +682,19 @@ fn process_document(
     config: &EffectiveConfig,
     options: &CommonOptions,
 ) -> DocumentReport {
+    process_document_with_hook(path, mode, config, options, |_, _| {})
+}
+
+fn process_document_with_hook<F>(
+    path: &Path,
+    mode: Mode,
+    config: &EffectiveConfig,
+    options: &CommonOptions,
+    mut on_step: F,
+) -> DocumentReport
+where
+    F: FnMut(usize, &StepReport),
+{
     let started = Instant::now();
     let outcome = build_plan(path, config);
     let Some(plan) = outcome.plan else {
@@ -669,11 +721,16 @@ fn process_document(
         };
     };
     let mut document = match mode {
-        Mode::Test => execute_plan(&plan, config, options),
+        Mode::Test => execute_plan_with_hook(&plan, config, options, &mut on_step),
         Mode::Lint => plan_report(&plan, Status::Passed, true),
         Mode::Plan => plan_report(&plan, Status::Planned, true),
         Mode::List => plan_report(&plan, Status::Planned, false),
     };
+    if mode != Mode::Test {
+        for (step_ordinal, step) in document.steps.iter().enumerate() {
+            on_step(step_ordinal, step);
+        }
+    }
     document.diagnostics.extend(outcome.diagnostics);
     document.path = path.display().to_string();
     document.duration_ms = started.elapsed().as_millis() as u64;
@@ -714,15 +771,19 @@ fn plan_report(plan: &DocumentPlan, status: Status, include_commands: bool) -> D
     }
 }
 
-fn execute_plan(
+fn execute_plan_with_hook<F>(
     plan: &DocumentPlan,
     config: &EffectiveConfig,
     options: &CommonOptions,
-) -> DocumentReport {
+    on_step: &mut F,
+) -> DocumentReport
+where
+    F: FnMut(usize, &StepReport),
+{
     let mut variables = plan.variables.clone();
     let mut step_summaries = Map::new();
     if options.offline {
-        return DocumentReport {
+        let document = DocumentReport {
             path: plan.path.display().to_string(),
             status: Status::Error,
             duration_ms: 0,
@@ -749,6 +810,10 @@ fn execute_plan(
                 .collect(),
             diagnostics: Vec::new(),
         };
+        for (step_ordinal, step) in document.steps.iter().enumerate() {
+            on_step(step_ordinal, step);
+        }
+        return document;
     }
     let mut steps = Vec::new();
     for step in &plan.steps {
@@ -780,7 +845,9 @@ fn execute_plan(
                     step.name.clone(),
                     serde_json::json!({"status": report.status.as_str()}),
                 );
+                let step_ordinal = steps.len();
                 steps.push(report);
+                on_step(step_ordinal, steps.last().expect("step was just pushed"));
                 continue;
             }
         };
@@ -808,7 +875,9 @@ fn execute_plan(
                 step.name.clone(),
                 serde_json::json!({"status": report.status.as_str()}),
             );
+            let step_ordinal = steps.len();
             steps.push(report);
+            on_step(step_ordinal, steps.last().expect("step was just pushed"));
             if options.fail_fast || config.fail_fast {
                 break;
             }
@@ -893,7 +962,9 @@ fn execute_plan(
                 }).collect::<Vec<_>>()
             }),
         );
+        let step_ordinal = steps.len();
         steps.push(report);
+        on_step(step_ordinal, steps.last().expect("step was just pushed"));
         if failed && (options.fail_fast || config.fail_fast) {
             break;
         }
