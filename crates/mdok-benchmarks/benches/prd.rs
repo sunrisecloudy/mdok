@@ -302,6 +302,18 @@ fn jmespath_eval(c: &mut Criterion) {
             },
         );
     }
+    let ten_kib = evaluation_value(128);
+    group.throughput(Throughput::Bytes(
+        serde_json::to_vec(&ten_kib).unwrap().len() as u64,
+    ));
+    group.bench_with_input(
+        BenchmarkId::new("json_size", "10kb"),
+        &ten_kib,
+        |bench, value| {
+            let expression = mdok_jmespath::compile("items[].metadata.name").unwrap();
+            bench.iter(|| black_box(expression.evaluate(black_box(value)).unwrap()))
+        },
+    );
     let value = evaluation_value(128);
     for (label, source) in [
         ("projection", "items[].id"),
@@ -452,6 +464,9 @@ fn body_capture(c: &mut Criterion) {
             (0..16 * 1024).map(|index| (index % 256) as u8).collect(),
             256 * 1024,
         ),
+        ("threshold_minus_one", vec![b't'; 32 * 1024 - 1], 32 * 1024),
+        ("threshold_exact", vec![b'e'; 32 * 1024], 32 * 1024),
+        ("threshold_plus_one", vec![b'p'; 32 * 1024 + 1], 32 * 1024),
         ("intense", vec![b'i'; 1024 * 1024], 256 * 1024),
     ];
     for (kind, body, threshold) in cases {
@@ -470,6 +485,25 @@ fn body_capture(c: &mut Criterion) {
             })
         });
     }
+    let reject_server = BodyServer::start(vec![b'r'; 64 * 1024], true);
+    let mut reject_policy = CurlPolicy::local_test();
+    reject_policy.memory_body_threshold_bytes = 32 * 1024;
+    reject_policy.max_body_bytes = 32 * 1024;
+    let reject_plan = CurlPlan::parse(
+        &["curl".to_owned(), reject_server.address.clone()],
+        &reject_policy,
+    )
+    .unwrap();
+    group.bench_function("max_body_reject", |bench| {
+        bench.iter(|| {
+            let mut session = ExecutionSession::new();
+            let error = reject_plan
+                .execute_in_session(&reject_policy, &mut session)
+                .expect_err("body over the configured maximum must fail");
+            black_box(error.code)
+        })
+    });
+    drop(reject_server);
     group.finish();
 }
 
@@ -701,7 +735,7 @@ fn allocation_budget(c: &mut Criterion) {
 fn criterion_config() -> Criterion {
     Criterion::default()
         .configure_from_args()
-        .sample_size(20)
+        .sample_size(30)
         .warm_up_time(Duration::from_secs(1))
         .measurement_time(Duration::from_secs(2))
 }
