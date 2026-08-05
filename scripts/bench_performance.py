@@ -71,6 +71,19 @@ def markdown_source(label: str, steps: int, prose_bytes: int, endpoint: str) -> 
     return document
 
 
+def discovery_source(index: int, endpoint: str, target_bytes: int = 2 * 1024) -> str:
+    source = (
+        f"# Discovery document {index}\n\n"
+        f"```curl mdok name=step_{index}\n"
+        f"curl {endpoint}/discovery/{index}\n"
+        "```\n\n"
+    )
+    filler = "Discovery workload prose keeps each input near the PRD's 2 KiB target.\n"
+    while len(source) < target_bytes:
+        source += filler
+    return source
+
+
 class FixtureHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     response_body = b'{"id":"bench-response","ok":true}'
@@ -195,11 +208,13 @@ def run_case(
     mode: str,
     runs: int,
     warmups: int,
+    options: list[str] | None = None,
 ) -> dict[str, Any]:
     command = [
         str(binary),
         "--config",
         str(config),
+        *(options or []),
         "--json",
         mode,
         str(document),
@@ -266,6 +281,25 @@ def main() -> int:
                     "steps": spec["steps"],
                     "cases": cases,
                 }
+                if label == "intense":
+                    discovery_dir = temp_dir / "discovery-1000"
+                    discovery_dir.mkdir()
+                    discovery_count = 1_000
+                    for index in range(discovery_count):
+                        (discovery_dir / f"document-{index:04d}.md").write_text(
+                            discovery_source(index, endpoint), encoding="utf-8"
+                        )
+                    cases["plan_1000_docs"] = run_case(
+                        binary,
+                        config,
+                        discovery_dir,
+                        "plan",
+                        args.runs,
+                        args.warmups,
+                        options=["--jobs", "4"],
+                    )
+                    results["workloads"][label]["discovery_documents"] = discovery_count
+                    results["workloads"][label]["discovery_jobs"] = 4
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")

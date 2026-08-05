@@ -149,6 +149,9 @@ The required Criterion topology from the PRD is the minimum suite:
 - [ ] Guidance: extend the current synthetic cases with the normal and
   intense fixtures defined above; synthetic loops alone do not validate CLI
   startup, RSS, worker backpressure, or real session reuse.
+- `[x] Implemented` `scripts/bench_performance.py` measures release-process
+  `lint`, `plan`, and local-fixture `test` for normal/intense documents,
+  including the 1,000-document bounded-discovery case and peak RSS.
 - [ ] Regression gate: publish a machine-readable benchmark result containing
   fixture metadata and target status.
 - [ ] Regression gate: include a no-network planning benchmark and a local-
