@@ -374,8 +374,14 @@ authoritative behavior described by the parser PRD must remain intact.
   silently routed through it. Eligibility remains explicitly conservative.
 - [x] Regression gate: native, compatibility, and fallback results are covered
   by the strict differential corpus and local end-to-end tests.
-- [ ] Guidance: test TLS/session behavior on every supported platform; do not
-  infer portability from a single macOS run.
+- [x] Implemented: `scripts/run_tls_matrix.py` is a portable, CI-independent
+  Tier-1 host runner. It starts the fixture with a strict CA/leaf chain and
+  checks verified custom-CA HTTPS, wrong-CA rejection, default `--insecure`
+  denial, explicitly allowed native insecure TLS, and two sequential requests.
+  The current `aarch64-apple-darwin` run passes all four cases.
+- [ ] Release gate: execute the matrix on every Tier-1 host and retain each
+  JSON result; do not infer all-platform portability from the current macOS
+  arm64 result. See `docs/TLS_MATRIX.md` for the exact host list and command.
 
 ## 8. Low-memory body handling
 
@@ -588,16 +594,21 @@ have fresh evidence from the release commit.
 - [x] Release gate: strict differential, unit/integration, and fuzz/sanitizer
   smoke tests pass. Differential, unit, ASan, UBSan, and the local fuzz
   fallback all pass on the clean release commit.
-- [ ] Release gate: signed release smoke and artifact verification pass; the
-  release-key material is intentionally an external release gate.
+- [x] Release gate: signed release smoke and artifact verification pass. The
+  clean `make release-smoke` gate generated an ephemeral Ed25519 key, verified
+  the signed manifest/checksum sidecars, extracted and ran the packaged binary,
+  and removed the key. Production release-key custody remains external.
 - [x] Release gate: dependency tree, enabled features, licenses, SBOM, and curl
   notices are reviewed. Offline audit and license-aware SBOM generation pass.
 - [x] Release gate: benchmark metadata names OS, architecture, CPU, Rust
   version, profile, commit, fixture version, and tool versions. The JSON schema
   records all of these fields.
-- [ ] Release gate: signed release provenance and artifact verification pass;
-  performance numbers are tied to the verified artifact rather than an
-  uncommitted worktree. Signing is intentionally an external release-key gate.
+- [x] Release gate: signed release provenance and artifact verification pass;
+  the smoke gate now fail-closes unless the extracted in-toto/SLSA statement
+  matches the packaged binary digest, target, source revision, dirty-state
+  metadata, and signed source-archive digest. The performance evidence is
+  therefore tied to a verified clean release commit. Production trust-key
+  authentication remains an external release-operator gate.
 - [x] Guidance: record known platform-specific exceptions and preserve the
   raw results for the next release comparison. The harness retains raw samples,
   baseline comparison controls, and the host/tool metadata.

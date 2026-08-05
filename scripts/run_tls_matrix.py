@@ -304,6 +304,15 @@ def default_target() -> str:
     return rustc_host_target() or fallback_rust_target()
 
 
+def source_revision() -> str | None:
+    try:
+        result = run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], timeout=10.0)
+    except (OSError, RuntimeError):
+        return None
+    revision = result.stdout.strip()
+    return revision if result.returncode == 0 and revision else None
+
+
 def stop_process(process: subprocess.Popen[str]) -> None:
     if process.poll() is None:
         try:
@@ -423,6 +432,7 @@ def main() -> int:
 
     result = {
         "schema": "mdok-tls-matrix-v1",
+        "source_revision": source_revision(),
         "target": target,
         "tier1_targets": list(TIER1_TARGETS),
         "platform": {

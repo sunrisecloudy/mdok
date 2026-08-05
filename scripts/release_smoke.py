@@ -168,6 +168,13 @@ def _verify_provenance(root: Path, manifest: dict[str, Any], binary: Path) -> No
     if not isinstance(source, dict):
         raise ReleaseSigningError("signed manifest source state is invalid")
     source_revision = _required_string(source.get("revision"), "signed manifest source revision")
+    source_dirty = source.get("working_tree_dirty")
+    if not isinstance(source_dirty, bool):
+        raise ReleaseSigningError("signed manifest dirty-state flag is invalid")
+    source_status_digest = _required_sha256(
+        source.get("working_tree_status_sha256"),
+        "signed manifest working-tree status digest",
+    )
 
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
@@ -188,6 +195,8 @@ def _verify_provenance(root: Path, manifest: dict[str, Any], binary: Path) -> No
         "source_revision": source_revision,
         "source_archive_revision": source_revision,
         "source_archive_sha256": source_archive_digest,
+        "working_tree_dirty": source_dirty,
+        "working_tree_status_sha256": source_status_digest,
     }
     for field, expected in expected_bindings.items():
         actual = parameters.get(field)

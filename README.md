@@ -59,3 +59,23 @@ python3 scripts/release_smoke.py \
 ```
 
 Signed packaging fails closed when the key is absent or the checkout is dirty. `MDOK_ALLOW_DIRTY_RELEASE=1` is an explicit local exception; its signed manifest and embedded provenance retain the `HEAD` revision, a dirty flag, and a hash of the complete porcelain status. `MDOK_RELEASE_SMOKE=1` verifies signatures before extracting and running the packaged binary. Unsigned local packaging remains available without that release gate.
+
+The repository also provides a credential-free signed-release gate. It creates
+an ephemeral Ed25519 key in a private temporary directory, packages and
+verifies a signed release, checks the extracted binary and provenance bindings,
+and removes the key on exit:
+
+```sh
+make release-smoke
+```
+
+For HTTPS/session portability, run the Tier-1 host matrix on each supported
+platform and retain the JSON output:
+
+```sh
+make tls-matrix
+```
+
+See [docs/TLS_MATRIX.md](docs/TLS_MATRIX.md) for the target list and the four
+cases that must pass on every host. The matrix is intentionally a manual
+release gate; no CI workflow is added here.
