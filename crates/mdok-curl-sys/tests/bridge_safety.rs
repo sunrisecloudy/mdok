@@ -599,6 +599,26 @@ fn reusable_session_matches_legacy_null_session_body_path() {
 }
 
 #[test]
+fn streaming_body_sink_receives_chunks_without_retained_body_buffer() {
+    ensure_curl_init();
+    let (url, server) = start_single_response_server(b"streamed");
+    let plan =
+        Plan::parse(&[b"curl".as_slice(), url.as_bytes()]).expect("parse streaming body plan");
+    let mut session = Session::new().expect("allocate streaming session");
+    let mut received = Vec::new();
+    let mut sink = |chunk: &[u8]| {
+        received.extend_from_slice(chunk);
+        Ok::<(), (i32, String)>(())
+    };
+    let result = session
+        .execute_detailed_with_body_sink(&plan, 1024, 16 * 1024, None, &mut sink)
+        .expect("execute streaming body plan");
+    assert!(result.transfer.body.is_empty());
+    assert_eq!(received, b"streamed");
+    server.join().expect("join streaming fixture");
+}
+
+#[test]
 fn null_session_free_is_safe() {
     ensure_curl_init();
     // SAFETY: the C API promises a null-safe release helper.

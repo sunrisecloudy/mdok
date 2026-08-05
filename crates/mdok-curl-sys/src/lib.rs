@@ -114,8 +114,11 @@ pub struct BridgeError {
     pub message: String,
 }
 
+type BodySinkCallback<'a> = &'a mut dyn FnMut(&[u8]) -> Result<(), (i32, String)>;
+
 pub const BODY_LIMIT_ERROR_CODE: i32 = -10_001;
 pub const HEADER_LIMIT_ERROR_CODE: i32 = -10_002;
+pub const BODY_SINK_ERROR_CODE: i32 = -10_003;
 pub const TIMEOUT_ERROR_CODE: i32 = 28; // libcurl CURLE_OPERATION_TIMEDOUT
 pub const TOO_MANY_REDIRECTS_ERROR_CODE: i32 = 47; // libcurl CURLE_TOO_MANY_REDIRECTS
 pub const CANCELLED_STATUS: c_int = 4;
@@ -287,13 +290,47 @@ impl Session {
         max_header_bytes: usize,
         cancelled: Option<&dyn Fn() -> bool>,
     ) -> Result<NativeTransferResult, BridgeError> {
+        self.execute_detailed_inner(plan, max_body_bytes, max_header_bytes, cancelled, None)
+    }
+
+    /// Execute a transfer while streaming body chunks to a caller-owned sink.
+    /// The returned transfer keeps response headers and metadata, but its body
+    /// vector is empty because ownership was transferred to the sink.
+    pub fn execute_detailed_with_body_sink(
+        &mut self,
+        plan: &Plan,
+        max_body_bytes: usize,
+        max_header_bytes: usize,
+        cancelled: Option<&dyn Fn() -> bool>,
+        body_sink: BodySinkCallback<'_>,
+    ) -> Result<NativeTransferResult, BridgeError> {
+        self.execute_detailed_inner(
+            plan,
+            max_body_bytes,
+            max_header_bytes,
+            cancelled,
+            Some(body_sink),
+        )
+    }
+
+    fn execute_detailed_inner<'cancel, 'sink>(
+        &mut self,
+        plan: &Plan,
+        max_body_bytes: usize,
+        max_header_bytes: usize,
+        cancelled: Option<&'cancel dyn Fn() -> bool>,
+        body_sink: Option<BodySinkCallback<'sink>>,
+    ) -> Result<NativeTransferResult, BridgeError> {
         let mut capture = NativeCapture {
             transfer: NativeTransfer::default(),
             max_body_bytes,
             max_header_bytes,
             body_limit: false,
             header_limit: false,
+            body_bytes: 0,
             cancelled,
+            body_sink,
+            body_sink_error: None,
         };
         let callbacks = mdok_curl_callbacks {
             body: Some(append_body),
@@ -333,6 +370,13 @@ impl Session {
                 status: 3,
                 code: HEADER_LIMIT_ERROR_CODE,
                 message: "native response headers exceeded the configured limit".to_owned(),
+            });
+        }
+        if let Some((code, message)) = capture.body_sink_error {
+            return Err(BridgeError {
+                status: 3,
+                code,
+                message,
             });
         }
         if status == 0 {
@@ -386,13 +430,16 @@ fn last_error_message() -> String {
         .into_owned()
 }
 
-struct NativeCapture<'a> {
+struct NativeCapture<'a, 'b> {
     transfer: NativeTransfer,
     max_body_bytes: usize,
     max_header_bytes: usize,
     body_limit: bool,
     header_limit: bool,
+    body_bytes: usize,
     cancelled: Option<&'a dyn Fn() -> bool>,
+    body_sink: Option<BodySinkCallback<'b>>,
+    body_sink_error: Option<(i32, String)>,
 }
 
 unsafe extern "C" fn check_cancel(userdata: *mut c_void) -> c_int {
@@ -402,7 +449,7 @@ unsafe extern "C" fn check_cancel(userdata: *mut c_void) -> c_int {
         }
         // SAFETY: the bridge invokes this callback synchronously with the
         // `NativeCapture` pointer supplied by `Session::execute_detailed`.
-        let capture = unsafe { &*(userdata as *const NativeCapture<'_>) };
+        let capture = unsafe { &*(userdata as *const NativeCapture<'_, '_>) };
         capture.cancelled.is_some_and(|callback| callback())
     }));
     match result {
@@ -431,18 +478,18 @@ fn append_bytes(data: *const u8, length: usize, userdata: *mut c_void, headers: 
         // SAFETY: libcurl invokes the callback with a valid buffer for the
         // duration of this callback, and userdata points at the stack-owned
         // transfer in Session::execute.
-        let capture = unsafe { &mut *(userdata as *mut NativeCapture<'_>) };
-        let target = if headers {
-            &mut capture.transfer.headers
-        } else {
-            &mut capture.transfer.body
-        };
+        let capture = unsafe { &mut *(userdata as *mut NativeCapture<'_, '_>) };
         let max_bytes = if headers {
             capture.max_header_bytes
         } else {
             capture.max_body_bytes
         };
-        if length > max_bytes.saturating_sub(target.len()) {
+        let current_len = if headers {
+            capture.transfer.headers.len()
+        } else {
+            capture.body_bytes
+        };
+        if length > max_bytes.saturating_sub(current_len) {
             if headers {
                 capture.header_limit = true;
             } else {
@@ -452,6 +499,21 @@ fn append_bytes(data: *const u8, length: usize, userdata: *mut c_void, headers: 
         }
         if length != 0 {
             let bytes = unsafe { slice::from_raw_parts(data, length) };
+            if !headers {
+                capture.body_bytes += length;
+                if let Some(sink) = capture.body_sink.as_mut() {
+                    if let Err(error) = sink(bytes) {
+                        capture.body_sink_error = Some(error);
+                        return 0;
+                    }
+                    return length;
+                }
+            }
+            let target = if headers {
+                &mut capture.transfer.headers
+            } else {
+                &mut capture.transfer.body
+            };
             if target.try_reserve(length).is_err() {
                 return 0;
             }

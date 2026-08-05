@@ -313,11 +313,12 @@ fn join_body_parts(parts: &[Vec<u8>]) -> Option<Vec<u8>> {
     Some(joined)
 }
 
-fn native_response(
+fn native_response_with_body(
     plan: &CurlPlan,
     policy: &CurlPolicy,
     transfer: mdok_curl_sys::NativeTransfer,
     metadata: mdok_curl_sys::NativeTransferMetadata,
+    body_override: Option<BodyStorage>,
 ) -> Result<TransferResponse, CurlError> {
     if transfer.headers.len() > policy.max_header_bytes {
         return Err(CurlError::new(
@@ -356,26 +357,37 @@ fn native_response(
             "native curl response did not contain a status line",
         ));
     };
-    let body_len = transfer.body.len() as u64;
-    let body = if transfer.body.len() <= policy.memory_body_threshold_bytes {
-        BodyStorage {
-            len: body_len,
-            memory: Some(transfer.body),
-            spool: None,
-            truncated: false,
-        }
+    let body = if let Some(body) = body_override {
+        body
     } else {
-        let mut file =
-            NamedTempFile::new().map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
-        file.write_all(&transfer.body)
-            .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
-        BodyStorage {
-            len: body_len,
-            memory: None,
-            spool: Some(file.into_temp_path()),
-            truncated: false,
+        let body_len = transfer.body.len() as u64;
+        if body_len > policy.max_body_bytes {
+            return Err(CurlError::new(
+                E_BODY_LIMIT,
+                "response body exceeds the configured limit",
+            ));
+        }
+        if transfer.body.len() <= policy.memory_body_threshold_bytes {
+            BodyStorage {
+                len: body_len,
+                memory: Some(transfer.body),
+                spool: None,
+                truncated: false,
+            }
+        } else {
+            let mut file = NamedTempFile::new()
+                .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+            file.write_all(&transfer.body)
+                .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+            BodyStorage {
+                len: body_len,
+                memory: None,
+                spool: Some(file.into_temp_path()),
+                truncated: false,
+            }
         }
     };
+    let body_len = body.len();
     let redirects = native_redirects(
         &transfer.headers,
         &plan.url,
@@ -1193,9 +1205,26 @@ impl CurlPlan {
             )
         })?;
         let max_body_bytes = usize::try_from(policy.max_body_bytes).unwrap_or(usize::MAX);
+        let mut body_sink =
+            BodySink::new(policy.memory_body_threshold_bytes, policy.max_body_bytes);
         let result = execution
             .native_mut()?
-            .execute_detailed(&parsed, max_body_bytes, policy.max_header_bytes, cancelled)
+            .execute_detailed_with_body_sink(
+                &parsed,
+                max_body_bytes,
+                policy.max_header_bytes,
+                cancelled,
+                &mut |chunk| {
+                    body_sink.push(chunk).map_err(|error| {
+                        let code = if error.code == E_BODY_LIMIT {
+                            mdok_curl_sys::BODY_LIMIT_ERROR_CODE
+                        } else {
+                            mdok_curl_sys::BODY_SINK_ERROR_CODE
+                        };
+                        (code, error.message)
+                    })
+                },
+            )
             .map_err(|error| {
                 if error.status == mdok_curl_sys::CANCELLED_STATUS {
                     CurlError::new(E_CANCELLED, error.message)
@@ -1208,6 +1237,11 @@ impl CurlPlan {
                     mdok_curl_sys::BODY_LIMIT_ERROR_CODE | mdok_curl_sys::HEADER_LIMIT_ERROR_CODE
                 ) {
                     CurlError::new(E_BODY_LIMIT, error.message)
+                } else if error.code == mdok_curl_sys::BODY_SINK_ERROR_CODE {
+                    CurlError::new(
+                        E_TRANSFER,
+                        format!("native body sink failed: {}", error.message),
+                    )
                 } else {
                     CurlError::new(
                         E_TRANSFER,
@@ -1216,13 +1250,7 @@ impl CurlPlan {
                 }
             })?;
         let mdok_curl_sys::NativeTransferResult { transfer, metadata } = result;
-        if transfer.body.len() as u64 > policy.max_body_bytes {
-            return Err(CurlError::new(
-                E_BODY_LIMIT,
-                "response body exceeds the configured limit",
-            ));
-        }
-        native_response(self, policy, transfer, metadata)
+        native_response_with_body(self, policy, transfer, metadata, Some(body_sink.finish()))
     }
 }
 
@@ -2259,7 +2287,9 @@ mod tests {
             local_ip: Some("192.0.2.20".into()),
             local_port: Some(50_000),
         };
-        let response = native_response(&plan, &CurlPolicy::default(), transfer, metadata).unwrap();
+        let response =
+            native_response_with_body(&plan, &CurlPolicy::default(), transfer, metadata, None)
+                .unwrap();
         assert_eq!(response.status, Some(200));
         assert_eq!(response.effective_url, "https://example.test/final");
         assert_eq!(response.redirects.len(), 1);
