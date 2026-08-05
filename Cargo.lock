@@ -1155,6 +1155,7 @@ name = "mdok-benchmarks"
 version = "0.0.0"
 dependencies = [
  "criterion",
+ "mdok-command",
  "mdok-core",
  "mdok-curl",
  "mdok-jmespath",

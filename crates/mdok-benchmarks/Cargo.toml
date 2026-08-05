@@ -12,6 +12,7 @@ harness = false
 [dependencies]
 criterion.workspace = true
 mdok-core = { path = "../mdok-core" }
+mdok-command = { path = "../mdok-command" }
 mdok-curl = { path = "../mdok-curl" }
 mdok-jmespath = { path = "../mdok-jmespath" }
 mdok-markdown = { path = "../mdok-markdown" }

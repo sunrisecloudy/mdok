@@ -2,6 +2,7 @@ use criterion::measurement::Measurement;
 use criterion::{
     BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
+use mdok_command::{CommandPolicy, CommandProfile, run as run_command};
 use mdok_core::StepSource;
 use mdok_curl::{CurlPlan, CurlPolicy, ExecutionSession};
 use mdok_report::{CheckReport, DocumentReport, Event, EventMetadata, Report, Status, StepReport};
@@ -671,6 +672,62 @@ fn end_to_end(c: &mut Criterion) {
     group.finish();
 }
 
+fn command_fixture_path() -> PathBuf {
+    let mut path = std::env::current_exe().expect("benchmark executable path");
+    path.pop();
+    path.pop();
+    path.push("mdok-command-fixture");
+    #[cfg(windows)]
+    path.set_extension("exe");
+    path.canonicalize().unwrap_or_else(|error| {
+        panic!(
+            "build mdok-command-fixture before running command benchmarks ({}): {error}",
+            path.display()
+        )
+    })
+}
+
+fn command_policy(program: PathBuf, max_output_bytes: usize) -> CommandPolicy {
+    CommandPolicy {
+        profiles: [(
+            "mdok-command-fixture".to_owned(),
+            CommandProfile {
+                program,
+                ..CommandProfile::default()
+            },
+        )]
+        .into_iter()
+        .collect(),
+        timeout: Duration::from_secs(2),
+        max_output_bytes,
+        max_args: 16,
+        max_arg_bytes: 4096,
+        max_argv_bytes: 16 * 1024,
+    }
+}
+
+fn command_exec(c: &mut Criterion) {
+    let mut group = c.benchmark_group("command_exec");
+    let program = command_fixture_path();
+    for (label, byte_count) in [("normal", 1024usize), ("intense", 256 * 1024)] {
+        let policy = command_policy(program.clone(), byte_count + 4096);
+        let argv = vec![
+            "mdok-command-fixture".to_owned(),
+            "spam".to_owned(),
+            byte_count.to_string(),
+        ];
+        group.throughput(Throughput::Bytes(byte_count as u64));
+        group.bench_function(BenchmarkId::new("workload", label), |bench| {
+            bench.iter(|| {
+                let output = run_command(black_box(&argv), &policy).unwrap();
+                assert!(output.success);
+                black_box((output.stdout_bytes, output.stderr_bytes, output.stdout))
+            })
+        });
+    }
+    group.finish();
+}
+
 fn allocation_case<M, F, R>(
     group: &mut BenchmarkGroup<'_, M>,
     name: &str,
@@ -784,6 +841,6 @@ criterion_group! {
     name = prd;
     config = criterion_config();
     targets = markdown_extract, shell_parse, curl_parse, jmespath_compile, jmespath_eval,
-        body_capture, report, end_to_end, allocation_budget
+        body_capture, report, end_to_end, command_exec, allocation_budget
 }
 criterion_main!(prd);
