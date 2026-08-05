@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "crates/mdok-cli",
   "crates/mdok-command",
+  "crates/mdok-command-fixture",
   "crates/mdok-core",
   "crates/mdok-markdown",
   "crates/mdok-template",
