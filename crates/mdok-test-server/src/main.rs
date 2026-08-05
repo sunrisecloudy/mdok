@@ -28,26 +28,41 @@ const MAX_HEADER_BYTES: usize = 128 * 1024;
 const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
 const MAX_GENERATED_BYTES: usize = 32 * 1024 * 1024;
 
-// This is a test-only self-signed CA and leaf certificate.  It has SANs for
-// both loopback names used by the harness.  The CA file contains only CERT_PEM.
-const CERT_PEM: &str = r#"-----BEGIN CERTIFICATE-----
-MIIBpjCCAU2gAwIBAgIUUaf0On9TpslLE+TldtTAGYSrPKAwCgYIKoZIzj0EAwIw
-GzEZMBcGA1UEAwwQbWRvay10ZXN0LXNlcnZlcjAeFw0yNjA4MDQxMjUzMzhaFw0z
-NjA4MDExMjUzMzhaMBsxGTAXBgNVBAMMEG1kb2stdGVzdC1zZXJ2ZXIwWTATBgcq
-hkjOPQIBBggqhkjOPQMBBwNCAASsOVkUnr/Xb4aihrlX/RSE0zhNfVhpm6XxfWQY
-voymWFfTiBGmoBIuaNXzIaXeeDpB5lh63sIou2OfNr/5/ulko28wbTAdBgNVHQ4E
-FgQUySQ7+MjwlTMAUbfWIG+JXnilgDwwHwYDVR0jBBgwFoAUySQ7+MjwlTMAUbfW
-IG+JXnilgDwwDwYDVR0TAQH/BAUwAwEB/zAaBgNVHREEEzARhwR/AAABgglsb2Nh
-bGhvc3QwCgYIKoZIzj0EAwIDRwAwRAIgDyae4xD6WB21sDnfMApiOnVsaICzCPGT
-Yt6/ClCW1G8CIGgDpT5sCicf+xD8CD94rGwVcWFIuJAjWJaxobs4Z/zI
+// These are test-only certificates. The CA is separate from the loopback
+// server leaf so strict TLS implementations (including rustls) validate the
+// same chain as production clients. The CA file contains only CA_CERT_PEM.
+const CA_CERT_PEM: &str = r#"-----BEGIN CERTIFICATE-----
+MIIBljCCATygAwIBAgIUK3GpPK08MQR44eiiKiPCQlrkCDswCgYIKoZIzj0EAwIw
+FzEVMBMGA1UEAwwMbWRvay10ZXN0LWNhMB4XDTI2MDgwNTAzMzM0OVoXDTM2MDgw
+MjAzMzM0OVowFzEVMBMGA1UEAwwMbWRvay10ZXN0LWNhMFkwEwYHKoZIzj0CAQYI
+KoZIzj0DAQcDQgAEfRmVk2Eiol6Hjp7cOZuTInb+ZEkSeQLFCSRGCVtTzaKQek4a
+Iv2ONoPcjW36WKPWZ+OotWu1AXYLHY7QYWQFmKNmMGQwHQYDVR0OBBYEFGp3uy+x
+7qjkcMT5TmJVKW8lEtE5MB8GA1UdIwQYMBaAFGp3uy+x7qjkcMT5TmJVKW8lEtE5
+MBIGA1UdEwEB/wQIMAYBAf8CAQEwDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMC
+A0gAMEUCIQCjiWipHtE87Ngu6I0qXVan4dARj+bxxDXmufsrgC+xBAIgclgz/s+l
+oz/cjF/Roug5st5agvQn2f/sk3sJqcgdzhk=
 -----END CERTIFICATE-----
 "#;
 
-const KEY_PEM: &str = r#"-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgsF2kK/TN6Ru+FI7I
-9PhDk0EIDxm4FmAL6DbAJLG70RmhRANCAASsOVkUnr/Xb4aihrlX/RSE0zhNfVhp
-m6XxfWQYvoymWFfTiBGmoBIuaNXzIaXeeDpB5lh63sIou2OfNr/5/ulk
------END PRIVATE KEY-----
+const SERVER_CERT_PEM: &str = r#"-----BEGIN CERTIFICATE-----
+MIIByDCCAW2gAwIBAgIUOfpki100z5fksfpVJtf4Ln+EGdMwCgYIKoZIzj0EAwIw
+FzEVMBMGA1UEAwwMbWRvay10ZXN0LWNhMB4XDTI2MDgwNTAzMzM0OVoXDTM2MDgw
+MjAzMzM0OVowGzEZMBcGA1UEAwwQbWRvay10ZXN0LXNlcnZlcjBZMBMGByqGSM49
+AgEGCCqGSM49AwEHA0IABGZ2jz2zwCkGinTeMUr8RqJfmSXphZt9Do/MAHSOm3qi
+yHZjyjtFKDIVno8kmyzQdSS+CvIC7ZDWzx+WNshAYnujgZIwgY8wDAYDVR0TAQH/
+BAIwADAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwGgYDVR0R
+BBMwEYcEfwAAAYIJbG9jYWxob3N0MB0GA1UdDgQWBBQiUKoHSIxtnHTQALa5JxsI
+Eq3aajAfBgNVHSMEGDAWgBRqd7svse6o5HDE+U5iVSlvJRLROTAKBggqhkjOPQQD
+AgNJADBGAiEA6h5wfjEj4TY7Ap9kJeT5jw/vwUzwkvZ9AChflf8AgwgCIQCv8zq1
+azfr9mLg7DlSRnlpMAknyl1NfjTN6Eal6gDatw==
+-----END CERTIFICATE-----
+"#;
+
+const KEY_PEM: &str = r#"-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIDtFPgdVfvBVqMV6GymXwKTmnqdCEmL8R5+KyzKYGn8loAoGCCqGSM49
+AwEHoUQDQgAEZnaPPbPAKQaKdN4xSvxGol+ZJemFm30Oj8wAdI6beqLIdmPKO0Uo
+MhWejySbLNB1JL4K8gLtkNbPH5Y2yEBiew==
+-----END EC PRIVATE KEY-----
 "#;
 
 #[derive(Parser, Debug)]
@@ -198,13 +213,14 @@ fn bind_loopback(spec: &str) -> Result<TcpListener> {
 
 fn write_ca_file() -> Result<PathBuf> {
     let path = std::env::temp_dir().join("mdok-ca.pem");
-    fs::write(&path, CERT_PEM).with_context(|| format!("writing {}", path.display()))?;
+    fs::write(&path, CA_CERT_PEM).with_context(|| format!("writing {}", path.display()))?;
     Ok(path)
 }
 
 fn tls_config() -> Result<ServerConfig> {
     let certs: Vec<CertificateDer<'static>> =
-        rustls_pemfile::certs(&mut Cursor::new(CERT_PEM)).collect::<std::result::Result<_, _>>()?;
+        rustls_pemfile::certs(&mut Cursor::new(SERVER_CERT_PEM))
+            .collect::<std::result::Result<_, _>>()?;
     let key: PrivateKeyDer<'static> = rustls_pemfile::private_key(&mut Cursor::new(KEY_PEM))?
         .ok_or_else(|| anyhow!("embedded fixture key is missing"))?;
     Ok(ServerConfig::builder()
