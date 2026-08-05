@@ -2,7 +2,7 @@
 
 ## 0.1 Product statement
 
-MDOK is a local, CLI-first, AI-agent-native API workflow testing tool. A test is a normal Markdown document containing executable curl fences, JMESPath checks, and JMESPath captures. The document is simultaneously documentation, test code, a reproducible API example, and an agent-readable repair target.
+MDOK is a local, CLI-first, AI-agent-native workflow testing tool. A test is a normal Markdown document containing executable curl or trusted direct-command fences, JMESPath checks, and JMESPath captures. The document is simultaneously documentation, test code, a reproducible API/tool example, and an agent-readable repair target.
 
 The primary question is: **"Is this Markdown still okay?"**
 
@@ -22,6 +22,7 @@ MDOK makes the Markdown example itself executable without replacing curl or inve
 6. Produce human-readable and machine-readable diagnostics suitable for autonomous repair loops.
 7. Be deterministic, fast, memory-bounded, cross-platform, and safe by default.
 8. Run locally and in CI with no required cloud account.
+9. Let agents store deterministic, reviewable command tests for repository-local tools without granting shell access.
 
 ## 0.4 Users
 
@@ -40,10 +41,12 @@ MDOK makes the Markdown example itself executable without replacing curl or inve
 - Reproducible customer issue files.
 - Matrix execution against development, staging, and production-safe profiles.
 - Local fixture-server testing with redirects, cookies, TLS, compression, binary bodies, and failures.
+- Repository-local agent/tool validation commands stored as versioned Markdown.
 
 ## 0.6 Version 1 non-goals
 
 - General shell scripting.
+- Arbitrary external process execution or ambient `PATH` lookup.
 - Browser/UI automation.
 - Load testing or distributed performance testing.
 - OpenAPI generation as a core runtime feature.

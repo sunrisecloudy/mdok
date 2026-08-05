@@ -21,6 +21,12 @@ The bare form `mdok file.md` is an alias for `mdok test file.md`. Use `mdok-test
 
 MDOK performs whole-document planning before a request is sent. Interpolated values are data inside one argv element; they are never reparsed as shell source. HTTP/HTTPS and loopback-safe local testing are the default execution surface.
 
+`curl` remains the default request fence. For repository-local agent tools,
+MDOK also supports trusted-profile direct-process `exec` fences; command tests can
+be stored as versioned Markdown and rerun over time. See
+[docs/COMMAND_TESTS.md](docs/COMMAND_TESTS.md) for the policy and context
+contract.
+
 ## Performance
 
 The Criterion suite covers parser, Markdown, template, JMESPath, report, body

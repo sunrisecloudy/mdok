@@ -29,6 +29,32 @@ curl --request POST "{{base_url}}/users" \
 
 `name` is required and must be unique in a document. A request fence contains exactly one curl simple command. The leading word must be `curl`; omitting it is not supported in version 1 because copied commands should remain executable outside MDOK.
 
+### Trusted external command
+
+Repository-local tools may be tested with an explicit `exec` fence:
+
+````markdown
+```exec mdok name=validate_generated
+json-validator --schema schemas/result.json build/result.json
+```
+````
+
+The first argv token is a profile key, not a program lookup. The selected
+profile is configured by trusted `mdok.toml` policy with a canonical executable
+path, optional fixed environment, optional declared secret environment
+mappings, and an optional working directory. The process starts with an empty
+environment and null stdin. No shell, `PATH` lookup, pipeline, redirect,
+substitution, assignment, glob expansion, or shell interpreter is permitted.
+
+`exec` output is exposed to JMESPath as a bounded context containing process
+status, exit/signal information, UTF-8-lossy stdout/stderr, parsed JSON stdout
+when valid, output-truncation state, byte counts, and duration. A nonzero exit,
+timeout, or output limit fails the step even if a check could inspect the
+partial output. Secrets are forbidden in argv and may enter only through a
+profile's `secret_env` mapping.
+Output from a profile using `secret_env` is secret-tainted and cannot be
+persisted through a capture in version 1.
+
 ### Checks
 
 ````markdown

@@ -15,6 +15,7 @@ mdok-cli
               -> libcurl multi
      -> mdok-jmespath (compile/evaluate)
      -> mdok-runtime (plan/scheduler/state/limits)
+     -> mdok-command (trusted direct argv profiles and bounded process groups)
      -> mdok-report (human/JSON/JUnit/events)
 ```
 
@@ -25,13 +26,13 @@ mdok-cli
 3. Walk executable code-block nodes and preserve source spans and heading paths.
 4. Parse fence metadata with the info-string parser.
 5. Parse TOML variable blocks.
-6. Parse template spans, mask them with inert source-mapped tokens, and parse each curl block with Tree-sitter Bash.
-7. Validate the restricted Bash AST and reconstruct typed word segments from the original source plus template AST.
-8. Build placeholder-safe argv and call the C curl parser in parse-only mode.
-9. Apply MDOK curl option/scheme/filesystem policy.
+6. Parse template spans, mask them with inert source-mapped tokens, and parse each curl block with Tree-sitter Bash; tokenize each `exec` block without shell evaluation.
+7. Validate the restricted Bash AST or direct-argv grammar and reconstruct typed word segments from the original source plus template AST.
+8. Build placeholder-safe argv and call the C curl parser in parse-only mode for curl steps.
+9. Apply MDOK curl option/scheme/filesystem policy or trusted command-profile policy.
 10. Compile JMESPath checks and captures.
 11. Validate references, uniqueness, order, and variable availability.
-12. Produce an immutable `DocumentPlan`.
+12. Produce an immutable typed `DocumentPlan` with `StepSource::Curl` or `StepSource::Exec`.
 
 No network operation occurs before planning succeeds for the whole selected document.
 
@@ -66,7 +67,7 @@ pub struct DocumentPlan {
 pub struct StepPlan {
     pub name: StepName,
     pub heading_path: Vec<String>,
-    pub curl: CurlSourcePlan,
+    pub source: StepSource,
     pub checks: Vec<CheckPlan>,
     pub captures: Vec<CapturePlan>,
     pub span: SourceSpan,

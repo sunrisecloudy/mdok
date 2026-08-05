@@ -90,6 +90,18 @@ Use this as the progress ledger. A phase is complete only when its acceptance te
 - [ ] Ensure secret argv data is not logged.
 - [ ] Fuzz shell source and AST traversal.
 
+## F.1 Trusted direct-command adapter
+
+- [x] Recognize `exec mdok name=...` fences as one direct argv command.
+- [x] Require the first argv token to select an explicitly configured command profile.
+- [x] Resolve profile programs to canonical absolute executable paths without ambient `PATH` lookup.
+- [x] Reject shell interpreters, shell operators, empty/NUL arguments, and oversized argv.
+- [x] Clear inherited environment and pass only declared fixed or secret mappings.
+- [x] Enforce timeout, combined stdout/stderr, process-group, and descendant cleanup limits.
+- [x] Expose bounded stdout/stderr, parsed JSON stdout, exit metadata, flags, and timing to checks.
+- [x] Reject secret-tainted output captures and omit command output from durable reports.
+- [x] Keep deterministic command fixtures and durable Markdown examples under `tests/agent-commands/`.
+
 ## G. Planner
 
 - [ ] Parse all selected documents before executing any request in that document.

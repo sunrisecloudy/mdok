@@ -13,6 +13,13 @@
 9. **Benchmarks:** parse, plan, JMESPath, transfer setup, body capture, and report generation.
 10. **Cross-platform CI:** macOS, Linux, Windows; arm64 jobs where available.
 
+Command-adapter tests additionally use a deterministic checked-in Rust fixture
+executable. They cover trusted profile resolution, quoted argv preservation,
+literal operator rejection, missing profiles, secret-in-argv rejection,
+declared secret environments, nonzero exit, timeout, combined output limits,
+binary/JSON output, empty inherited environment, descendant cleanup, offline
+denial, and JSON/JSONL/JUnit report compatibility.
+
 ## 12.2 Corpus
 
 This bundle includes 495 `.md` tests under `tests/corpus/`. `index.jsonl` is authoritative and contains expected stage/outcome/error code. Tests are deterministic and use only local fixture-server endpoints.

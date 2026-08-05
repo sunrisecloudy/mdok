@@ -9,7 +9,7 @@ This generated file combines the detailed documents in `docs/`. The split files 
 
 ## 0.1 Product statement
 
-MDOK is a local, CLI-first, AI-agent-native API workflow testing tool. A test is a normal Markdown document containing executable curl fences, JMESPath checks, and JMESPath captures. The document is simultaneously documentation, test code, a reproducible API example, and an agent-readable repair target.
+MDOK is a local, CLI-first, AI-agent-native workflow testing tool. A test is a normal Markdown document containing executable curl fences or trusted direct-command `exec` fences, JMESPath checks, and JMESPath captures. The document is simultaneously documentation, test code, a reproducible workflow example, and an agent-readable repair target.
 
 The primary question is: **"Is this Markdown still okay?"**
 
@@ -17,7 +17,7 @@ The primary question is: **"Is this Markdown still okay?"**
 
 API knowledge is commonly split across Markdown documentation, curl snippets, Postman/Bruno collections, integration test code, CI configuration, and support tickets. These representations drift. They are hard for humans to review together and force AI agents to translate between formats.
 
-MDOK makes the Markdown example itself executable without replacing curl or inventing an HTTP DSL.
+MDOK makes the Markdown example itself executable without replacing curl or inventing a shell DSL. Curl remains the default HTTP source; agents can also store and replay approved non-shell commands through named executable profiles.
 
 ## 0.3 Goals
 
@@ -29,6 +29,7 @@ MDOK makes the Markdown example itself executable without replacing curl or inve
 6. Produce human-readable and machine-readable diagnostics suitable for autonomous repair loops.
 7. Be deterministic, fast, memory-bounded, cross-platform, and safe by default.
 8. Run locally and in CI with no required cloud account.
+9. Let AI agents retain deterministic command tests for fixture tools, formatters, probes, and other approved executables.
 
 ## 0.4 Users
 
@@ -51,6 +52,7 @@ MDOK makes the Markdown example itself executable without replacing curl or inve
 ## 0.6 Version 1 non-goals
 
 - General shell scripting.
+- Ambient `PATH` lookup, arbitrary child processes, and shell interpreter execution.
 - Browser/UI automation.
 - Load testing or distributed performance testing.
 - OpenAPI generation as a core runtime feature.
@@ -89,6 +91,10 @@ MDOK makes the Markdown example itself executable without replacing curl or inve
 ### Author and run
 
 As a developer, I can paste a valid curl command into a Markdown fence, name it, add JMESPath checks, and run the document with `mdok file.md`.
+
+### Store and replay an approved command
+
+As an AI agent, I can store a direct-argv command test in Markdown, bind it to a trusted executable profile, add checks over bounded output, and run it again later without reconstructing shell state.
 
 ### Chain requests
 
@@ -134,6 +140,11 @@ As a CI system, I receive deterministic exit codes, JSON/JUnit reports, and no i
 | FR-018 | Reuse connections within a run. | Must |
 | FR-019 | Run documents sequentially by default; optionally parallelize independent files. | Should |
 | FR-020 | Provide deterministic local fixture server for integration tests. | Must |
+| FR-021 | Recognize `exec mdok name=...` fences containing one direct-argv command. | Must |
+| FR-022 | Resolve executable commands only through explicitly configured canonical profiles; never use ambient `PATH`. | Must |
+| FR-023 | Clear inherited child environment and allow only configured non-secret and secret environment mappings. | Must |
+| FR-024 | Apply bounded timeout, argument, combined-output, and process-group limits to external commands. | Must |
+| FR-025 | Expose bounded stdout/stderr and exit metadata to checks while omitting command output from durable reports. | Must |
 
 ## 1.3 Non-functional requirements
 
@@ -181,6 +192,16 @@ curl --request POST "{{base_url}}/users" \
 ````
 
 `name` is required and must be unique in a document. A request fence contains exactly one curl simple command. The leading word must be `curl`; omitting it is not supported in version 1 because copied commands should remain executable outside MDOK.
+
+### Trusted external command
+
+````markdown
+```exec mdok name=inspect_fixture
+mdok-command-fixture json
+```
+````
+
+An `exec` fence is one direct-argv command, not a shell program. Its first token must match a configured `[policy.exec.commands.<name>]` profile whose `program` is an absolute canonical executable path. Shell interpreters, shell operators, ambient `PATH` lookup, inherited environment variables, and unapproved working directories are rejected during planning or configuration loading. Command output is bounded and available transiently to checks/captures through the execution context; durable reports retain only redacted argv, status, limit, byte-count, and timing metadata.
 
 ### Checks
 
@@ -654,6 +675,7 @@ mdok-cli
               -> libcurl multi
      -> mdok-jmespath (compile/evaluate)
      -> mdok-runtime (plan/scheduler/state/limits)
+     -> mdok-command (trusted direct-argv process groups/limits)
      -> mdok-report (human/JSON/JUnit/events)
 ```
 
@@ -665,12 +687,13 @@ mdok-cli
 4. Parse fence metadata with the info-string parser.
 5. Parse TOML variable blocks.
 6. Parse each curl block with Tree-sitter Bash; validate restricted AST.
-7. Parse templates inside accepted word nodes into a typed word plan.
-8. Build placeholder-safe argv and call the C curl parser in parse-only mode.
-9. Apply MDOK curl option/scheme/filesystem policy.
-10. Compile JMESPath checks and captures.
-11. Validate references, uniqueness, order, and variable availability.
-12. Produce an immutable `DocumentPlan`.
+7. Parse each `exec` block as direct argv; validate its profile and argument policy.
+8. Parse templates inside accepted word nodes into a typed word plan.
+9. Build placeholder-safe argv and call the C curl parser in parse-only mode for curl sources.
+10. Apply MDOK curl or trusted-command policy.
+11. Compile JMESPath checks and captures.
+12. Validate references, uniqueness, order, and variable availability.
+13. Produce an immutable `DocumentPlan`.
 
 No network operation occurs before planning succeeds for the whole selected document.
 
@@ -678,15 +701,16 @@ No network operation occurs before planning succeeds for the whole selected docu
 
 1. Create an `ExecutionSession` with cancellation token, limits, cookie/share state, and libcurl multi handle.
 2. Resolve templates for the next step into exact argv strings.
-3. Re-parse argv through the C curl parser if values can affect parser semantics; otherwise bind values into a prevalidated plan. Version 1 chooses re-parse for correctness.
-4. Enforce resolved URL, path, proxy, and TLS policy.
-5. Execute with libcurl multi and callbacks.
-6. Stream body into memory until threshold, then spool to a private temporary file.
-7. Construct the typed transfer result.
-8. Compile/parse body representation under limits.
-9. Evaluate all checks.
-10. If checks pass, evaluate and publish captures.
-11. Emit events and proceed.
+3. For curl sources, re-parse argv through the C curl parser if values can affect parser semantics; otherwise bind values into a prevalidated plan. Version 1 chooses re-parse for correctness.
+4. For `exec` sources, validate the named profile and run the direct argv in a bounded process group/job object with a cleared environment.
+5. Enforce resolved URL, path, proxy, and TLS policy for curl sources.
+6. Execute curl with libcurl multi and callbacks, or the approved external command.
+7. Stream curl bodies into memory until threshold, then spool to a private temporary file; keep external stdout/stderr under a combined byte budget.
+8. Construct the typed transfer or external execution result.
+9. Compile/parse body or command-output representation under limits.
+10. Evaluate all checks.
+11. If checks pass, evaluate and publish captures.
+12. Emit events and proceed.
 
 ## 7.4 Data types
 
@@ -705,9 +729,19 @@ pub struct DocumentPlan {
 pub struct StepPlan {
     pub name: StepName,
     pub heading_path: Vec<String>,
-    pub curl: CurlSourcePlan,
+    pub source: StepSource,
     pub checks: Vec<CheckPlan>,
     pub captures: Vec<CapturePlan>,
+    pub span: SourceSpan,
+}
+
+pub enum StepSource {
+    Curl(CurlSourcePlan),
+    Exec(ExecSourcePlan),
+}
+
+pub struct ExecSourcePlan {
+    pub source: String,
     pub span: SourceSpan,
 }
 
@@ -927,6 +961,9 @@ An MDOK document may be untrusted and can attempt SSRF, local file disclosure, c
 ## 10.2 Default posture
 
 - No shell execution.
+- External commands are opt-in, direct-argv only, and resolved through explicitly configured canonical executable profiles; ambient `PATH` lookup is never used.
+- External command children receive a cleared environment containing only configured mappings, with secret mappings tracked for taint and redaction.
+- External commands run in bounded process groups or Windows Job Objects with timeout, argument, and combined stdout/stderr limits.
 - HTTP/HTTPS only.
 - Implicit curl config disabled.
 - Interactive credential prompts disabled.
@@ -966,6 +1003,7 @@ All curl options that reference files are normalized relative to the document/pr
 - Maximum response headers, individual header size, body bytes, redirects, retries, and total time.
 - Maximum JSON nesting and JMESPath output size.
 - Maximum concurrent documents and open files.
+- Maximum external command arguments, total argv bytes, combined output bytes, and execution time.
 
 ## 10.7 Supply-chain controls
 
@@ -994,6 +1032,12 @@ Every diagnostic contains:
 - redacted observed values;
 - cause chain for machine output;
 - optional repair hint that does not claim certainty.
+
+External command diagnostics use `MDOK-E306` through `MDOK-E312` for policy,
+argv, start/reap, exit, timeout, resource-limit, and environment/working-
+directory failures. Command stdout/stderr may be available transiently in the
+step context for checks, but is not copied into durable reports; secret-tainted
+output is redacted and cannot be captured.
 
 ## 11.2 Example
 
@@ -1458,6 +1502,18 @@ Use this as the progress ledger. A phase is complete only when its acceptance te
 - [ ] Build exact UTF-8 argv values.
 - [ ] Ensure secret argv data is not logged.
 - [ ] Fuzz shell source and AST traversal.
+
+## F.1 Trusted direct-command adapter
+
+- [x] Recognize `exec mdok name=...` fences as one direct argv command.
+- [x] Require the first argv token to select an explicitly configured command profile.
+- [x] Resolve profile programs to canonical absolute executable paths without ambient `PATH` lookup.
+- [x] Reject shell interpreters, shell operators, empty/NUL arguments, and oversized argv.
+- [x] Clear inherited environment and pass only declared fixed or secret mappings.
+- [x] Enforce timeout, combined stdout/stderr, process-group, and descendant cleanup limits.
+- [x] Expose bounded stdout/stderr, parsed JSON stdout, exit metadata, flags, and timing to checks.
+- [x] Reject secret-tainted output captures and omit command output from durable reports.
+- [x] Keep deterministic command fixtures and durable Markdown examples under `tests/agent-commands/`.
 
 ## G. Planner
 

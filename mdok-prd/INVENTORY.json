@@ -2,13 +2,13 @@
   "files": [
     {
       "path": "MDOK_COMPLETE_PRD.md",
-      "bytes": 71529,
-      "sha256": "5a8ddf803b6de24eeecf7088e57af4d54a647a2e971d5d0effd98af81fcb457f"
+      "bytes": 75833,
+      "sha256": "0f02cf6d7cf054f1f4da262a708098a24ef1899d99cc1196c6473651591ed476"
     },
     {
       "path": "README.md",
-      "bytes": 2767,
-      "sha256": "5dc538ab225ff216e961fbbf7b022d95e6a34d3afc01bff60c3925e0062119bf"
+      "bytes": 2952,
+      "sha256": "6f3dd90dbdf9b761b8a17e5b4a551b5107688d8f2ab747a8d5d8453cfa30917b"
     },
     {
       "path": "THIRD_PARTY.md",
@@ -17,18 +17,18 @@
     },
     {
       "path": "docs/00-product-requirements.md",
-      "bytes": 3968,
-      "sha256": "370f5dda9cbbec21563369030c4cfb3b27454fa70a565e0bd50632a26312ccab"
+      "bytes": 4258,
+      "sha256": "0b2f9363089b7848c243afae0601f430e2ab9bd1b534c72129a4ae74eb5c1081"
     },
     {
       "path": "docs/01-user-stories-and-requirements.md",
-      "bytes": 3505,
-      "sha256": "66190e92e850efe6207c43e594100a5a74205e56968344e556c3c1e3ca0e913c"
+      "bytes": 4341,
+      "sha256": "197edbedcbf24708a4e97bcb7640b103f76d9cf9e45dac9db0658a5773e460a4"
     },
     {
       "path": "docs/02-language-specification.md",
-      "bytes": 3615,
-      "sha256": "de37c9580f001b9ee9739e75a14309d8222f78f3663cbda585a3b242277e60b4"
+      "bytes": 4823,
+      "sha256": "8c514654768ef3dfefcc50e9124d2168ab297ce7d8b29b6ab75cf99efdfcebd3"
     },
     {
       "path": "docs/03-curl-command-and-compatibility.md",
@@ -47,13 +47,13 @@
     },
     {
       "path": "docs/06-cli-and-configuration.md",
-      "bytes": 3080,
-      "sha256": "1745b0f8ffd0bb20fafa09a2690829f535672f3b457caaac71fef9fbf705a0db"
+      "bytes": 3731,
+      "sha256": "8a15a8fca1e786e119bc66a7e0d0756435ab097b154e0b1e83ef81651658f460"
     },
     {
       "path": "docs/07-architecture.md",
-      "bytes": 3964,
-      "sha256": "d93dc593474171684fcca15213cefd53970b6ba6ec9a1252277211e151c2f4ba"
+      "bytes": 4218,
+      "sha256": "cc662912aeb50f9595d455360650ab85a0d82903dd03104512496a96c0bbf7fb"
     },
     {
       "path": "docs/08-c-rust-ffi.md",
@@ -62,28 +62,28 @@
     },
     {
       "path": "docs/09-repository-file-structure.md",
-      "bytes": 3234,
-      "sha256": "15fb92c66ffcee94508e614b8ecdb44fae7dfa78f28025d1ed52646c7d83f12a"
+      "bytes": 3406,
+      "sha256": "6c4c08748ba20f5de51417def3a7d67193705a99e2aebccbd02c3b2353159cea"
     },
     {
       "path": "docs/10-security-and-sandboxing.md",
-      "bytes": 2756,
-      "sha256": "e66866b1f6111506c4ba47a081b2c10c308032b4fa9e8577585e1f13af54e021"
+      "bytes": 3383,
+      "sha256": "3b72aebb5904eb157b897fb9be4be3b58181e47770c127aea75b28182acf48bd"
     },
     {
       "path": "docs/11-errors-and-diagnostics.md",
-      "bytes": 1394,
-      "sha256": "b928e606cba4f4f65c90211954da9216c2699bd55c004f8603a87b75b060a47b"
+      "bytes": 1747,
+      "sha256": "3b726a935a11540122a216adb383dc40cde7756f95ecceefef8352d81043985d"
     },
     {
       "path": "docs/12-test-strategy.md",
-      "bytes": 2725,
-      "sha256": "4b5d1992402632777d5f42fd6d953198a45e3fee14d13ce13237bcb7962f3d42"
+      "bytes": 3159,
+      "sha256": "2e311de29e987866a4957890ed16be95f50985c9def63bcb39feac3efb07a13b"
     },
     {
       "path": "docs/13-performance-and-memory.md",
-      "bytes": 1650,
-      "sha256": "3f236afb2f0051942c75d6eb902ff8c9433602cd146e35a36ae6c2bd0bcca043"
+      "bytes": 1889,
+      "sha256": "9076b6e8e9eaf37af6b83313a97f72217e3a6826c26b13da248acd36ff192160"
     },
     {
       "path": "docs/14-portability-and-build.md",
@@ -117,8 +117,8 @@
     },
     {
       "path": "docs/20-implementation-checklist.md",
-      "bytes": 10778,
-      "sha256": "7c95e19f1ddbc740bd898f0345ba25744f59cc6f8895f73ac8dd63a24c907fa7"
+      "bytes": 11638,
+      "sha256": "c7872c3e982f71bae20d871bfc60b930a79d2269e00dd9d28f4af57bba107866"
     },
     {
       "path": "docs/21-parser-and-runtime-algorithms.md",
@@ -362,13 +362,13 @@
     },
     {
       "path": "specs/error-codes.md",
-      "bytes": 1722,
-      "sha256": "7f8afb72e83a336e96325ca3e0b281c3fb9adf2cdec82d0d3d542bfa8e92432b"
+      "bytes": 2201,
+      "sha256": "67a418ae8ae4e413ec704485766fc390b2264b9c832cefcf861d154d5f76bb83"
     },
     {
       "path": "specs/language.ebnf",
-      "bytes": 640,
-      "sha256": "85706c080bd0a6209c6edd9c220ef232a83d34de4fbab83543fa668c5bbb0519"
+      "bytes": 796,
+      "sha256": "8aa9c0158d4a634ae53bef84d541d13145f0e82f79899f5a31cb4e51588e0344"
     },
     {
       "path": "specs/report.schema.json",

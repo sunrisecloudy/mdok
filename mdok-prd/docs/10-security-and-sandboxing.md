@@ -7,6 +7,8 @@ An MDOK document may be untrusted and can attempt SSRF, local file disclosure, c
 ## 10.2 Default posture
 
 - No shell execution.
+- `exec` is direct argv execution through a trusted canonical profile; it is
+  not shell execution.
 - HTTP/HTTPS only.
 - Implicit curl config disabled.
 - Interactive credential prompts disabled.
@@ -46,6 +48,14 @@ All curl options that reference files are normalized relative to the document/pr
 - Maximum response headers, individual header size, body bytes, redirects, retries, and total time.
 - Maximum JSON nesting and JMESPath output size.
 - Maximum concurrent documents and open files.
+- Maximum external-command argv count, per-argument bytes, total argv bytes,
+  combined stdout/stderr bytes, process time, and descendant lifetime.
+
+External command profiles reject shell/interpreter programs and dangerous
+loader/runtime environment variables by default. Process groups (Unix) or Job
+Objects (Windows) are terminated together on timeout and output overflow.
+Command output is bounded before JMESPath evaluation, and execution reports
+persist only sanitized command metadata rather than stdout/stderr contents.
 
 ## 10.7 Supply-chain controls
 

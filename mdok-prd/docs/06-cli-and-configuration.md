@@ -58,6 +58,11 @@ max_body_bytes = 8388608
 memory_body_threshold_bytes = 262144
 connect_timeout = "5s"
 total_timeout = "30s"
+command_timeout = "30s"
+max_command_output_bytes = 1048576
+max_command_args = 64
+max_command_arg_bytes = 65536
+max_command_argv_bytes = 1048576
 allowed_schemes = ["http", "https"]
 
 [policy]
@@ -67,6 +72,15 @@ allowed_write_paths = []
 allow_insecure_tls = false
 allow_proxy = false
 allow_unix_sockets = false
+
+[policy.exec]
+enabled = true
+working_directory = "tools"
+
+[policy.exec.commands.json-validator]
+program = "tools/bin/json-validator"
+env = { LC_ALL = "C" }
+secret_env = { API_TOKEN = "api_token" }
 
 [vars]
 region = "ap-southeast-1"
@@ -80,6 +94,11 @@ base_url = "https://staging.example.com"
 [env.staging.secrets]
 api_token = { from_env = "STAGING_API_TOKEN" }
 ```
+
+`exec` profiles are opt-in. Their `program` paths are resolved relative to the
+configuration file, canonicalized, and checked as regular executable files.
+Bare command names and ambient `PATH` lookup are not accepted. Environment
+variables are cleared before launch; only profile-declared values are passed.
 
 ## 6.5 Discovery
 

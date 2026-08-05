@@ -1,9 +1,11 @@
 document        = markdown ;
-executable      = vars-block | request-block | check-block | capture-block ;
+executable      = vars-block | request-block | exec-block | check-block | capture-block ;
 vars-block      = fence("toml", "mdok", "vars"), toml-table ;
 request-block   = fence("curl", "mdok", "name", "=", step-name), curl-command ;
+exec-block      = fence("exec", "mdok", "name", "=", step-name), direct-argv-command ;
 check-block     = fence("jmespath", "mdok", "check", "=", step-name), *check-line ;
 capture-block   = fence("jmespath", "mdok", "capture", "=", step-name), jmespath-expression ;
+direct-argv-command = one-or-more-tokenized-arguments ;
 step-name       = letter, 0*63(letter | digit | "_" | "-") ;
 template        = "{{", wsp*, path, *(wsp*, "|", wsp*, filter), wsp*, "}}" ;
 filter          = "string" | "raw" | "json" | "url" | "header" | "base64" ;

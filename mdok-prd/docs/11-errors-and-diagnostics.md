@@ -14,6 +14,12 @@ Every diagnostic contains:
 - cause chain for machine output;
 - optional repair hint that does not claim certainty.
 
+External command diagnostics use `MDOK-E306` through `MDOK-E312` for policy,
+argv, start/reap, exit, timeout, resource-limit, and environment/working-
+directory failures. Command stdout/stderr may be available transiently in the
+step context for checks, but is not copied into durable reports; secret-tainted
+output is redacted and cannot be captured.
+
 ## 11.2 Example
 
 ```text

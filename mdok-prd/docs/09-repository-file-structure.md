@@ -19,6 +19,8 @@ mdok/
 │   ├── mdok-curl/            # safe Rust wrapper around mdok-curl-sys
 │   ├── mdok-jmespath/        # compile/evaluate and typed diagnostics
 │   ├── mdok-runtime/         # planning, execution state, scheduler, limits
+│   ├── mdok-command/         # trusted direct argv execution and process limits
+│   ├── mdok-command-fixture/ # deterministic external command test binary
 │   ├── mdok-report/          # event stream, human, JSON, JUnit
 │   └── mdok-test-server/     # deterministic HTTP/HTTPS fixture service
 ├── native/

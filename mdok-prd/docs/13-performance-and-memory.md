@@ -11,6 +11,8 @@ Measured on a current developer-class laptop with release builds:
 - JMESPath compile: cached per expression; evaluation p50 < 100 microseconds for 10 KB JSON.
 - Resident memory for 1,000 planned small documents: < 100 MB.
 - Response body memory bounded by `memory_body_threshold_bytes` plus fixed parsing overhead.
+- External command memory bounded by one combined output budget per running step
+  plus bounded argv storage; process-group cleanup prevents leaked descendants.
 
 ## 13.2 Body handling
 
@@ -32,5 +34,6 @@ Required Criterion groups:
 - `body_capture/{memory,spill,binary}`;
 - `report/{events}`;
 - `end_to_end/{steps,keepalive}`.
+- `command_exec/{argv,output,timeout}` with the deterministic fixture binary.
 
 Track allocations with platform tooling and add a regression budget in CI rather than only wall-clock thresholds.

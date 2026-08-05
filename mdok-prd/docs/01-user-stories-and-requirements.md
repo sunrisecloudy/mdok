@@ -6,6 +6,12 @@
 
 As a developer, I can paste a valid curl command into a Markdown fence, name it, add JMESPath checks, and run the document with `mdok file.md`.
 
+### Store and replay an approved command
+
+As an AI agent, I can store a direct-argv command test in Markdown, bind it to
+a trusted executable profile, add checks over bounded output, and run it again
+later without reconstructing shell state.
+
 ### Chain requests
 
 As a developer, I can capture an object from one response with JMESPath and reference its fields in later curl arguments.
@@ -50,6 +56,11 @@ As a CI system, I receive deterministic exit codes, JSON/JUnit reports, and no i
 | FR-018 | Reuse connections within a run. | Must |
 | FR-019 | Run documents sequentially by default; optionally parallelize independent files. | Should |
 | FR-020 | Provide deterministic local fixture server for integration tests. | Must |
+| FR-021 | Recognize `exec mdok name=...` fences containing one direct-argv command. | Must |
+| FR-022 | Resolve executable commands only through explicitly configured canonical profiles; never use ambient `PATH`. | Must |
+| FR-023 | Clear inherited child environment and allow only configured non-secret and secret environment mappings. | Must |
+| FR-024 | Apply bounded timeout, argument, combined-output, and process-group limits to external commands. | Must |
+| FR-025 | Expose bounded stdout/stderr and exit metadata to checks while omitting command output from durable reports. | Must |
 
 ## 1.3 Non-functional requirements
 

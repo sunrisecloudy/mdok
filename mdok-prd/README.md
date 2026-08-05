@@ -5,7 +5,8 @@ MDOK turns ordinary Markdown into executable API workflow tests.
 The product contract is intentionally small:
 
 - **Markdown** describes the workflow and remains readable documentation.
-- **curl syntax** describes each HTTP request.
+- **curl syntax** describes each HTTP request; trusted `exec` profiles describe
+  repository-local agent tools.
 - **JMESPath** checks and captures values from structured transfer results.
 - **Rust** owns Markdown parsing, templates, workflow execution, reports, and the CLI.
 - **C** integrates a pinned copy of curl's real command-line parser with libcurl.
@@ -79,6 +80,8 @@ mdok test auth.md
 
 - No new HTTP request DSL.
 - No arbitrary shell execution from a `curl` fence.
+- No ambient-`PATH` or arbitrary-process execution from an `exec` fence;
+  commands require trusted canonical profiles.
 - No GUI, hosted service, recorder, or proprietary collection format.
 - No silent emulation of unsupported curl behavior.
 - No non-HTTP protocols in the default policy.

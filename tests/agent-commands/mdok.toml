@@ -1,0 +1,14 @@
+language = "1"
+
+[execution]
+command_timeout = "2s"
+max_command_output_bytes = 4096
+max_command_args = 16
+max_command_arg_bytes = 4096
+max_command_argv_bytes = 16384
+
+[policy.exec]
+enabled = true
+
+[policy.exec.commands.mdok-command-fixture]
+program = "../../target/debug/mdok-command-fixture"
