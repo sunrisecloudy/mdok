@@ -174,6 +174,18 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
 }
 
 fn validate_argv(argv: &[String], policy: &CommandPolicy) -> Result<(), CommandError> {
+    if policy.timeout.is_zero() {
+        return Err(CommandError::new(
+            E_LIMIT,
+            "external command timeout must be greater than zero",
+        ));
+    }
+    if policy.max_output_bytes == 0 {
+        return Err(CommandError::new(
+            E_LIMIT,
+            "external command output limit must be greater than zero",
+        ));
+    }
     let Some(executable) = argv.first() else {
         return Err(CommandError::new(
             E_POLICY,
@@ -190,9 +202,19 @@ fn validate_argv(argv: &[String], policy: &CommandPolicy) -> Result<(), CommandE
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or(executable);
+    let basename = basename.to_ascii_lowercase();
     if matches!(
-        basename,
-        "sh" | "bash" | "dash" | "zsh" | "fish" | "cmd" | "cmd.exe" | "powershell" | "pwsh"
+        basename.as_str(),
+        "sh" | "bash"
+            | "dash"
+            | "zsh"
+            | "fish"
+            | "cmd"
+            | "cmd.exe"
+            | "powershell"
+            | "powershell.exe"
+            | "pwsh"
+            | "pwsh.exe"
     ) {
         return Err(CommandError::new(
             E_POLICY,
@@ -256,6 +278,12 @@ mod tests {
     }
 
     #[test]
+    fn rejects_shell_interpreters_even_when_allowlisted() {
+        let error = run(&["PowerShell.EXE".into()], &policy("PowerShell.EXE")).unwrap_err();
+        assert_eq!(error.code, E_POLICY);
+    }
+
+    #[test]
     fn rejects_empty_argv_and_nul_bytes() {
         let command = policy("printf");
         let empty: Vec<String> = Vec::new();
@@ -264,6 +292,17 @@ mod tests {
 
         let nul_error = run(&["printf".into(), "bad\0arg".into()], &command).unwrap_err();
         assert_eq!(nul_error.code, E_POLICY);
+    }
+
+    #[test]
+    fn rejects_zero_resource_limits() {
+        let mut timeout = policy("printf");
+        timeout.timeout = Duration::ZERO;
+        assert_eq!(run(&["printf".into()], &timeout).unwrap_err().code, E_LIMIT);
+
+        let mut output = policy("printf");
+        output.max_output_bytes = 0;
+        assert_eq!(run(&["printf".into()], &output).unwrap_err().code, E_LIMIT);
     }
 
     #[test]
