@@ -133,16 +133,22 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
             format!("could not start profile `{}`: {error}", argv[0]),
         )
     })?;
-    let stdout = child
-        .inner()
-        .stdout
-        .take()
-        .ok_or_else(|| CommandError::new(E_START, "child stdout pipe was unavailable"))?;
-    let stderr = child
-        .inner()
-        .stderr
-        .take()
-        .ok_or_else(|| CommandError::new(E_START, "child stderr pipe was unavailable"))?;
+    let Some(stdout) = child.inner().stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(CommandError::new(
+            E_START,
+            "child stdout pipe was unavailable",
+        ));
+    };
+    let Some(stderr) = child.inner().stderr.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(CommandError::new(
+            E_START,
+            "child stderr pipe was unavailable",
+        ));
+    };
     let output_state = Arc::new(OutputState::new());
     let stdout_state = Arc::clone(&output_state);
     let stderr_state = Arc::clone(&output_state);
