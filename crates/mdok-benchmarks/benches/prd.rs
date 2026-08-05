@@ -2,6 +2,7 @@ use criterion::measurement::Measurement;
 use criterion::{
     BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
+use mdok_core::StepSource;
 use mdok_curl::{CurlPlan, CurlPolicy, ExecutionSession};
 use mdok_report::{CheckReport, DocumentReport, Event, EventMetadata, Report, Status, StepReport};
 use serde_json::{Value, json};
@@ -595,7 +596,10 @@ fn end_to_end_iteration(
     let mut report = Report::new("bench");
     let mut step_reports = Vec::with_capacity(plan.steps.len());
     for (index, step) in plan.steps.iter().enumerate() {
-        let shell = mdok_shell::parse(step.curl.source.trim()).unwrap();
+        let StepSource::Curl(source) = &step.source else {
+            continue;
+        };
+        let shell = mdok_shell::parse(source.source.trim()).unwrap();
         let argv = shell.evaluate(&plan.variables).unwrap();
         let curl_plan = CurlPlan::parse(&argv, policy).unwrap();
         let response = curl_plan.execute_in_session(policy, session).unwrap();

@@ -1124,15 +1124,30 @@ where
                     }
                 }
                 if report.status == Status::Passed {
-                    publish_captures(
-                        &step.captures,
-                        &context,
-                        &mut variables,
-                        &plan.jmespath,
-                        &plan.path,
-                        &step.name,
-                        &mut report.diagnostics,
-                    );
+                    if step.kind == StepKind::Exec
+                        && context.get("secret_tainted").and_then(Value::as_bool) == Some(true)
+                        && !step.captures.is_empty()
+                    {
+                        report.diagnostics.push(
+                            Diagnostic::error(
+                                "MDOK-E404",
+                                "Secret-tainted command output cannot be captured",
+                                "remove captures or use a non-secret command profile",
+                            )
+                            .at_file(&plan.path)
+                            .at_step(step.name.clone()),
+                        );
+                    } else {
+                        publish_captures(
+                            &step.captures,
+                            &context,
+                            &mut variables,
+                            &plan.jmespath,
+                            &plan.path,
+                            &step.name,
+                            &mut report.diagnostics,
+                        );
+                    }
                     if !report.diagnostics.is_empty() {
                         report.status = Status::Failed;
                     }
@@ -1235,6 +1250,7 @@ fn transfer(
         .map_err(curl_diagnostic)
 }
 
+#[allow(clippy::result_large_err)]
 fn execute_external_command(
     argv: &[String],
     config: &EffectiveConfig,
@@ -1295,6 +1311,7 @@ fn command_context(output: &ProcessOutput, variables: &Value, steps: &Value) -> 
         "stdout_bytes": output.stdout_bytes,
         "stderr_bytes": output.stderr_bytes,
         "secret_env_used": output.secret_env_used,
+        "secret_tainted": output.secret_env_used,
         "duration_ms": output.duration.as_millis() as u64,
         "variables": variables,
         "steps": steps,
@@ -3393,7 +3410,7 @@ fn resolve_command_program(config_root: &Path, configured: &str) -> Result<PathB
     } else {
         config_root.join(configured_path)
     };
-    let canonical = fs::canonicalize(&candidate).map_err(|error| {
+    let canonical = canonicalize_command_program(&candidate).map_err(|error| {
         cli_error(
             EXIT_INPUT,
             Diagnostic::error(
@@ -3438,6 +3455,28 @@ fn resolve_command_program(config_root: &Path, configured: &str) -> Result<PathB
         }
     }
     Ok(canonical)
+}
+
+fn canonicalize_command_program(candidate: &Path) -> Result<PathBuf, std::io::Error> {
+    #[cfg(windows)]
+    {
+        match fs::canonicalize(candidate) {
+            Ok(path) => Ok(path),
+            Err(original) => {
+                let mut with_extension = candidate.to_path_buf();
+                if with_extension.extension().is_none() {
+                    with_extension.set_extension("exe");
+                    fs::canonicalize(with_extension).map_err(|_| original)
+                } else {
+                    Err(original)
+                }
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        fs::canonicalize(candidate)
+    }
 }
 
 fn resolve_command_directory(
