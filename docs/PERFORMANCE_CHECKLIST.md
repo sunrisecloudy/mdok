@@ -186,8 +186,8 @@ authoritative behavior described by the parser PRD must remain intact.
 
 - `[x] Implemented` MDOK owns a Rust argument parser in `mdok-curl` for the
   supported compatibility surface.
-- `[x] Implemented` the shell parser uses Tree-sitter Bash plus template
-  masking/source mapping rather than raw backtick recovery.
+- `[x] Implemented` the shell parser uses a custom restricted parser plus
+  template-aware source handling rather than raw backtick recovery.
 - `[x] Implemented` the native curl bridge uses curl's parser output as the
   authority and does not infer options by re-parsing strings.
 - [ ] Guidance: measure parse cost by argv bytes, option count, templates,
@@ -226,10 +226,11 @@ authoritative behavior described by the parser PRD must remain intact.
 - [ ] Regression gate: malformed Markdown and malformed executable fences must
   retain the documented diagnostics; never replace AST parsing with a faster
   raw-backtick scanner.
-- `[x] Implemented` Tree-sitter Bash is used for restricted shell syntax.
-- [ ] Guidance: reuse parser/tree allocations when parsing many blocks if the
-  API permits safe reset; otherwise measure whether reuse increases retained
-  memory.
+- `[x] Implemented` the custom restricted parser handles the supported shell
+  syntax without a runtime Tree-sitter dependency.
+- [ ] Guidance: reuse parser scratch allocations when parsing many commands if
+  the API permits safe reset; otherwise measure whether reuse increases
+  retained memory.
 - [ ] Guidance: profile Unicode, escaped quotes, template masks, and source-map
   translation independently before considering SIMD or parallel parsing.
 - [ ] Regression gate: parallel document parsing must not share mutable parser
@@ -379,10 +380,10 @@ and audit TLS, serialization, parsing, and FFI dependencies most strictly.
 - [ ] Guidance: minimize Reqwest features to the exact supported compatibility
   surface; verify gzip/deflate/brotli/cookies/json/multipart behavior before
   removing any feature.
-- [ ] Guidance: keep Clap, Comrak, Tree-sitter Bash, the JMESPath implementation,
-  Serde/TOML, curl/libcurl, and TLS dependencies only where their documented
-  behavior is required; do not replace standards parsers with regexes merely
-  for a benchmark win.
+- [ ] Guidance: keep Clap, Comrak, the JMESPath implementation, Serde/TOML,
+  curl/libcurl, and TLS dependencies only where their documented behavior is
+  required; do not replace standards parsers with regexes merely for a
+  benchmark win.
 - [ ] Guidance: keep benchmark-only dependencies out of shipped binaries and
   confirm Criterion/reporting features do not leak into release artifacts.
 - [ ] Guidance: investigate duplicate versions and large transitive crates with

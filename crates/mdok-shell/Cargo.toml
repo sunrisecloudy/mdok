@@ -8,6 +8,4 @@ license.workspace = true
 mdok-core = { path = "../mdok-core" }
 mdok-template = { path = "../mdok-template" }
 serde_json.workspace = true
-tree-sitter.workspace = true
-tree-sitter-bash.workspace = true
 thiserror.workspace = true
