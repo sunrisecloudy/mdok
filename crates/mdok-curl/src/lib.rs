@@ -1501,6 +1501,9 @@ impl BodyStorage {
     pub fn is_spooled(&self) -> bool {
         self.spool.is_some()
     }
+    pub fn storage_kind(&self) -> &'static str {
+        if self.is_spooled() { "file" } else { "memory" }
+    }
     pub fn is_truncated(&self) -> bool {
         self.truncated
     }
@@ -2053,12 +2056,14 @@ mod tests {
         let exact = capture_body(&mut exact_reader, payload.len(), 100, None).unwrap();
         assert_eq!(exact.len(), payload.len() as u64);
         assert!(!exact.is_spooled());
+        assert_eq!(exact.storage_kind(), "memory");
         assert_eq!(exact.bytes(100).unwrap(), payload);
 
         let mut spill_reader = ChunkReader::new(payload, 3);
         let spill = capture_body(&mut spill_reader, payload.len() - 1, 100, None).unwrap();
         assert_eq!(spill.len(), payload.len() as u64);
         assert!(spill.is_spooled());
+        assert_eq!(spill.storage_kind(), "file");
         assert_eq!(spill.bytes(100).unwrap(), payload);
     }
 
