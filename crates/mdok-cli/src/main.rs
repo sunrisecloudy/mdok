@@ -10,7 +10,10 @@
 use clap::{Args, Parser, Subcommand};
 use mdok_command::{CommandPolicy, ProcessOutput, run as run_external_command};
 use mdok_curl::{CurlError, CurlPlan, CurlPolicy, ExecutionSession};
-use mdok_markdown::{MarkdownError, parse, plan_document};
+use mdok_markdown::{
+    MAX_EXECUTABLE_BLOCKS, MAX_FENCE_BODY_BYTES, MAX_FENCES, MAX_SOURCE_BYTES, MAX_STEPS,
+    MarkdownError, parse, plan_document,
+};
 use mdok_report::{
     CheckReport, Diagnostic, DocumentReport, Event, EventMetadata, ExternalExecutionResult,
     Redactor, Report, Severity, Status, StepExecutionMetadata, StepKind as ReportStepKind,
@@ -25,7 +28,7 @@ use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::ffi::OsString;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
@@ -322,14 +325,8 @@ struct Variable {
 }
 
 impl EffectiveConfig {
-    fn secret_values(&self) -> impl Iterator<Item = &str> {
-        self.vars
-            .values()
-            .filter(|var| var.secret)
-            .filter_map(|var| match &var.value {
-                Value::String(value) => Some(value.as_str()),
-                _ => None,
-            })
+    fn secret_values(&self) -> Vec<String> {
+        collect_secret_values(&self.vars)
     }
 }
 
@@ -362,12 +359,14 @@ enum StepKind {
 struct PlanOutcome {
     plan: Option<DocumentPlan>,
     diagnostics: Vec<Diagnostic>,
+    secret_values: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
 struct DocumentRun {
     report: DocumentReport,
     executions: Vec<Option<ExternalExecutionResult>>,
+    secret_values: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -382,6 +381,26 @@ struct CliError {
     code: u8,
     diagnostic: Diagnostic,
 }
+
+#[derive(Debug)]
+enum SourceReadError {
+    Io(io::Error),
+    TooLarge { limit: usize, observed: usize },
+}
+
+impl std::fmt::Display for SourceReadError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(error) => error.fmt(formatter),
+            Self::TooLarge { limit, observed } => write!(
+                formatter,
+                "source is at least {observed} bytes; the maximum is {limit} bytes"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SourceReadError {}
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -457,6 +476,7 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
     }
     let paths = discover_paths(&paths)?;
     let config = load_config(&paths, &cli.options)?;
+    let mut secret_values = config.secret_values();
     let started = Instant::now();
     let mut report = Report::now();
     let parallel = cli.options.jobs.max(config.jobs).min(paths.len().max(1));
@@ -491,6 +511,7 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
             if let Some(error) = stream_error {
                 return Err(error);
             }
+            secret_values.extend(result.secret_values.iter().cloned());
             let failed = result.report.status.is_failure();
             let event_start = report.events.len();
             append_document_event(&mut report, &result.report, document_ordinal);
@@ -517,11 +538,12 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
             process_documents_parallel(paths, mode, config.clone(), cli.options.clone(), parallel)
         };
         for (document_ordinal, document) in results.into_iter().enumerate() {
+            secret_values.extend(document.secret_values.iter().cloned());
             append_report_document(&mut report, document, document_ordinal);
         }
     }
     report.duration_ms = started.elapsed().as_millis() as u64;
-    let redactor = Redactor::new(config.secret_values().map(str::to_string));
+    let redactor = Redactor::new(secret_values);
     let report = redactor.redact_report(&report).map_err(|error| {
         cli_error(
             EXIT_INTERNAL,
@@ -552,6 +574,7 @@ fn report_exit_code(report: &Report) -> u8 {
         diagnostic.severity == Severity::Error
             && (diagnostic.code == "MDOK-E800"
                 || diagnostic.code == "MDOK-E500"
+                || diagnostic.code == "MDOK-E700"
                 || diagnostic.code.starts_with("MDOK-E0")
                 || diagnostic.code.starts_with("MDOK-E1")
                 || diagnostic.code.starts_with("MDOK-E2")
@@ -676,23 +699,17 @@ fn append_document_event(report: &mut Report, document: &DocumentReport, documen
 }
 
 fn stream_event_range(report: &Report, start: usize) -> Result<(), Box<CliError>> {
-    let records = report.event_records();
     let stdout = std::io::stdout();
     let mut output = stdout.lock();
-    for record in records.into_iter().skip(start) {
-        serde_json::to_writer(&mut output, &record).map_err(|error| {
+    let end = report.events.len();
+    report
+        .write_json_lines_range(start..end, &mut output)
+        .map_err(|error| {
             cli_error(
                 EXIT_INTERNAL,
                 Diagnostic::error("MDOK-E800", "Event serialization failed", error.to_string()),
             )
         })?;
-        output.write_all(b"\n").map_err(|error| {
-            cli_error(
-                EXIT_INTERNAL,
-                Diagnostic::error("MDOK-E800", "Event output failed", error.to_string()),
-            )
-        })?;
-    }
     output.flush().map_err(|error| {
         cli_error(
             EXIT_INTERNAL,
@@ -841,6 +858,7 @@ where
                 diagnostics: outcome.diagnostics,
             },
             executions: Vec::new(),
+            secret_values: outcome.secret_values,
         };
     };
     let mut document = match mode {
@@ -848,14 +866,17 @@ where
         Mode::Lint => DocumentRun {
             report: plan_report(&plan, Status::Passed, true),
             executions: Vec::new(),
+            secret_values: collect_secret_values(&plan.variables),
         },
         Mode::Plan => DocumentRun {
             report: plan_report(&plan, Status::Planned, true),
             executions: Vec::new(),
+            secret_values: collect_secret_values(&plan.variables),
         },
         Mode::List => DocumentRun {
             report: plan_report(&plan, Status::Planned, false),
             executions: Vec::new(),
+            secret_values: collect_secret_values(&plan.variables),
         },
     };
     if mode != Mode::Test {
@@ -949,6 +970,7 @@ where
         return DocumentRun {
             report: document,
             executions: vec![None; plan.steps.len()],
+            secret_values: collect_secret_values(&variables),
         };
     }
     let mut steps = Vec::new();
@@ -971,11 +993,7 @@ where
                 .iter()
                 .flatten()
                 .flat_map(Template::expressions)
-                .any(|expression| {
-                    variables
-                        .get(template_root(expression))
-                        .is_some_and(|variable| variable.secret)
-                })
+                .any(|expression| template_expression_is_secret(expression, &variables))
         {
             report.diagnostics.push(
                 Diagnostic::error(
@@ -1192,6 +1210,7 @@ where
             diagnostics: Vec::new(),
         },
         executions,
+        secret_values: collect_secret_values(&variables),
     }
 }
 
@@ -1462,7 +1481,8 @@ fn publish_captures(
                 key.clone(),
                 Variable {
                     value: value.clone(),
-                    secret: is_secret_name(key),
+                    secret: is_secret_name(key)
+                        || capture_result_is_secret(expression, &json, variables, context),
                 },
             );
         }
@@ -1617,6 +1637,22 @@ fn host_matches(host: &str, pattern: &str) -> bool {
 fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
     let source = match read_document_source(path) {
         Ok(source) => source,
+        Err(SourceReadError::TooLarge { limit, observed }) => {
+            return PlanOutcome {
+                plan: None,
+                diagnostics: vec![
+                    Diagnostic::error(
+                        "MDOK-E700",
+                        "Markdown source limit exceeded",
+                        format!(
+                            "source is at least {observed} bytes; the maximum is {limit} bytes"
+                        ),
+                    )
+                    .at_file(path),
+                ],
+                secret_values: config.secret_values(),
+            };
+        }
         Err(error) => {
             return PlanOutcome {
                 plan: None,
@@ -1624,6 +1660,20 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                     Diagnostic::error("MDOK-E001", "Cannot read document", error.to_string())
                         .at_file(path),
                 ],
+                secret_values: config.secret_values(),
+            };
+        }
+    };
+    let fences = match parse_fences(&source) {
+        Ok(fences) => fences,
+        Err(error) => {
+            return PlanOutcome {
+                plan: None,
+                diagnostics: vec![
+                    Diagnostic::error("MDOK-E700", "Markdown resource limit exceeded", error)
+                        .at_file(path),
+                ],
+                secret_values: config.secret_values(),
             };
         }
     };
@@ -1639,7 +1689,6 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
         },
         Err(error) => Err(error),
     };
-    let fences = parse_fences(&source);
     let mut diagnostics = Vec::new();
     let mut variables = config.vars.clone();
     if let Ok(core_plan) = &authoritative {
@@ -1717,6 +1766,17 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                 } else {
                     StepKind::Exec
                 };
+                if steps.len() >= MAX_STEPS {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            "MDOK-E700",
+                            "Markdown resource limit exceeded",
+                            format!("document contains more than {MAX_STEPS} steps"),
+                        )
+                        .at_file(path),
+                    );
+                    continue;
+                }
                 let Some(name) = fence.attrs.get("name").cloned() else {
                     diagnostics.push(
                         Diagnostic::error(
@@ -2036,23 +2096,42 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
         PlanOutcome {
             plan: None,
             diagnostics,
+            secret_values: collect_secret_values(&plan.variables),
         }
     } else {
+        let secret_values = collect_secret_values(&plan.variables);
         PlanOutcome {
             plan: Some(plan),
             diagnostics,
+            secret_values,
         }
     }
 }
 
-fn read_document_source(path: &Path) -> Result<String, std::io::Error> {
-    if path == Path::new("-") {
-        let mut source = String::new();
-        std::io::stdin().read_to_string(&mut source)?;
-        Ok(source)
+fn read_document_source(path: &Path) -> Result<String, SourceReadError> {
+    let bytes = if path == Path::new("-") {
+        read_bounded_source(io::stdin())?
     } else {
-        fs::read_to_string(path)
+        let file = fs::File::open(path).map_err(SourceReadError::Io)?;
+        read_bounded_source(file)?
+    };
+    String::from_utf8(bytes)
+        .map_err(|error| SourceReadError::Io(io::Error::new(io::ErrorKind::InvalidData, error)))
+}
+
+fn read_bounded_source<R: Read>(reader: R) -> Result<Vec<u8>, SourceReadError> {
+    let mut bytes = Vec::with_capacity((MAX_SOURCE_BYTES + 1).min(64 * 1024));
+    reader
+        .take((MAX_SOURCE_BYTES as u64) + 1)
+        .read_to_end(&mut bytes)
+        .map_err(SourceReadError::Io)?;
+    if bytes.len() > MAX_SOURCE_BYTES {
+        return Err(SourceReadError::TooLarge {
+            limit: MAX_SOURCE_BYTES,
+            observed: bytes.len(),
+        });
     }
+    Ok(bytes)
 }
 
 fn markdown_diagnostic(error: &MarkdownError, path: &Path) -> Diagnostic {
@@ -2431,7 +2510,7 @@ fn render_parsed_template(
             TemplatePart::Literal(value) => output.push_str(value),
             TemplatePart::Expression(expression) => {
                 let root = template_root(expression);
-                let Some(variable) = variables.get(root) else {
+                let Some(_variable) = variables.get(root) else {
                     if preserve_missing {
                         output.push_str(&format_expression(expression));
                     } else {
@@ -2450,7 +2529,10 @@ fn render_parsed_template(
                 match lookup_template(&values, &expression.path).and_then(|value| {
                     render_expression(expression, &values).map(|rendered| (value, rendered))
                 }) {
-                    Ok((_, _rendered)) if variable.secret && redact_secrets => {
+                    Ok((_, _rendered))
+                        if redact_secrets
+                            && template_expression_is_secret(expression, variables) =>
+                    {
                         output.push_str("[REDACTED]");
                     }
                     Ok((_, rendered)) => output.push_str(&rendered),
@@ -2466,12 +2548,132 @@ fn render_parsed_template(
 }
 
 fn is_secret_name(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    name.contains("password")
-        || name.contains("secret")
-        || name.contains("token")
-        || name.contains("api_key")
-        || name.contains("apikey")
+    let normalized = name.to_ascii_lowercase().replace(['-', '_'], "");
+    normalized.contains("password")
+        || normalized.contains("secret")
+        || normalized.contains("token")
+        || normalized.contains("apikey")
+}
+
+fn template_expression_is_secret(
+    expression: &TemplateExpression,
+    variables: &BTreeMap<String, Variable>,
+) -> bool {
+    let Some(PathPart::Key(root)) = expression.path.first() else {
+        return false;
+    };
+    variables
+        .get(root)
+        .is_some_and(|variable| variable_path_is_secret(variable, &expression.path[1..]))
+}
+
+fn variable_path_is_secret(variable: &Variable, path: &[PathPart]) -> bool {
+    if variable.secret {
+        return true;
+    }
+    let mut value = &variable.value;
+    for part in path {
+        match part {
+            PathPart::Key(key) => {
+                if is_secret_name(key) {
+                    return true;
+                }
+                let Some(next) = value.get(key) else {
+                    return false;
+                };
+                value = next;
+            }
+            PathPart::Index(index) => {
+                let Some(next) = value.get(*index) else {
+                    return false;
+                };
+                value = next;
+            }
+        }
+    }
+    value_contains_secret_field(value)
+}
+
+fn value_contains_secret_field(value: &Value) -> bool {
+    match value {
+        Value::Array(values) => values.iter().any(value_contains_secret_field),
+        Value::Object(object) => object
+            .iter()
+            .any(|(key, value)| is_secret_name(key) || value_contains_secret_field(value)),
+        _ => false,
+    }
+}
+
+fn collect_secret_values(variables: &BTreeMap<String, Variable>) -> Vec<String> {
+    let mut values = Vec::new();
+    for (name, variable) in variables {
+        collect_tainted_strings(
+            &variable.value,
+            variable.secret || is_secret_name(name),
+            &mut values,
+        );
+    }
+    values
+}
+
+fn collect_tainted_strings(value: &Value, inherited_secret: bool, values: &mut Vec<String>) {
+    match value {
+        Value::String(text) if inherited_secret && !text.is_empty() => {
+            values.push(text.clone());
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_tainted_strings(item, inherited_secret, values);
+            }
+        }
+        Value::Object(object) => {
+            for (key, child) in object {
+                collect_tainted_strings(child, inherited_secret || is_secret_name(key), values);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn expression_mentions_secret(expression: &str, variables: &BTreeMap<String, Variable>) -> bool {
+    expression
+        .split(|character: char| {
+            !(character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+        })
+        .filter(|identifier| !identifier.is_empty())
+        .any(|identifier| {
+            is_secret_name(identifier)
+                || variables
+                    .get(identifier)
+                    .is_some_and(|variable| variable.secret)
+        })
+}
+
+fn value_contains_known_secret(value: &Value, secrets: &[String]) -> bool {
+    match value {
+        Value::String(text) => secrets.iter().any(|secret| secret == text),
+        Value::Array(items) => items
+            .iter()
+            .any(|item| value_contains_known_secret(item, secrets)),
+        Value::Object(object) => object
+            .values()
+            .any(|item| value_contains_known_secret(item, secrets)),
+        _ => false,
+    }
+}
+
+fn capture_result_is_secret(
+    expression: &str,
+    result: &Value,
+    variables: &BTreeMap<String, Variable>,
+    context: &Value,
+) -> bool {
+    if expression_mentions_secret(expression, variables) || value_contains_secret_field(result) {
+        return true;
+    }
+    let mut known_secrets = collect_secret_values(variables);
+    collect_tainted_strings(context, false, &mut known_secrets);
+    value_contains_known_secret(result, &known_secrets)
 }
 
 fn variables_to_value_map(variables: &BTreeMap<String, Variable>) -> BTreeMap<String, Value> {
@@ -2514,6 +2716,7 @@ fn push_template_error(error: TemplateError, path: &Path, diagnostics: &mut Vec<
         TemplateError::MissingVariable(_) => ("MDOK-E401", "Missing variable"),
         TemplateError::Type(_) => ("MDOK-E402", "Template type error"),
         TemplateError::UnsafeHeader => ("MDOK-E403", "Unsafe header value"),
+        TemplateError::Limit(_) => ("MDOK-E404", "Template resource limit exceeded"),
     };
     diagnostics.push(Diagnostic::error(code, title, error.to_string()).at_file(path));
 }
@@ -2688,10 +2891,11 @@ fn tokenize_error_code(message: &str) -> &'static str {
     }
 }
 
-fn parse_fences(source: &str) -> Vec<Fence> {
+fn parse_fences(source: &str) -> Result<Vec<Fence>, String> {
     let mut fences = Vec::new();
-    let mut lines = source.split_inclusive('\n').enumerate();
-    while let Some((index, raw_line)) = lines.next() {
+    let mut fence_count = 0;
+    let mut lines = source.split_inclusive('\n');
+    while let Some(raw_line) = lines.next() {
         let line = raw_line.trim_end_matches(['\r', '\n']);
         let trimmed = line.trim_start();
         let Some(info) = trimmed.strip_prefix("```") else {
@@ -2700,11 +2904,29 @@ fn parse_fences(source: &str) -> Vec<Fence> {
         if info.trim().is_empty() {
             continue;
         }
+        fence_count += 1;
+        if fence_count > MAX_FENCES {
+            return Err(format!(
+                "document contains more than {MAX_FENCES} fenced code blocks"
+            ));
+        }
         let mut body = String::new();
-        for (_, raw_body) in lines.by_ref() {
+        for raw_body in lines.by_ref() {
             let body_line = raw_body.trim_end_matches(['\r', '\n']);
             if body_line.trim() == "```" {
                 break;
+            }
+            let body_bytes = body_line.len().checked_add(1).ok_or_else(|| {
+                format!("fenced code block exceeds the {MAX_FENCE_BODY_BYTES}-byte budget")
+            })?;
+            if body
+                .len()
+                .checked_add(body_bytes)
+                .is_none_or(|size| size > MAX_FENCE_BODY_BYTES)
+            {
+                return Err(format!(
+                    "fenced code block exceeds the {MAX_FENCE_BODY_BYTES}-byte budget"
+                ));
             }
             body.push_str(body_line);
             body.push('\n');
@@ -2728,6 +2950,11 @@ fn parse_fences(source: &str) -> Vec<Fence> {
         }
         if parts.next().as_deref() != Some("mdok") {
             continue;
+        }
+        if fences.len() >= MAX_EXECUTABLE_BLOCKS {
+            return Err(format!(
+                "document contains more than {MAX_EXECUTABLE_BLOCKS} executable blocks"
+            ));
         }
         for part in parts {
             if let Some((key, value)) = part.split_once('=') {
@@ -2755,14 +2982,13 @@ fn parse_fences(source: &str) -> Vec<Fence> {
                 "check and capture roles are mutually exclusive".to_string(),
             );
         }
-        let _ = index;
         fences.push(Fence {
             language,
             attrs,
             body,
         });
     }
-    fences
+    Ok(fences)
 }
 
 fn split_info(info: &str) -> Result<Vec<String>, String> {
@@ -3720,6 +3946,57 @@ mod tests {
             diagnostics: Vec::new(),
         });
         assert_eq!(report_exit_code(&execution), EXIT_CHECK_FAILED);
+    }
+
+    #[test]
+    fn nested_secret_paths_are_tainted_at_argv_and_report_boundaries() {
+        let variables = [(
+            "credentials".to_string(),
+            Variable {
+                value: json!({
+                    "public": "kept",
+                    "nested": {"token": "nested-secret"}
+                }),
+                secret: false,
+            },
+        )]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let secret = Template::parse("tool {{credentials.nested.token}}").unwrap();
+        let public = Template::parse("tool {{credentials.public}}").unwrap();
+        assert!(template_expression_is_secret(
+            secret.expressions().next().unwrap(),
+            &variables
+        ));
+        assert!(!template_expression_is_secret(
+            public.expressions().next().unwrap(),
+            &variables
+        ));
+
+        let mut diagnostics = Vec::new();
+        let redacted = normalize_command(
+            &["tool {{credentials.nested.token}}".to_string()],
+            Some(&[Some(secret)]),
+            &variables,
+            Path::new("nested.md"),
+            &mut diagnostics,
+            true,
+            false,
+        );
+        assert_eq!(redacted, vec!["tool [REDACTED]".to_string()]);
+        assert!(diagnostics.is_empty());
+        assert_eq!(collect_secret_values(&variables), vec!["nested-secret"]);
+        assert_eq!(
+            Redactor::new(collect_secret_values(&variables)).redact_text("nested-secret"),
+            "[REDACTED]"
+        );
+    }
+
+    #[test]
+    fn bounded_source_read_rejects_input_before_parser_use() {
+        let source = vec![b'x'; MAX_SOURCE_BYTES + 1];
+        let error = read_bounded_source(io::Cursor::new(source)).unwrap_err();
+        assert!(matches!(error, SourceReadError::TooLarge { .. }));
     }
 
     #[test]

@@ -12,6 +12,7 @@ use serde_json::{Map, Value};
 use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
@@ -384,6 +385,82 @@ pub struct EventRecord {
     pub metadata: EventMetadata,
 }
 
+fn event_metadata_is_sorted(metadata: &[EventMetadataRecord]) -> bool {
+    metadata
+        .windows(2)
+        .all(|records| records[0].sequence <= records[1].sequence)
+}
+
+fn event_metadata_position(metadata: &[EventMetadataRecord], sequence: u64) -> usize {
+    let mut left = 0;
+    let mut right = metadata.len();
+    while left < right {
+        let middle = left + (right - left) / 2;
+        if metadata[middle].sequence < sequence {
+            left = middle + 1;
+        } else {
+            right = middle;
+        }
+    }
+    left
+}
+
+/// Lookup view for the public metadata vector.
+///
+/// Report-owned mutations keep `event_metadata` sorted. The fallback index
+/// keeps direct construction or legacy callers that mutate the public vector
+/// correct without turning every event lookup into a linear scan.
+struct EventMetadataLookup<'a> {
+    records: &'a [EventMetadataRecord],
+    sorted_indices: Option<Vec<usize>>,
+}
+
+impl<'a> EventMetadataLookup<'a> {
+    fn new(records: &'a [EventMetadataRecord]) -> Self {
+        let sorted_indices = if event_metadata_is_sorted(records) {
+            None
+        } else {
+            let mut indices: Vec<usize> = (0..records.len()).collect();
+            indices.sort_by_key(|&index| records[index].sequence);
+            Some(indices)
+        };
+        Self {
+            records,
+            sorted_indices,
+        }
+    }
+
+    fn get(&self, sequence: u64) -> Option<&'a EventMetadata> {
+        let record_index = match &self.sorted_indices {
+            None => event_metadata_position(self.records, sequence),
+            Some(indices) => {
+                let mut left = 0;
+                let mut right = indices.len();
+                while left < right {
+                    let middle = left + (right - left) / 2;
+                    if self.records[indices[middle]].sequence < sequence {
+                        left = middle + 1;
+                    } else {
+                        right = middle;
+                    }
+                }
+                if indices
+                    .get(left)
+                    .is_some_and(|&index| self.records[index].sequence == sequence)
+                {
+                    indices[left]
+                } else {
+                    return None;
+                }
+            }
+        };
+        self.records
+            .get(record_index)
+            .filter(|record| record.sequence == sequence)
+            .map(|record| &record.metadata)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Report {
     pub schema_version: String,
@@ -456,6 +533,8 @@ impl<'de> Deserialize<'de> for Report {
     {
         let wire = ReportWire::deserialize(deserializer)?;
         let mut step_execution_metadata = Vec::new();
+        let mut event_metadata = wire.event_metadata;
+        event_metadata.sort_by_key(|record| record.sequence);
         let documents = wire
             .documents
             .into_iter()
@@ -516,7 +595,7 @@ impl<'de> Deserialize<'de> for Report {
             documents,
             diagnostics: wire.diagnostics,
             events: wire.events,
-            event_metadata: wire.event_metadata,
+            event_metadata,
             step_execution_metadata,
         })
     }
@@ -705,36 +784,84 @@ impl Report {
     }
 
     pub fn set_event_metadata(&mut self, sequence: u64, metadata: EventMetadata) {
+        if !event_metadata_is_sorted(&self.event_metadata) {
+            self.event_metadata.sort_by_key(|record| record.sequence);
+        }
+        let index = event_metadata_position(&self.event_metadata, sequence);
         if metadata.is_empty() {
-            self.event_metadata
-                .retain(|record| record.sequence != sequence);
+            if self
+                .event_metadata
+                .get(index)
+                .is_some_and(|record| record.sequence == sequence)
+            {
+                let mut end = index + 1;
+                while self
+                    .event_metadata
+                    .get(end)
+                    .is_some_and(|record| record.sequence == sequence)
+                {
+                    end += 1;
+                }
+                self.event_metadata.drain(index..end);
+            }
             return;
         }
-        if let Some(record) = self
-            .event_metadata
-            .iter_mut()
-            .find(|record| record.sequence == sequence)
-        {
+        if let Some(record) = self.event_metadata.get_mut(index) {
+            if record.sequence != sequence {
+                self.event_metadata
+                    .insert(index, EventMetadataRecord { sequence, metadata });
+                return;
+            }
             record.metadata = metadata;
         } else {
             self.event_metadata
-                .push(EventMetadataRecord { sequence, metadata });
+                .insert(index, EventMetadataRecord { sequence, metadata });
         }
+    }
+
+    /// Return the metadata attached to an event sequence, if present.
+    pub fn event_metadata_for(&self, sequence: u64) -> Option<&EventMetadata> {
+        EventMetadataLookup::new(&self.event_metadata).get(sequence)
+    }
+
+    fn write_json_lines_range_impl<W: Write + ?Sized>(
+        &self,
+        range: Range<usize>,
+        writer: &mut W,
+    ) -> Result<(), ReportError> {
+        let start = range.start.min(self.events.len());
+        let end = range.end.min(self.events.len());
+        if start >= end {
+            return Ok(());
+        }
+        let metadata = EventMetadataLookup::new(&self.event_metadata);
+        let empty = EventMetadata::default();
+        for event in &self.events[start..end] {
+            let event_metadata = metadata.get(event.sequence).unwrap_or(&empty);
+            serde_json::to_writer(
+                &mut *writer,
+                &BorrowedEventRecord {
+                    event,
+                    metadata: event_metadata,
+                },
+            )
+            .map_err(ReportError::Serialize)?;
+            writer
+                .write_all(b"\n")
+                .map_err(|source| ReportError::Output { source })?;
+        }
+        Ok(())
     }
 
     /// Return events in wire order with optional metadata flattened into each
     /// record. With no metadata this serializes identically to `Event`.
     pub fn event_records(&self) -> Vec<EventRecord> {
+        let metadata = EventMetadataLookup::new(&self.event_metadata);
         self.events
             .iter()
             .map(|event| EventRecord {
                 event: event.clone(),
-                metadata: self
-                    .event_metadata
-                    .iter()
-                    .find(|record| record.sequence == event.sequence)
-                    .map(|record| record.metadata.clone())
-                    .unwrap_or_default(),
+                metadata: metadata.get(event.sequence).cloned().unwrap_or_default(),
             })
             .collect()
     }
@@ -757,22 +884,33 @@ impl Report {
             } else {
                 document.status.as_str().to_string()
             };
-            let _ = writeln!(output, "{}  {}", label, document.path);
+            let _ = writeln!(output, "{}  {}", label, escape_human_text(&document.path));
             for step in &document.steps {
-                let _ = writeln!(output, "  {}  {}", step.status.as_str(), step.name);
+                let _ = writeln!(
+                    output,
+                    "  {}  {}",
+                    step.status.as_str(),
+                    escape_human_text(&step.name)
+                );
                 if verbose && !step.command.is_empty() {
-                    let _ = writeln!(output, "    $ {}", step.command.join(" "));
+                    let command = step
+                        .command
+                        .iter()
+                        .map(|argument| escape_human_text(argument))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let _ = writeln!(output, "    $ {}", command);
                 }
                 for check in &step.checks {
                     let _ = writeln!(
                         output,
                         "    {}  {}",
                         check.status.as_str(),
-                        check.expression
+                        escape_human_text(&check.expression)
                     );
                 }
                 for capture in &step.captures {
-                    let _ = writeln!(output, "    capture  {}", capture);
+                    let _ = writeln!(output, "    capture  {}", escape_human_text(capture));
                 }
                 for diagnostic in &step.diagnostics {
                     write_diagnostic(&mut output, diagnostic);
@@ -829,18 +967,35 @@ impl Report {
 
     pub fn json_lines(&self) -> Result<String, ReportError> {
         let mut output = Vec::with_capacity(self.events.len().saturating_mul(128));
-        let empty = EventMetadata::default();
-        for event in &self.events {
-            let metadata = self
-                .event_metadata
-                .iter()
-                .find(|record| record.sequence == event.sequence)
-                .map(|record| &record.metadata)
-                .unwrap_or(&empty);
-            serde_json::to_writer(&mut output, &BorrowedEventRecord { event, metadata })
-                .map_err(ReportError::Serialize)?;
-            output.push(b'\n');
-        }
+        self.write_json_lines_range_impl(0..self.events.len(), &mut output)?;
+        Ok(String::from_utf8(output).expect("serde_json always emits UTF-8"))
+    }
+
+    /// Stream all event records as newline-delimited JSON into `writer`.
+    ///
+    /// The writer receives each record directly; no accumulated `EventRecord`
+    /// vector is built.
+    pub fn write_json_lines<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), ReportError> {
+        self.write_json_lines_range_impl(0..self.events.len(), writer)
+    }
+
+    /// Stream the selected half-open event range as newline-delimited JSON.
+    ///
+    /// Bounds beyond the current event count are clamped, and an empty or
+    /// reversed range emits nothing. This keeps incremental callers bounded
+    /// when a report grows between selecting and writing a range.
+    pub fn write_json_lines_range<W: Write + ?Sized>(
+        &self,
+        range: Range<usize>,
+        writer: &mut W,
+    ) -> Result<(), ReportError> {
+        self.write_json_lines_range_impl(range, writer)
+    }
+
+    /// Return only the selected event range as newline-delimited JSON.
+    pub fn json_lines_range(&self, range: Range<usize>) -> Result<String, ReportError> {
+        let mut output = Vec::new();
+        self.write_json_lines_range_impl(range, &mut output)?;
         Ok(String::from_utf8(output).expect("serde_json always emits UTF-8"))
     }
 }
@@ -898,15 +1053,14 @@ impl Serialize for SerializedEventRecords<'_> {
         S: Serializer,
     {
         let empty = EventMetadata::default();
+        let metadata = EventMetadataLookup::new(self.metadata);
         let mut sequence = serializer.serialize_seq(Some(self.events.len()))?;
         for event in self.events {
-            let metadata = self
-                .metadata
-                .iter()
-                .find(|record| record.sequence == event.sequence)
-                .map(|record| &record.metadata)
-                .unwrap_or(&empty);
-            sequence.serialize_element(&BorrowedEventRecord { event, metadata })?;
+            let event_metadata = metadata.get(event.sequence).unwrap_or(&empty);
+            sequence.serialize_element(&BorrowedEventRecord {
+                event,
+                metadata: event_metadata,
+            })?;
         }
         sequence.end()
     }
@@ -987,13 +1141,36 @@ fn is_sensitive_key(key: &str) -> bool {
         || normalized == "setcookie"
 }
 
+fn escape_human_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\t' => escaped.push_str("\\t"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\u{2028}' => escaped.push_str("\\u{2028}"),
+            '\u{2029}' => escaped.push_str("\\u{2029}"),
+            character if character.is_control() => {
+                let codepoint = character as u32;
+                if codepoint <= u8::MAX as u32 {
+                    let _ = write!(escaped, "\\x{codepoint:02X}");
+                } else {
+                    let _ = write!(escaped, "\\u{{{codepoint:04X}}}");
+                }
+            }
+            character => escaped.push(character),
+        }
+    }
+    escaped
+}
+
 fn write_diagnostic(output: &mut String, diagnostic: &Diagnostic) {
     let location = diagnostic
         .file
         .as_deref()
         .map(|file| match &diagnostic.span {
-            Some(span) => format!("{}:{}:{}", file, span.line, span.column),
-            None => file.to_string(),
+            Some(span) => format!("{}:{}:{}", escape_human_text(file), span.line, span.column),
+            None => escape_human_text(file),
         })
         .unwrap_or_else(|| "<mdok>".to_string());
     let _ = writeln!(
@@ -1004,13 +1181,13 @@ fn write_diagnostic(output: &mut String, diagnostic: &Diagnostic) {
             Severity::Warning => "warning",
             Severity::Info => "info",
         },
-        diagnostic.code,
-        diagnostic.title,
+        escape_human_text(&diagnostic.code),
+        escape_human_text(&diagnostic.title),
         location,
-        diagnostic.message
+        escape_human_text(&diagnostic.message)
     );
     if let Some(hint) = &diagnostic.hint {
-        let _ = writeln!(output, "    hint: {}", hint);
+        let _ = writeln!(output, "    hint: {}", escape_human_text(hint));
     }
 }
 
@@ -1159,6 +1336,8 @@ fn xml_escape(value: &str) -> String {
 pub enum ReportError {
     #[error("could not serialize report: {0}")]
     Serialize(#[from] serde_json::Error),
+    #[error("could not write JSON Lines output: {source}")]
+    Output { source: io::Error },
     #[error("could not write report {path}: {source}")]
     Io { path: PathBuf, source: io::Error },
 }
@@ -1473,6 +1652,224 @@ mod tests {
         let report_json: Value =
             serde_json::from_str(&report.json().expect("serialize report")).expect("parse report");
         assert!(report_json.get("event_metadata").is_none());
+    }
+
+    #[test]
+    fn event_metadata_stays_sorted_and_lookup_preserves_sequence_mapping() {
+        let mut report = Report::new("unix-ms:1");
+        for sequence in [10, 2, 7] {
+            report.set_event_metadata(
+                sequence,
+                EventMetadata {
+                    run_id: Some(format!("run-{sequence}")),
+                    ..EventMetadata::default()
+                },
+            );
+            report.events.push(Event {
+                sequence,
+                kind: "step.finished".to_string(),
+                document: None,
+                step: None,
+                status: Some(Status::Passed),
+                message: None,
+            });
+        }
+
+        assert_eq!(
+            report
+                .event_metadata
+                .iter()
+                .map(|record| record.sequence)
+                .collect::<Vec<_>>(),
+            vec![2, 7, 10]
+        );
+        assert_eq!(
+            report
+                .event_metadata_for(7)
+                .and_then(|metadata| metadata.run_id.as_deref()),
+            Some("run-7")
+        );
+        assert_eq!(
+            report
+                .event_records()
+                .into_iter()
+                .map(|record| record.metadata.run_id)
+                .collect::<Vec<_>>(),
+            vec![
+                Some("run-10".to_string()),
+                Some("run-2".to_string()),
+                Some("run-7".to_string())
+            ]
+        );
+
+        report.set_event_metadata(7, EventMetadata::default());
+        assert_eq!(
+            report
+                .event_metadata
+                .iter()
+                .map(|record| record.sequence)
+                .collect::<Vec<_>>(),
+            vec![2, 10]
+        );
+    }
+
+    #[test]
+    fn direct_and_legacy_metadata_construction_keep_lookup_correct() {
+        let event = |sequence| Event {
+            sequence,
+            kind: "step.finished".to_string(),
+            document: None,
+            step: None,
+            status: Some(Status::Passed),
+            message: None,
+        };
+        let mut report = Report::new("unix-ms:1");
+        report.events = vec![event(9), event(1)];
+        report.event_metadata = vec![
+            EventMetadataRecord {
+                sequence: 9,
+                metadata: EventMetadata {
+                    run_id: Some("run-9".to_string()),
+                    ..EventMetadata::default()
+                },
+            },
+            EventMetadataRecord {
+                sequence: 1,
+                metadata: EventMetadata {
+                    run_id: Some("run-1".to_string()),
+                    ..EventMetadata::default()
+                },
+            },
+        ];
+
+        assert_eq!(
+            report
+                .event_records()
+                .into_iter()
+                .map(|record| record.metadata.run_id)
+                .collect::<Vec<_>>(),
+            vec![Some("run-9".to_string()), Some("run-1".to_string())]
+        );
+
+        let wire = serde_json::to_value(&report).expect("serialize direct report");
+        let parsed: Report = serde_json::from_value(wire).expect("deserialize legacy report");
+        assert_eq!(
+            parsed
+                .event_metadata
+                .iter()
+                .map(|record| record.sequence)
+                .collect::<Vec<_>>(),
+            vec![1, 9]
+        );
+        assert_eq!(
+            parsed
+                .event_metadata_for(9)
+                .and_then(|metadata| metadata.run_id.as_deref()),
+            Some("run-9")
+        );
+    }
+
+    #[test]
+    fn json_lines_ranges_stream_without_accumulating_event_records() {
+        let mut report = Report::new("unix-ms:1");
+        for sequence in 0..5 {
+            report.push_event(
+                Event {
+                    sequence,
+                    kind: "step.finished".to_string(),
+                    document: Some(format!("document-{sequence}")),
+                    step: Some(format!("step-{sequence}")),
+                    status: Some(Status::Passed),
+                    message: None,
+                },
+                Some(EventMetadata {
+                    run_id: Some(format!("run-{sequence}")),
+                    ..EventMetadata::default()
+                }),
+            );
+        }
+
+        let expected = report.json_lines_range(1..4).expect("serialize range");
+        let mut streamed = Vec::new();
+        report
+            .write_json_lines_range(1..4, &mut streamed)
+            .expect("stream range");
+        assert_eq!(String::from_utf8(streamed).expect("UTF-8 JSONL"), expected);
+        assert_eq!(
+            expected
+                .lines()
+                .map(|line| {
+                    serde_json::from_str::<Value>(line).expect("event JSON")["sequence"].clone()
+                })
+                .collect::<Vec<_>>(),
+            vec![Value::from(1), Value::from(2), Value::from(3)]
+        );
+
+        let mut all_streamed = Vec::new();
+        report
+            .write_json_lines(&mut all_streamed)
+            .expect("stream all events");
+        assert_eq!(
+            String::from_utf8(all_streamed).expect("UTF-8 JSONL"),
+            report.json_lines().expect("serialize all events")
+        );
+        assert!(
+            report
+                .json_lines_range(99..100)
+                .expect("empty range")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn human_escapes_control_and_ansi_content_in_verbose_output() {
+        let mut diagnostic = Diagnostic::error(
+            "MDOK-E\x1b[99m",
+            "diagnostic\n title",
+            "message\rwith\0control",
+        )
+        .at_file(Path::new("path\x1b[99m\n.md"));
+        diagnostic.hint = Some("hint\u{009b}31m".to_string());
+
+        let mut report = Report::new("unix-ms:1");
+        report.documents.push(DocumentReport {
+            path: "workflow\x1b[99m\n.md".to_string(),
+            status: Status::Failed,
+            duration_ms: 0,
+            steps: vec![StepReport {
+                name: "step\rname".to_string(),
+                status: Status::Failed,
+                command: vec!["echo".to_string(), "arg\x1b[99m\nvalue".to_string()],
+                checks: vec![CheckReport {
+                    expression: "body\tvalue".to_string(),
+                    status: Status::Passed,
+                    result: None,
+                }],
+                captures: vec!["capture\0value".to_string()],
+                diagnostics: vec![diagnostic],
+                duration_ms: 0,
+            }],
+            diagnostics: Vec::new(),
+        });
+
+        let human = report.human(false, true);
+        assert!(!human.as_bytes().contains(&0x00));
+        assert!(!human.as_bytes().contains(&0x1b));
+        assert!(!human.contains('\r'));
+        assert!(!human.contains('\t'));
+        assert!(!human.contains('\u{009b}'));
+        assert!(human.contains(r"workflow\x1B[99m\n.md"));
+        assert!(human.contains(r"step\rname"));
+        assert!(human.contains(r"arg\x1B[99m\nvalue"));
+        assert!(human.contains(r"body\tvalue"));
+        assert!(human.contains(r"capture\x00value"));
+        assert!(human.contains(r"path\x1B[99m\n.md"));
+        assert!(human.contains(r"diagnostic\n title"));
+        assert!(human.contains(r"message\rwith\x00control"));
+        assert!(human.contains(r"hint: hint\x9B31m"));
+
+        let colored = report.human(true, true);
+        assert!(!colored.contains("\x1b[99m"));
     }
 
     #[test]

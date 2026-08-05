@@ -9,6 +9,19 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+/// Hard limits applied before and during Markdown planning. These are shared
+/// with the CLI's compatibility preflight so the two parser paths cannot
+/// silently disagree about resource use.
+pub const MAX_SOURCE_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_SOURCE_LINES: usize = 100_000;
+pub const MAX_AST_NODES: usize = 100_000;
+pub const MAX_FENCES: usize = 1_024;
+pub const MAX_EXECUTABLE_BLOCKS: usize = 256;
+pub const MAX_FENCE_BODY_BYTES: usize = 512 * 1024;
+pub const MAX_STEPS: usize = 128;
+pub const MAX_CHECKS_PER_STEP: usize = 512;
+pub const MAX_CAPTURES_PER_STEP: usize = 128;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FenceInfo {
     pub language: String,
@@ -69,6 +82,8 @@ pub enum MarkdownError {
     Reference(String),
     #[error("MDOK-E110 invalid TOML variables block: {0}")]
     Variables(String),
+    #[error("MDOK-E700 Markdown resource limit exceeded: {0}")]
+    ResourceLimit(String),
     #[error("{0}")]
     Core(mdok_core::CoreError),
 }
@@ -81,13 +96,18 @@ impl MarkdownError {
             Self::StepName(_) => "MDOK-E101",
             Self::Reference(_) => "MDOK-E102",
             Self::Variables(_) => "MDOK-E110",
+            Self::ResourceLimit(_) => "MDOK-E700",
             Self::Core(error) => error.code(),
         }
     }
 
     pub fn diagnostic(&self, span: Option<SourceSpan>) -> Diagnostic {
-        Diagnostic::error(self.code(), "Markdown planning error", self.to_string())
-            .with_optional_span(span)
+        let title = if matches!(self, Self::ResourceLimit(_)) {
+            "Markdown resource limit exceeded"
+        } else {
+            "Markdown planning error"
+        };
+        Diagnostic::error(self.code(), title, self.to_string()).with_optional_span(span)
     }
 }
 
@@ -105,6 +125,13 @@ pub fn parse_bytes(
     bytes: &[u8],
     path: impl Into<PathBuf>,
 ) -> Result<MarkdownDocument, MarkdownError> {
+    if bytes.len() > MAX_SOURCE_BYTES {
+        return Err(MarkdownError::ResourceLimit(format!(
+            "source is {} bytes; the maximum is {} bytes",
+            bytes.len(),
+            MAX_SOURCE_BYTES
+        )));
+    }
     let source = std::str::from_utf8(bytes)
         .map_err(|error| MarkdownError::InvalidUtf8(error.to_string()))?;
     parse_document(source, path)
@@ -120,12 +147,34 @@ pub fn parse_document(
 ) -> Result<MarkdownDocument, MarkdownError> {
     let path = path.into();
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err(MarkdownError::ResourceLimit(format!(
+            "source is {} bytes; the maximum is {} bytes",
+            source.len(),
+            MAX_SOURCE_BYTES
+        )));
+    }
+    let source_lines = source.bytes().filter(|byte| *byte == b'\n').count() + 1;
+    if source_lines > MAX_SOURCE_LINES {
+        return Err(MarkdownError::ResourceLimit(format!(
+            "source has {source_lines} lines; the maximum is {MAX_SOURCE_LINES}"
+        )));
+    }
     let arena = Arena::new();
     let root = parse_comrak_document(&arena, source, &Options::default());
     let line_offsets = source_line_offsets(source);
     let mut blocks = Vec::new();
     let mut heading_stack = Vec::<(usize, String)>::new();
+    let mut ast_nodes = 0;
+    let mut fences = 0;
+    let mut executable_blocks = 0;
     for node in root.descendants() {
+        ast_nodes += 1;
+        if ast_nodes > MAX_AST_NODES {
+            return Err(MarkdownError::ResourceLimit(format!(
+                "AST contains more than {MAX_AST_NODES} nodes"
+            )));
+        }
         match &node.data().value {
             NodeValue::Heading(heading) => {
                 let mut title = String::new();
@@ -145,9 +194,29 @@ pub fn parse_document(
                 }
                 heading_stack.push((heading.level as usize, title.trim().to_owned()));
             }
-            NodeValue::CodeBlock(code)
-                if code.fenced && code.info.split_whitespace().any(|word| word == "mdok") =>
-            {
+            NodeValue::CodeBlock(code) if code.fenced => {
+                fences += 1;
+                if fences > MAX_FENCES {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "document contains more than {MAX_FENCES} fenced code blocks"
+                    )));
+                }
+                if code.literal.len() > MAX_FENCE_BODY_BYTES {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "fenced code block is {} bytes; the maximum is {} bytes",
+                        code.literal.len(),
+                        MAX_FENCE_BODY_BYTES
+                    )));
+                }
+                if !code.info.split_whitespace().any(|word| word == "mdok") {
+                    continue;
+                }
+                executable_blocks += 1;
+                if executable_blocks > MAX_EXECUTABLE_BLOCKS {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "document contains more than {MAX_EXECUTABLE_BLOCKS} executable blocks"
+                    )));
+                }
                 let info = parse_info_string(&code.info).map_err(MarkdownError::Metadata)?;
                 let sourcepos = node.data().sourcepos;
                 let start = source_offset(
@@ -228,6 +297,11 @@ pub fn parse_info_string(info: &str) -> Result<FenceInfo, String> {
 }
 
 pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, MarkdownError> {
+    if document.blocks.len() > MAX_EXECUTABLE_BLOCKS {
+        return Err(MarkdownError::ResourceLimit(format!(
+            "document contains more than {MAX_EXECUTABLE_BLOCKS} executable blocks"
+        )));
+    }
     let mut plan = DocumentPlan::new(document.path.clone());
     let mut steps: BTreeMap<StepName, usize> = BTreeMap::new();
     for block in &document.blocks {
@@ -258,6 +332,11 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
                 span,
                 ..
             } => {
+                if plan.steps.len() >= MAX_STEPS {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "document contains more than {MAX_STEPS} steps"
+                    )));
+                }
                 if steps.contains_key(name) {
                     return Err(MarkdownError::StepName(name.to_string()));
                 }
@@ -282,6 +361,11 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
                 span,
                 ..
             } => {
+                if plan.steps.len() >= MAX_STEPS {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "document contains more than {MAX_STEPS} steps"
+                    )));
+                }
                 if steps.contains_key(name) {
                     return Err(MarkdownError::StepName(name.to_string()));
                 }
@@ -305,6 +389,20 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
                 let Some(index) = steps.get(step).copied() else {
                     return Err(MarkdownError::Reference(step.to_string()));
                 };
+                let additional_checks = source
+                    .lines()
+                    .filter(|line| !line.trim().is_empty())
+                    .count();
+                if plan.steps[index]
+                    .checks
+                    .len()
+                    .checked_add(additional_checks)
+                    .is_none_or(|count| count > MAX_CHECKS_PER_STEP)
+                {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "step `{step}` contains more than {MAX_CHECKS_PER_STEP} checks"
+                    )));
+                }
                 plan.steps[index]
                     .checks
                     .extend(source.lines().filter_map(|line| {
@@ -321,6 +419,11 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
                 let Some(index) = steps.get(step).copied() else {
                     return Err(MarkdownError::Reference(step.to_string()));
                 };
+                if plan.steps[index].captures.len() >= MAX_CAPTURES_PER_STEP {
+                    return Err(MarkdownError::ResourceLimit(format!(
+                        "step `{step}` contains more than {MAX_CAPTURES_PER_STEP} captures"
+                    )));
+                }
                 let expression = source.trim();
                 if expression.is_empty() {
                     return Err(MarkdownError::Variables(
@@ -628,5 +731,45 @@ mod tests {
     fn metadata_rejects_duplicates_and_bad_quotes() {
         assert!(parse_info_string("curl mdok name=a name=b").is_err());
         assert!(parse_info_string("curl mdok name=\"a").is_err());
+    }
+
+    #[test]
+    fn rejects_oversized_source_before_parsing() {
+        let source = "x".repeat(MAX_SOURCE_BYTES + 1);
+        let error = parse(&source, "oversized.md").unwrap_err();
+        assert!(
+            matches!(error, MarkdownError::ResourceLimit(message) if message.contains("source is"))
+        );
+    }
+
+    #[test]
+    fn rejects_fence_and_step_budget_overflows() {
+        let fenced = (0..=MAX_FENCES)
+            .map(|_| "```text\nignored\n```\n")
+            .collect::<String>();
+        let error = parse(&fenced, "fences.md").unwrap_err();
+        assert!(
+            matches!(error, MarkdownError::ResourceLimit(message) if message.contains("fenced code blocks"))
+        );
+
+        let steps = (0..=MAX_STEPS)
+            .map(|index| {
+                format!("```curl mdok name=step-{index}\ncurl https://example.test\n```\n")
+            })
+            .collect::<String>();
+        let document = parse(&steps, "steps.md").unwrap();
+        let error = plan_document(&document).unwrap_err();
+        assert!(
+            matches!(error, MarkdownError::ResourceLimit(message) if message.contains("steps"))
+        );
+    }
+
+    #[test]
+    fn rejects_ast_budget_overflow() {
+        let source = (0..(MAX_AST_NODES / 2 + 1))
+            .map(|index| format!("# heading-{index}\n"))
+            .collect::<String>();
+        let error = parse(&source, "ast.md").unwrap_err();
+        assert!(matches!(error, MarkdownError::ResourceLimit(message) if message.contains("AST")));
     }
 }
