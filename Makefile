@@ -1,4 +1,4 @@
-.PHONY: fmt lint test corpus bench options
+.PHONY: fmt lint test corpus bench bench-perf deps-audit options
 fmt:
 	cargo fmt --all --check
 lint:
@@ -11,3 +11,7 @@ test:
 	cargo test --workspace --all-features
 bench:
 	cargo bench --workspace
+bench-perf:
+	python3 scripts/bench_performance.py
+deps-audit:
+	python3 scripts/audit_dependencies.py

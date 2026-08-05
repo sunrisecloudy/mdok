@@ -21,6 +21,23 @@ The bare form `mdok file.md` is an alias for `mdok test file.md`. Use `mdok-test
 
 MDOK performs whole-document planning before a request is sent. Interpolated values are data inside one argv element; they are never reparsed as shell source. HTTP/HTTPS and loopback-safe local testing are the default execution surface.
 
+## Performance
+
+The Criterion suite covers parser, Markdown, template, JMESPath, report, body
+spill, normal/intense end-to-end, and one-shot versus reused-session cases:
+
+```sh
+make bench
+python3 scripts/bench_performance.py --runs 10 --warmups 2
+python3 scripts/audit_dependencies.py
+```
+
+The process harness builds the release CLI, runs deterministic loopback
+fixtures, and records wall time plus peak RSS for normal and intense `lint`,
+`plan`, and `test` workloads. See [docs/PERFORMANCE_CHECKLIST.md](docs/PERFORMANCE_CHECKLIST.md)
+and [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md) for targets and
+interpretation.
+
 ## Release signing
 
 `scripts/package.sh` produces deterministic unsigned local archives by default. Checksums are generated with the Python standard library, so the sidecars do not depend on `shasum` or `sha256sum`. A release operator can supply an Ed25519 PEM key through `MDOK_SIGNING_KEY`; signing writes base64 `.sig` sidecars and a signed `mdok-<version>-<target>.release.json` manifest. The verifier accepts the corresponding public PEM key (or the private key) through `MDOK_SIGNING_PUBLIC_KEY`.
