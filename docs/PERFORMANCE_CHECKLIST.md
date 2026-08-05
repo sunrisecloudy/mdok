@@ -27,17 +27,18 @@ grounded in:
 
 ## Current verified evidence
 
-The current local release evidence was collected from the post-optimization
-checkout with `python3 scripts/bench_performance.py --runs 10 --warmups 1`:
+The current local release evidence was collected from clean commit
+`56950e2132f790f1e405dba8e3059b3a8e588ab1` with
+`python3 scripts/bench_performance.py --runs 10 --warmups 1`:
 
 - Artifact: `target/performance-bench-final.json`; all 11 process cases had zero
-  failed samples, with cold `version` p50 10.26 ms, normal `plan` p50 7.81 ms,
-  and the 1,000-document physical-core discovery case at 37.23 ms p50 and
-  24.33 MiB RSS p50.
+  failed samples, with cold `version` p50 9.52 ms, normal `plan` p50 9.43 ms,
+  and the 1,000-document physical-core discovery case at 38.15 ms p50 and
+  24.45 MiB RSS p50.
 - Criterion default configuration is 30 measured samples. Fresh normal Markdown
-  parse+plan was 52.72 µs p50; intense was 563.58 µs; cached roughly-10 KiB
-  JMESPath evaluation was 51.4 µs p50; and reused-session execution was
-  539 µs for 10 requests versus 3.49 ms one-shot.
+  parse+plan was 55.16 µs p50; intense was 585.60 µs; cached roughly-10 KiB
+  JMESPath evaluation was 50.85 µs p50; and reused-session execution was
+  540.59 µs for 10 requests versus 10.37 ms one-shot.
 - `python3 scripts/verify_performance.py target/performance-bench-final.json
   --strict` passed all four target budgets. The allocation-budget group asserts
   per-operation object and byte ceilings for Markdown/plan, shell, curl plan,
@@ -74,15 +75,15 @@ documents during an ordinary edit/test loop:
 Acceptance targets for the normal planning path:
 
 - [x] Regression gate: parse and plan the 10 KB/10-step document at p50 below
-  2 ms in a release build, as required by the PRD. Criterion measured 52.72 µs
+  2 ms in a release build, as required by the PRD. Criterion measured 55.16 µs
   p50 for the normal parse+plan case.
 - [x] Regression gate: cold `mdok version` p50 is below 50 ms. The process
-  harness measured 10.26 ms p50.
+  harness measured 9.52 ms p50.
 - [x] Regression gate: cached JMESPath evaluation against 10 KB JSON is below
-  100 µs p50. Criterion measured 51.4 µs p50 with compilation outside the loop.
+  100 µs p50. Criterion measured 50.85 µs p50 with compilation outside the loop.
 - [x] Regression gate: added per-transfer MDOK overhead excluding network is
-  below 0.5 ms p50. The local session benchmark measured 539 µs for 10 reused
-  requests, versus 3.49 ms one-shot; reused overhead is about 54 µs/request.
+  below 0.5 ms p50. The local session benchmark measured 540.59 µs for 10
+  reused requests, versus 10.37 ms one-shot; reused overhead is about 54 µs/request.
 - [x] Guidance: report p95 and p99 beside p50; the process harness records both
   tails, plus min/max, throughput, variance/outliers, failures, and raw samples.
 
@@ -108,10 +109,10 @@ service test:
 Acceptance targets for the intense path:
 
 - [x] Regression gate: parse and plan 1,000 2 KB documents in under 1 second
-  with parallel discovery, per the PRD. The physical-core case measured 37.23 ms
+  with parallel discovery, per the PRD. The physical-core case measured 38.15 ms
   p50.
 - [x] Regression gate: resident memory for 1,000 planned small documents stays
-  below 100 MB, per the PRD. The same case measured 24.33 MiB RSS p50.
+  below 100 MB, per the PRD. The same case measured 24.45 MiB RSS p50.
 - [x] Regression gate: a response over the memory threshold does not cause RSS
   to grow by the full response size; it transitions to private-file spill. Both
   compatibility and native callback paths now stream into the bounded sink.
@@ -222,7 +223,7 @@ authoritative behavior described by the parser PRD must remain intact.
 - `[x] Implemented` the CLI uses a typed Clap command model and has a dedicated
   `version` command.
 - [x] Regression gate: measure cold `mdok version` below 50 ms p50; the fresh
-  process run measured 10.26 ms.
+  process run measured 9.52 ms.
 - [x] Guidance: benchmark `version`, `lint`, `plan`, and `test` separately;
   the harness has independent cases and records fixture setup outside the
   timed invocation.
@@ -278,7 +279,7 @@ authoritative behavior described by the parser PRD must remain intact.
   AST as authoritative for executable fences.
 - [x] Regression gate: parse the normal 10 KB/10-step document below 2 ms p50
   including planning, and report extraction separately from planning. Fresh
-  extraction/plan was 52.72 µs p50; process plan was 7.81 ms including startup.
+  extraction/plan was 55.16 µs p50; process plan was 9.43 ms including startup.
 - [x] Guidance: benchmark source size, fence count, heading depth, info-string
   length, template density, and non-executable Markdown volume. Criterion
   covers source sizes, block counts, normal/intense documents, and templates.
@@ -321,7 +322,7 @@ authoritative behavior described by the parser PRD must remain intact.
 - `[x] Implemented` runtime check and capture plans compile JMESPath expressions
   when plans are constructed.
 - [x] Regression gate: cached evaluation of 10 KB JSON is below 100 µs p50.
-  Criterion measured 51.4 µs with the expression compiled outside the loop.
+  Criterion measured 50.85 µs with the expression compiled outside the loop.
 - [x] Guidance: benchmark compile versus evaluation separately; never include
   expression compilation in an evaluation-only target. Both Criterion groups
   are separate.
@@ -351,8 +352,8 @@ authoritative behavior described by the parser PRD must remain intact.
   option surface instead of forcing all requests through the native subset.
 - [x] Regression gate: compare one-shot versus session-reused execution against
   a local fixture for sequential same-origin requests; measure connection/TLS
-  setup avoided and total per-step overhead. The fresh benchmark measured 3.49
-  ms one-shot versus 539 µs reused for 10 requests.
+  setup avoided and total per-step overhead. The fresh benchmark measured 10.37
+  ms one-shot versus 540.59 µs reused for 10 requests.
 - [x] Regression gate: added MDOK overhead excluding network is below 0.5 ms p50;
   reused local-fixture overhead is approximately 54 µs/request.
 - [x] Guidance: benchmark same-origin sequential, multiple-origin sequential,
@@ -408,9 +409,11 @@ temporary-file `File`, with a hard maximum and cleanup on error/cancellation.
 - [x] Regression gate: private temporary files are owner-only, use safe creation
   APIs, use no attacker-controlled names, and are removed on every terminal
   path. Unix permission and cleanup tests pass.
-- [ ] Guidance: use memory mapping or bounded reads for oversized JSON only if
+- [x] Guidance: use memory mapping or bounded reads for oversized JSON only if
   profiling and platform testing show a benefit; version 1 may refuse JSON
-  evaluation above `max_json_body_bytes`.
+  evaluation above `max_json_body_bytes`. No mmap path was added: bounded
+  `BodyStorage::bytes` reads enforce the configured limit without retaining a
+  full oversized body, and the body/RSS evidence shows no need for mmap.
 
 ## 9. Allocations, caching, and data movement
 
@@ -446,16 +449,19 @@ temporary-file `File`, with a hard maximum and cleanup on error/cancellation.
 - `[x] Implemented` one document executes its steps sequentially, preserving
   its session and state-machine ordering.
 - [x] Regression gate: 1,000 2 KB documents complete planning in under 1 second
-  with parallel discovery and remain below 100 MB RSS. Fresh evidence is 37.23
-  ms p50 and 24.33 MiB RSS p50.
+  with parallel discovery and remain below 100 MB RSS. Fresh evidence is 38.15
+  ms p50 and 24.45 MiB RSS p50.
 - [x] Guidance: benchmark jobs 1, 2, physical-core count, and an overcommitted
   value; choose defaults from measurements, not from network concurrency alone.
   All four variants are recorded in the process artifact.
 - [x] Guidance: bound queued documents, response artifacts, report events, and
   temporary files. Jobs are bounded, reports are aggregated per document, and
   body artifacts use bounded memory plus private temporary files.
-- [ ] Guidance: batch filesystem metadata reads and report aggregation only when
-  it lowers syscall/allocation cost without delaying fail-fast behavior.
+- [x] Guidance: batch filesystem metadata reads and report aggregation only when
+  it lowers syscall/allocation cost without delaying fail-fast behavior. The
+  measured design keeps WalkDir discovery streaming and aggregates reports per
+  document; no speculative metadata batch is retained because it would add
+  peak memory and delay fail-fast without a demonstrated cost reduction.
 - [x] Regression gate: fail-fast stops new scheduling promptly while in-flight
   documents finish or cancel according to the documented contract. Fail-fast
   forces the sequential scheduler and stops after the first failed document or
@@ -571,17 +577,19 @@ have fresh evidence from the release commit.
 - [x] Release gate: normal workload meets all PRD p50 targets. Fresh process
   and Criterion evidence are recorded above.
 - [x] Release gate: intense workload meets the 1,000-document time and under
-  100 MB planning RSS targets. Fresh evidence is 37.23 ms / 24.33 MiB p50.
+  100 MB planning RSS targets. Fresh evidence is 38.15 ms / 24.45 MiB p50.
 - [x] Release gate: body spill, maximum-body rejection, cancellation, and temp
   file cleanup have been measured. Edge benchmarks and focused tests pass.
 - [x] Release gate: native session reuse is measured against one-shot execution
-  and state-reset tests pass. The reused 10-request case is 539 µs p50.
+  and state-reset tests pass. The reused 10-request case is 540.59 µs p50.
 - [x] Release gate: allocation and binary-size changes are reviewed against the
   previous release baseline. Allocation gates and optional bloat/llvm-lines
   profile commands are checked in; binary-size review remains tool-dependent.
-- [ ] Release gate: strict differential, unit/integration, fuzz/sanitizer smoke,
-  and release smoke tests pass. Differential, unit, ASan, UBSan, and the local
-  fuzz fallback pass; signed release smoke still requires release-key material.
+- [x] Release gate: strict differential, unit/integration, and fuzz/sanitizer
+  smoke tests pass. Differential, unit, ASan, UBSan, and the local fuzz
+  fallback all pass on the clean release commit.
+- [ ] Release gate: signed release smoke and artifact verification pass; the
+  release-key material is intentionally an external release gate.
 - [x] Release gate: dependency tree, enabled features, licenses, SBOM, and curl
   notices are reviewed. Offline audit and license-aware SBOM generation pass.
 - [x] Release gate: benchmark metadata names OS, architecture, CPU, Rust
