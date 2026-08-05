@@ -6,8 +6,8 @@
 
 #![forbid(unsafe_code)]
 
-use serde::ser::{SerializeSeq, SerializeStruct};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::ser::{Error as SerError, SerializeSeq, SerializeStruct};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value};
 use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
@@ -226,6 +226,78 @@ pub struct CheckReport {
     pub result: Option<Value>,
 }
 
+/// The kind of source associated with a reported step.
+///
+/// This is kept outside `StepReport` so existing callers can continue to use
+/// their current struct literals. New metadata is attached to a `Report` and
+/// rendered into the corresponding step object on the wire.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StepKind {
+    Curl,
+    Exec,
+}
+
+/// Structured result metadata for an external process execution.
+///
+/// Output contents are intentionally not part of this report type. Callers
+/// can report bounded accounting and lifecycle state without making command
+/// output part of the persisted report or weakening the existing redaction
+/// boundary.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct ExternalExecutionResult {
+    /// The canonical program identity or configured command profile.
+    pub program: String,
+    /// The argv used by the direct process invocation, when reporting it is
+    /// permitted by the caller's policy.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub argv: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signal: Option<i32>,
+    #[serde(default)]
+    pub timed_out: bool,
+    #[serde(default)]
+    pub output_limit_exceeded: bool,
+    #[serde(default)]
+    pub output_truncated: bool,
+    pub stdout_bytes: u64,
+    pub stderr_bytes: u64,
+    pub duration_ms: u64,
+}
+
+/// Report-side attachment for optional metadata on one document step.
+///
+/// Ordinals are zero-based and refer to the positions in `Report.documents`
+/// and `DocumentReport.steps`. The attachment is serialized into that nested
+/// step, so consumers do not need to understand this implementation detail.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct StepExecutionMetadata {
+    pub document_ordinal: usize,
+    pub step_ordinal: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<StepKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<ExternalExecutionResult>,
+}
+
+impl StepExecutionMetadata {
+    pub fn new(
+        document_ordinal: usize,
+        step_ordinal: usize,
+        kind: Option<StepKind>,
+        execution: Option<ExternalExecutionResult>,
+    ) -> Self {
+        Self {
+            document_ordinal,
+            step_ordinal,
+            kind,
+            execution,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct StepReport {
     pub name: String,
@@ -312,7 +384,7 @@ pub struct EventRecord {
     pub metadata: EventMetadata,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Report {
     pub schema_version: String,
     pub mdok_version: String,
@@ -321,12 +393,196 @@ pub struct Report {
     pub duration_ms: u64,
     pub summary: Summary,
     pub documents: Vec<DocumentReport>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagnostics: Vec<Diagnostic>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<Event>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_metadata: Vec<EventMetadataRecord>,
+    /// Optional report-side attachments rendered into individual step
+    /// objects. Keeping these out of `StepReport` preserves existing curl
+    /// struct literals in callers that have not adopted execution metadata.
+    pub step_execution_metadata: Vec<StepExecutionMetadata>,
+}
+
+#[derive(Deserialize)]
+struct ReportWire {
+    schema_version: String,
+    mdok_version: String,
+    curl_version: String,
+    started_at: String,
+    duration_ms: u64,
+    summary: Summary,
+    documents: Vec<DocumentWire>,
+    #[serde(default)]
+    diagnostics: Vec<Diagnostic>,
+    #[serde(default)]
+    events: Vec<Event>,
+    #[serde(default)]
+    event_metadata: Vec<EventMetadataRecord>,
+}
+
+#[derive(Deserialize)]
+struct DocumentWire {
+    path: String,
+    status: Status,
+    duration_ms: u64,
+    #[serde(default)]
+    steps: Vec<StepWire>,
+    #[serde(default)]
+    diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Deserialize)]
+struct StepWire {
+    name: String,
+    status: Status,
+    #[serde(default)]
+    command: Vec<String>,
+    #[serde(default)]
+    checks: Vec<CheckReport>,
+    #[serde(default)]
+    captures: Vec<String>,
+    #[serde(default)]
+    diagnostics: Vec<Diagnostic>,
+    duration_ms: u64,
+    #[serde(default)]
+    kind: Option<StepKind>,
+    #[serde(default)]
+    execution: Option<ExternalExecutionResult>,
+}
+
+impl<'de> Deserialize<'de> for Report {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = ReportWire::deserialize(deserializer)?;
+        let mut step_execution_metadata = Vec::new();
+        let documents = wire
+            .documents
+            .into_iter()
+            .enumerate()
+            .map(|(document_ordinal, document)| {
+                let steps = document
+                    .steps
+                    .into_iter()
+                    .enumerate()
+                    .map(|(step_ordinal, step)| {
+                        let StepWire {
+                            name,
+                            status,
+                            command,
+                            checks,
+                            captures,
+                            diagnostics,
+                            duration_ms,
+                            kind,
+                            execution,
+                        } = step;
+                        if kind.is_some() || execution.is_some() {
+                            step_execution_metadata.push(StepExecutionMetadata::new(
+                                document_ordinal,
+                                step_ordinal,
+                                kind,
+                                execution,
+                            ));
+                        }
+                        StepReport {
+                            name,
+                            status,
+                            command,
+                            checks,
+                            captures,
+                            diagnostics,
+                            duration_ms,
+                        }
+                    })
+                    .collect();
+                DocumentReport {
+                    path: document.path,
+                    status: document.status,
+                    duration_ms: document.duration_ms,
+                    steps,
+                    diagnostics: document.diagnostics,
+                }
+            })
+            .collect();
+
+        Ok(Self {
+            schema_version: wire.schema_version,
+            mdok_version: wire.mdok_version,
+            curl_version: wire.curl_version,
+            started_at: wire.started_at,
+            duration_ms: wire.duration_ms,
+            summary: wire.summary,
+            documents,
+            diagnostics: wire.diagnostics,
+            events: wire.events,
+            event_metadata: wire.event_metadata,
+            step_execution_metadata,
+        })
+    }
+}
+
+struct SerializedDocuments<'a> {
+    documents: &'a [DocumentReport],
+    metadata: &'a [StepExecutionMetadata],
+}
+
+impl Serialize for SerializedDocuments<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut documents = serializer.serialize_seq(Some(self.documents.len()))?;
+        for (document_ordinal, document) in self.documents.iter().enumerate() {
+            documents.serialize_element(&SerializedDocument {
+                document,
+                document_ordinal,
+                metadata: self.metadata,
+            })?;
+        }
+        documents.end()
+    }
+}
+
+struct SerializedDocument<'a> {
+    document: &'a DocumentReport,
+    document_ordinal: usize,
+    metadata: &'a [StepExecutionMetadata],
+}
+
+impl Serialize for SerializedDocument<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut value = serde_json::to_value(self.document).map_err(S::Error::custom)?;
+        if let Some(steps) = value.get_mut("steps").and_then(Value::as_array_mut) {
+            for metadata in self
+                .metadata
+                .iter()
+                .filter(|metadata| metadata.document_ordinal == self.document_ordinal)
+            {
+                if let Some(step) = steps
+                    .get_mut(metadata.step_ordinal)
+                    .and_then(Value::as_object_mut)
+                {
+                    if let Some(kind) = metadata.kind {
+                        step.insert(
+                            "kind".to_string(),
+                            serde_json::to_value(kind).map_err(S::Error::custom)?,
+                        );
+                    }
+                    if let Some(execution) = &metadata.execution {
+                        step.insert(
+                            "execution".to_string(),
+                            serde_json::to_value(execution).map_err(S::Error::custom)?,
+                        );
+                    }
+                }
+            }
+        }
+        value.serialize(serializer)
+    }
 }
 
 impl Serialize for Report {
@@ -351,7 +607,13 @@ impl Serialize for Report {
         report.serialize_field("started_at", &self.started_at)?;
         report.serialize_field("duration_ms", &self.duration_ms)?;
         report.serialize_field("summary", &self.summary)?;
-        report.serialize_field("documents", &self.documents)?;
+        report.serialize_field(
+            "documents",
+            &SerializedDocuments {
+                documents: &self.documents,
+                metadata: &self.step_execution_metadata,
+            },
+        )?;
         if !self.diagnostics.is_empty() {
             report.serialize_field("diagnostics", &self.diagnostics)?;
         }
@@ -386,7 +648,33 @@ impl Report {
             diagnostics: Vec::new(),
             events: Vec::new(),
             event_metadata: Vec::new(),
+            step_execution_metadata: Vec::new(),
         }
+    }
+
+    /// Attach optional kind and external execution metadata to one step.
+    ///
+    /// The document and step ordinals are zero-based. Replacing an existing
+    /// attachment keeps repeated report enrichment deterministic.
+    pub fn set_step_execution_metadata(&mut self, metadata: StepExecutionMetadata) {
+        if let Some(existing) = self.step_execution_metadata.iter_mut().find(|existing| {
+            existing.document_ordinal == metadata.document_ordinal
+                && existing.step_ordinal == metadata.step_ordinal
+        }) {
+            *existing = metadata;
+        } else {
+            self.step_execution_metadata.push(metadata);
+        }
+    }
+
+    pub fn step_execution_metadata(
+        &self,
+        document_ordinal: usize,
+        step_ordinal: usize,
+    ) -> Option<&StepExecutionMetadata> {
+        self.step_execution_metadata.iter().find(|metadata| {
+            metadata.document_ordinal == document_ordinal && metadata.step_ordinal == step_ordinal
+        })
     }
 
     pub fn now() -> Self {
@@ -1021,6 +1309,7 @@ mod tests {
             diagnostics: Vec::new(),
             events: Vec::new(),
             event_metadata: Vec::new(),
+            step_execution_metadata: Vec::new(),
         };
 
         let junit = report.junit();
@@ -1055,6 +1344,7 @@ mod tests {
             diagnostics: Vec::new(),
             events: Vec::new(),
             event_metadata: Vec::new(),
+            step_execution_metadata: Vec::new(),
         };
 
         let junit = report.junit();
@@ -1186,6 +1476,138 @@ mod tests {
     }
 
     #[test]
+    fn execution_metadata_is_nested_and_round_trips() {
+        let mut report = Report::now();
+        report.documents.push(DocumentReport {
+            path: "commands.md".to_string(),
+            status: Status::Passed,
+            duration_ms: 8,
+            steps: vec![StepReport {
+                name: "validate".to_string(),
+                status: Status::Passed,
+                duration_ms: 5,
+                ..StepReport::default()
+            }],
+            diagnostics: Vec::new(),
+        });
+        let execution = ExternalExecutionResult {
+            program: "mdok-fixture".to_string(),
+            argv: vec!["mdok-fixture".to_string(), "--mode=validate".to_string()],
+            exit_code: Some(0),
+            signal: None,
+            timed_out: false,
+            output_limit_exceeded: false,
+            output_truncated: false,
+            stdout_bytes: 12,
+            stderr_bytes: 0,
+            duration_ms: 5,
+        };
+        let metadata =
+            StepExecutionMetadata::new(0, 0, Some(StepKind::Exec), Some(execution.clone()));
+        report.set_step_execution_metadata(metadata.clone());
+
+        let value = serde_json::to_value(&report).expect("serialize report");
+        assert_eq!(value["documents"][0]["steps"][0]["kind"], "exec");
+        assert_eq!(
+            value["documents"][0]["steps"][0]["execution"]["program"],
+            "mdok-fixture"
+        );
+        assert_eq!(
+            value["documents"][0]["steps"][0]["execution"]["stdout_bytes"],
+            12
+        );
+        assert!(value.get("step_execution_metadata").is_none());
+
+        let parsed: Report = serde_json::from_value(value).expect("deserialize report");
+        assert_eq!(parsed.documents, report.documents);
+        assert_eq!(parsed.step_execution_metadata, vec![metadata]);
+        assert_eq!(
+            parsed
+                .step_execution_metadata(0, 0)
+                .and_then(|metadata| metadata.execution.as_ref()),
+            Some(&execution)
+        );
+    }
+
+    #[test]
+    fn curl_steps_keep_the_legacy_shape_without_execution_metadata() {
+        let mut report = Report::now();
+        report.documents.push(DocumentReport {
+            path: "curl.md".to_string(),
+            status: Status::Passed,
+            duration_ms: 3,
+            steps: vec![StepReport {
+                name: "request".to_string(),
+                status: Status::Passed,
+                command: vec!["curl".to_string(), "https://example.test".to_string()],
+                duration_ms: 3,
+                ..StepReport::default()
+            }],
+            diagnostics: Vec::new(),
+        });
+
+        let value = serde_json::to_value(&report).expect("serialize report");
+        let step = &value["documents"][0]["steps"][0];
+        assert!(step.get("kind").is_none());
+        assert!(step.get("execution").is_none());
+        let parsed: Report = serde_json::from_value(value).expect("deserialize report");
+        assert!(parsed.step_execution_metadata.is_empty());
+    }
+
+    #[test]
+    fn redaction_preserves_execution_metadata_and_redacts_argv() {
+        let mut report = Report::now();
+        report.documents.push(DocumentReport {
+            path: "commands.md".to_string(),
+            status: Status::Failed,
+            duration_ms: 11,
+            steps: vec![StepReport {
+                name: "inspect".to_string(),
+                status: Status::Failed,
+                duration_ms: 11,
+                ..StepReport::default()
+            }],
+            diagnostics: Vec::new(),
+        });
+        report.set_step_execution_metadata(StepExecutionMetadata::new(
+            0,
+            0,
+            Some(StepKind::Exec),
+            Some(ExternalExecutionResult {
+                program: "mdok-fixture".to_string(),
+                argv: vec!["mdok-fixture".to_string(), "super-secret".to_string()],
+                exit_code: Some(7),
+                signal: Some(9),
+                timed_out: true,
+                output_limit_exceeded: true,
+                output_truncated: true,
+                stdout_bytes: 1024,
+                stderr_bytes: 2048,
+                duration_ms: 11,
+            }),
+        ));
+
+        let redacted = Redactor::new(["super-secret"])
+            .redact_report(&report)
+            .expect("redact report");
+        let metadata = redacted
+            .step_execution_metadata(0, 0)
+            .expect("execution metadata");
+        let execution = metadata.execution.as_ref().expect("execution result");
+        assert_eq!(metadata.kind, Some(StepKind::Exec));
+        assert_eq!(execution.program, "mdok-fixture");
+        assert_eq!(execution.argv[1], "[REDACTED]");
+        assert_eq!(execution.exit_code, Some(7));
+        assert_eq!(execution.signal, Some(9));
+        assert!(execution.timed_out);
+        assert!(execution.output_limit_exceeded);
+        assert!(execution.output_truncated);
+        assert_eq!(execution.stdout_bytes, 1024);
+        assert_eq!(execution.stderr_bytes, 2048);
+        assert_eq!(execution.duration_ms, 11);
+    }
+
+    #[test]
     fn redactor_covers_structured_diagnostic_context() {
         let report = Report {
             schema_version: SCHEMA_VERSION.to_string(),
@@ -1208,6 +1630,7 @@ mod tests {
             ],
             events: Vec::new(),
             event_metadata: Vec::new(),
+            step_execution_metadata: Vec::new(),
         };
 
         let redacted = Redactor::new(["super-secret"])
