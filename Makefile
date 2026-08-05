@@ -1,4 +1,4 @@
-.PHONY: fmt lint test corpus bench bench-perf profile-perf deps-audit options
+.PHONY: fmt lint test corpus bench bench-perf profile-perf deps-audit sbom options
 fmt:
 	cargo fmt --all --check
 lint:
@@ -17,3 +17,5 @@ profile-perf:
 	sh scripts/profile_performance.sh
 deps-audit:
 	python3 scripts/audit_dependencies.py
+sbom:
+	python3 scripts/generate_sbom.py --output target/mdok.spdx.json

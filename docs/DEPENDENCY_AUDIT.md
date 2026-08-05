@@ -7,6 +7,7 @@
 - Cargo.lock records: 287 (287 unique name/version/source records; 275 registry, 12 local/path)
 - Duplicate package names with multiple locked versions: 5
 - Network policy: Cargo commands run with `--offline` and `CARGO_NET_OFFLINE=true`.
+- License gate: `scripts/generate_sbom.py` resolves Cargo license metadata offline, rejects GPL/AGPL expressions, and fails on unresolved license metadata unless explicitly overridden.
 
 ## Executive findings
 
@@ -35,7 +36,7 @@
 | `rustls-pemfile` | direct fixture/test | mdok-test-server (fixture/test) | default features | Intentional fixture-only certificate loader. Fixture-server certificate/key PEM loading. Files: `src/main.rs` |
 | `rustls-pki-types` | direct fixture/test | mdok-test-server (fixture/test) | default features | Intentional fixture-only TLS type boundary. Typed certificate/key inputs for the fixture server. Files: `src/main.rs` |
 | `serde` | direct fixture/test, direct runtime | mdok-test-server (fixture/test); mdok-cli (runtime); mdok-core (runtime); mdok-curl (runtime); mdok-jmespath (runtime); mdok-report (runtime); mdok-runtime (runtime); mdok-template (runtime) | derive | Derive-based configuration, plan, report, and protocol serialization. Files: `src/lib.rs, src/main.rs` |
-| `serde_json` | direct dev/benchmark, direct fixture/test, direct fuzz/tooling, direct runtime | mdok-benchmarks (dev/benchmark); mdok-test-server (fixture/test); mdok-fuzz (fuzz/tooling); mdok-cli (runtime); mdok-core (runtime); mdok-curl (runtime); mdok-jmespath (runtime); mdok-markdown (runtime); mdok-report (runtime); mdok-runtime (runtime); mdok-shell (runtime); mdok-template (runtime) | default features | JSON context, captures, reports, request bodies, and fixture payloads. Files: `benches/prd.rs, fuzz_targets/shell_template.rs, src/lib.rs, src/main.rs` |
+| `serde_json` | direct dev/benchmark, direct fixture/test, direct fuzz/tooling, direct runtime | mdok-benchmarks (dev/benchmark); mdok-test-server (fixture/test); mdok-fuzz (fuzz/tooling); mdok-cli (runtime); mdok-core (runtime); mdok-curl (runtime); mdok-jmespath (runtime); mdok-markdown (runtime); mdok-report (runtime); mdok-runtime (runtime); mdok-shell (runtime); mdok-template (runtime) | default features | JSON context, captures, reports, request bodies, and fixture payloads. Files: `benches/prd.rs, fuzz_targets/shell_template.rs, src/lib.rs, src/main.rs, tests/smoke.rs` |
 | `sha2` | direct fixture/test | mdok-test-server (fixture/test) | default features | Fixture-server response digest support. Files: `src/main.rs` |
 | `tempfile` | direct runtime / compatibility | mdok-curl (runtime / compatibility); mdok-report (runtime / compatibility) | default features | Intentional bounded-memory safety dependency: large response bodies spill to disk. Bounded response-body spill files and report output staging. Files: `src/lib.rs` |
 | `thiserror` | direct runtime | mdok-core (runtime); mdok-curl (runtime); mdok-jmespath (runtime); mdok-markdown (runtime); mdok-report (runtime); mdok-runtime (runtime); mdok-shell (runtime); mdok-template (runtime) | default features | Typed library error enums with stable MDOK error codes/messages. Files: `src/lib.rs` |

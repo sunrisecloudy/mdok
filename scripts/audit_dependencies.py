@@ -338,6 +338,7 @@ def render_report(
         f"- Cargo.lock records: {len(packages)} ({lock_unique} unique name/version/source records; {registry_count} registry, {local_count} local/path)",
         f"- Duplicate package names with multiple locked versions: {len(duplicate)}",
         "- Network policy: Cargo commands run with `--offline` and `CARGO_NET_OFFLINE=true`.",
+        "- License gate: `scripts/generate_sbom.py` resolves Cargo license metadata offline, rejects GPL/AGPL expressions, and fails on unresolved license metadata unless explicitly overridden.",
         "",
         "## Executive findings",
         "",
