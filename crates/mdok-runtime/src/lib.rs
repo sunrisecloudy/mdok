@@ -178,6 +178,60 @@ pub struct StepResult {
     pub error: Option<RuntimeError>,
 }
 
+/// Mutable state for one document execution.
+///
+/// The template engine consumes the BTreeMap while the curl response context
+/// consumes JSON values. Cache the JSON variable snapshot lazily across steps
+/// and invalidate it only when captures change variables. The snapshots
+/// contain only current variables and summaries; they do not retain response
+/// bodies or prior contexts.
+struct ExecutionState {
+    variables: BTreeMap<String, Value>,
+    variables_json: Option<Value>,
+    step_summaries: Value,
+}
+
+impl ExecutionState {
+    fn new(variables: &BTreeMap<String, Value>) -> Self {
+        Self {
+            variables: variables.clone(),
+            variables_json: None,
+            step_summaries: Value::Object(Map::new()),
+        }
+    }
+
+    fn context_values(&mut self) -> (&Value, &Value) {
+        let Self {
+            variables,
+            variables_json,
+            step_summaries,
+        } = self;
+        let variables_json = variables_json.get_or_insert_with(|| {
+            Value::Object(
+                variables
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect(),
+            )
+        });
+        (variables_json, step_summaries)
+    }
+
+    fn commit_captures(&mut self, pending: &BTreeMap<String, Value>) {
+        for (key, value) in pending {
+            self.variables.insert(key.clone(), value.clone());
+        }
+        self.variables_json = None;
+    }
+
+    fn record_step(&mut self, name: String, status: Option<u16>, passed: bool) {
+        self.step_summaries
+            .as_object_mut()
+            .expect("step summaries JSON must remain an object")
+            .insert(name, json!({ "status": status, "passed": passed }));
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct CheckResult {
     pub expression: String,
@@ -213,24 +267,20 @@ impl DocumentPlan {
         policy: &RuntimePolicy,
         cancelled: Option<&dyn Fn() -> bool>,
     ) -> Result<DocumentResult, RuntimeError> {
-        let mut variables = self.variables.clone();
-        let mut step_summaries = Map::new();
+        let mut state = ExecutionState::new(&self.variables);
         let mut results = Vec::with_capacity(self.steps.len());
         let mut session = ExecutionSession::new();
         for step in &self.steps {
-            let argv = resolve_argv(&step.argv, &variables)
+            let argv = resolve_argv(&step.argv, &state.variables)
                 .map_err(|e| RuntimeError::diagnostic("MDOK-E505", e, &step.name, "", None))?;
             let plan =
                 CurlPlan::parse(&argv, &policy.curl).map_err(|e| curl_error(e, &step.name))?;
             let response = plan
                 .execute_in_session_with_cancel(&policy.curl, &mut session, cancelled)
                 .map_err(|e| curl_error(e, &step.name))?;
+            let (variables_json, step_summaries) = state.context_values();
             let context = response
-                .evaluation_json_limited(
-                    &json!(variables),
-                    &Value::Object(step_summaries.clone()),
-                    policy.max_json_body_bytes,
-                )
+                .evaluation_json_limited(variables_json, step_summaries, policy.max_json_body_bytes)
                 .map_err(|e| body_error(e, &step.name))?;
             let mut checks = Vec::with_capacity(step.checks.len());
             let mut check_failure = None;
@@ -297,8 +347,7 @@ impl DocumentPlan {
                 }
             }
             if let Some(error) = check_failure {
-                let summary = json!({ "status": response.status, "passed": false });
-                step_summaries.insert(step.name.clone(), summary);
+                state.record_step(step.name.clone(), response.status, false);
                 let result = StepResult {
                     name: step.name.clone(),
                     response: Some(response),
@@ -310,7 +359,7 @@ impl DocumentPlan {
                 return Ok(DocumentResult {
                     path: self.path.clone(),
                     passed: false,
-                    variables,
+                    variables: state.variables,
                     steps: results,
                 });
             }
@@ -319,21 +368,16 @@ impl DocumentPlan {
                 let value = evaluate(&capture.compiled, &context).map_err(|e| {
                     RuntimeError::diagnostic(E_JMES_TYPE, e, &step.name, &capture.expression, None)
                 })?;
-                evaluated_captures.push((capture.expression.clone(), value));
+                evaluated_captures.push((capture.expression.as_str(), value));
             }
             let pending = collect_captures(
                 &evaluated_captures,
-                &variables,
+                &state.variables,
                 policy.allow_capture_override,
                 &step.name,
             )?;
-            for (key, value) in &pending {
-                variables.insert(key.clone(), value.clone());
-            }
-            step_summaries.insert(
-                step.name.clone(),
-                json!({ "status": response.status, "passed": true }),
-            );
+            state.commit_captures(&pending);
+            state.record_step(step.name.clone(), response.status, true);
             results.push(StepResult {
                 name: step.name.clone(),
                 response: Some(response),
@@ -345,7 +389,7 @@ impl DocumentPlan {
         Ok(DocumentResult {
             path: self.path.clone(),
             passed: true,
-            variables,
+            variables: state.variables,
             steps: results,
         })
     }
@@ -368,7 +412,7 @@ fn resolve_arg(arg: &str, variables: &BTreeMap<String, Value>) -> Result<String,
     mdok_template::render(arg, variables).map_err(|error| error.to_string())
 }
 fn collect_captures(
-    evaluated_captures: &[(String, Value)],
+    evaluated_captures: &[(&str, Value)],
     variables: &BTreeMap<String, Value>,
     allow_capture_override: bool,
     step: &str,
@@ -480,7 +524,7 @@ mod tests {
 
     #[test]
     fn invalid_capture_keys_use_collision_error() {
-        let captures = [("capture".to_owned(), json!({"bad-key": true}))];
+        let captures = [("capture", json!({"bad-key": true}))];
         let error = collect_captures(&captures, &BTreeMap::new(), false, "one").unwrap_err();
         assert_eq!(error.code(), E_CAPTURE_COLLISION);
     }
@@ -490,13 +534,13 @@ mod tests {
         let variables = [("token".to_owned(), json!("original"))]
             .into_iter()
             .collect();
-        let existing_collision = [("capture".to_owned(), json!({"token": "new"}))];
+        let existing_collision = [("capture", json!({"token": "new"}))];
         let error = collect_captures(&existing_collision, &variables, false, "one").unwrap_err();
         assert_eq!(error.code(), E_CAPTURE_COLLISION);
 
         let duplicate_pending = vec![
-            ("first".to_owned(), json!({"token": "first"})),
-            ("second".to_owned(), json!({"token": "second"})),
+            ("first", json!({"token": "first"})),
+            ("second", json!({"token": "second"})),
         ];
         let error =
             collect_captures(&duplicate_pending, &BTreeMap::new(), false, "one").unwrap_err();
@@ -510,6 +554,34 @@ mod tests {
     fn capture_names_are_validated() {
         assert!(valid_variable_name("token_1"));
         assert!(!valid_variable_name("1token"));
+    }
+
+    #[test]
+    fn execution_state_updates_json_snapshots_incrementally() {
+        let initial = [("request_id".to_owned(), json!("req-1"))]
+            .into_iter()
+            .collect();
+        let mut state = ExecutionState::new(&initial);
+        assert!(state.variables_json.is_none());
+        let (variables_json, step_summaries) = state.context_values();
+        assert_eq!(variables_json, &json!({"request_id": "req-1"}));
+        assert_eq!(step_summaries, &json!({}));
+
+        let pending = [("token".to_owned(), json!("abc"))].into_iter().collect();
+        state.commit_captures(&pending);
+        assert!(state.variables_json.is_none());
+        let (variables_json, _) = state.context_values();
+        assert_eq!(
+            variables_json,
+            &json!({"request_id": "req-1", "token": "abc"})
+        );
+        state.record_step("login".into(), Some(200), true);
+
+        assert_eq!(state.variables.get("token"), Some(&json!("abc")));
+        assert_eq!(
+            state.step_summaries,
+            json!({"login": {"status": 200, "passed": true}})
+        );
     }
 
     fn read_request(stream: &mut std::net::TcpStream) -> String {

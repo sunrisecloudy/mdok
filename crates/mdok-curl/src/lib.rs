@@ -587,7 +587,7 @@ impl CurlPlan {
                 "the command must begin with curl",
             ));
         }
-        let mut p = ParserState::new(policy.clone());
+        let mut p = ParserState::new(policy);
         let mut i = 1;
         while i < argv.len() {
             let raw = &argv[i];
@@ -1225,8 +1225,8 @@ impl CurlPlan {
 }
 
 #[derive(Clone, Debug)]
-struct ParserState {
-    policy: CurlPolicy,
+struct ParserState<'a> {
+    policy: &'a CurlPolicy,
     urls: Vec<String>,
     method: String,
     headers: Vec<(String, String)>,
@@ -1258,8 +1258,8 @@ struct ParserState {
     get: bool,
 }
 
-impl ParserState {
-    fn new(policy: CurlPolicy) -> Self {
+impl<'a> ParserState<'a> {
+    fn new(policy: &'a CurlPolicy) -> Self {
         Self {
             policy,
             urls: Vec::new(),
@@ -2116,5 +2116,20 @@ mod tests {
         assert!(denied_address(std::net::IpAddr::V4(
             std::net::Ipv4Addr::new(169, 254, 169, 254)
         )));
+    }
+
+    #[test]
+    fn parser_uses_caller_policy_for_gated_options() {
+        let policy = CurlPolicy::default();
+        let error = CurlPlan::parse(
+            &[
+                "curl".into(),
+                "--insecure".into(),
+                "https://example.test".into(),
+            ],
+            &policy,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, E_TLS);
     }
 }
