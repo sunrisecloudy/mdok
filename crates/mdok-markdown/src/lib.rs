@@ -2,8 +2,8 @@
 
 use comrak::{Arena, Options, nodes::NodeValue, parse_document as parse_comrak_document};
 use mdok_core::{
-    CapturePlan, CheckPlan, CurlSourcePlan, Diagnostic, DocumentPlan, SourceSpan, StepName,
-    StepPlan,
+    CapturePlan, CheckPlan, CurlSourcePlan, Diagnostic, DocumentPlan, ExecSourcePlan, SourceSpan,
+    StepName, StepPlan, StepSource,
 };
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -24,6 +24,13 @@ pub enum ExecutableBlock {
         span: SourceSpan,
     },
     Request {
+        info: FenceInfo,
+        name: StepName,
+        source: String,
+        heading_path: Vec<String>,
+        span: SourceSpan,
+    },
+    Exec {
         info: FenceInfo,
         name: StepName,
         source: String,
@@ -259,10 +266,34 @@ pub fn plan_document(document: &MarkdownDocument) -> Result<DocumentPlan, Markdo
                 plan.steps.push(StepPlan {
                     name: name.clone(),
                     heading_path: heading_path.clone(),
-                    curl: CurlSourcePlan {
+                    source: StepSource::Curl(CurlSourcePlan {
                         source: source.clone(),
                         span: span.clone(),
-                    },
+                    }),
+                    checks: Vec::new(),
+                    captures: Vec::new(),
+                    span: span.clone(),
+                });
+            }
+            ExecutableBlock::Exec {
+                name,
+                source,
+                heading_path,
+                span,
+                ..
+            } => {
+                if steps.contains_key(name) {
+                    return Err(MarkdownError::StepName(name.to_string()));
+                }
+                let index = plan.steps.len();
+                steps.insert(name.clone(), index);
+                plan.steps.push(StepPlan {
+                    name: name.clone(),
+                    heading_path: heading_path.clone(),
+                    source: StepSource::Exec(ExecSourcePlan {
+                        source: source.clone(),
+                        span: span.clone(),
+                    }),
                     checks: Vec::new(),
                     captures: Vec::new(),
                     span: span.clone(),
@@ -331,6 +362,26 @@ fn classify(
             let name = StepName::new(value.clone())
                 .map_err(|error| MarkdownError::StepName(error.to_string()))?;
             Ok(ExecutableBlock::Request {
+                info,
+                name,
+                source,
+                heading_path: headings,
+                span,
+            })
+        }
+        ("exec", []) => {
+            let value = info
+                .attributes
+                .get("name")
+                .ok_or_else(|| MarkdownError::Metadata("exec fence requires `name`".into()))?;
+            if info.attributes.len() != 1 {
+                return Err(MarkdownError::Metadata(
+                    "unknown exec fence attribute".into(),
+                ));
+            }
+            let name = StepName::new(value.clone())
+                .map_err(|error| MarkdownError::StepName(error.to_string()))?;
+            Ok(ExecutableBlock::Exec {
                 info,
                 name,
                 source,
@@ -506,6 +557,54 @@ mod tests {
             Value::String("https://example.test".into())
         );
         assert_eq!(plan.steps[0].checks[0].expression, "status == `200`");
+        assert!(matches!(&plan.steps[0].source, StepSource::Curl(_)));
+    }
+
+    #[test]
+    fn classifies_exec_and_preserves_checks_and_captures_in_core_plan() {
+        let source = "# Agent tools\n\n```exec mdok name=validate\nprintf '{\"ok\":true}'\n```\n\n```jmespath mdok check=validate\nsuccess == `true`\n```\n\n```jmespath mdok capture=validate\n{tool_ok: stdout_json.ok}\n```\n";
+        let document = parse_document(source, "test.md").unwrap();
+        assert_eq!(document.blocks.len(), 3);
+        let ExecutableBlock::Exec {
+            name,
+            source,
+            heading_path,
+            ..
+        } = &document.blocks[0]
+        else {
+            panic!("expected exec block");
+        };
+        assert_eq!(name.as_str(), "validate");
+        assert_eq!(source, "printf '{\"ok\":true}'\n");
+        assert_eq!(heading_path, &["Agent tools"]);
+
+        let plan = plan_document(&document).unwrap();
+        let StepSource::Exec(exec) = &plan.steps[0].source else {
+            panic!("expected typed exec source");
+        };
+        assert_eq!(exec.source, "printf '{\"ok\":true}'\n");
+        assert_eq!(plan.steps[0].checks.len(), 1);
+        assert_eq!(plan.steps[0].checks[0].expression, "success == `true`");
+        assert_eq!(plan.steps[0].captures.len(), 1);
+        assert_eq!(
+            plan.steps[0].captures[0].expression,
+            "{tool_ok: stdout_json.ok}"
+        );
+    }
+
+    #[test]
+    fn keeps_curl_and_exec_as_distinct_block_and_plan_sources() {
+        let source = "```curl mdok name=http\ncurl https://example.test\n```\n```exec mdok name=tool\nprintf ok\n```\n";
+        let document = parse_document(source, "test.md").unwrap();
+        assert!(matches!(
+            &document.blocks[0],
+            ExecutableBlock::Request { .. }
+        ));
+        assert!(matches!(&document.blocks[1], ExecutableBlock::Exec { .. }));
+
+        let plan = plan_document(&document).unwrap();
+        assert!(matches!(&plan.steps[0].source, StepSource::Curl(_)));
+        assert!(matches!(&plan.steps[1].source, StepSource::Exec(_)));
     }
 
     #[test]

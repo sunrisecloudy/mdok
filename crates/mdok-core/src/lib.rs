@@ -217,6 +217,37 @@ pub struct CurlSourcePlan {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExecSourcePlan {
+    /// Raw command text from the Markdown fence.  Tokenization and execution
+    /// policy belong to the command adapter, while the shared plan preserves
+    /// the exact source and its location.
+    pub source: String,
+    pub span: SourceSpan,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StepSource {
+    Curl(CurlSourcePlan),
+    Exec(ExecSourcePlan),
+}
+
+impl StepSource {
+    pub fn source(&self) -> &str {
+        match self {
+            Self::Curl(source) => &source.source,
+            Self::Exec(source) => &source.source,
+        }
+    }
+
+    pub fn span(&self) -> &SourceSpan {
+        match self {
+            Self::Curl(source) => &source.span,
+            Self::Exec(source) => &source.span,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckPlan {
     pub expression: String,
     pub span: SourceSpan,
@@ -241,7 +272,7 @@ impl CapturePlan {
 pub struct StepPlan {
     pub name: StepName,
     pub heading_path: Vec<String>,
-    pub curl: CurlSourcePlan,
+    pub source: StepSource,
     pub checks: Vec<CheckPlan>,
     pub captures: Vec<CapturePlan>,
     pub span: SourceSpan,
@@ -696,10 +727,10 @@ mod tests {
         StepPlan {
             name: StepName(name.into()),
             heading_path: Vec::new(),
-            curl: CurlSourcePlan {
+            source: StepSource::Curl(CurlSourcePlan {
                 source: "curl example.test".into(),
                 span: span(),
-            },
+            }),
             checks: Vec::new(),
             captures: Vec::new(),
             span: span(),
@@ -712,6 +743,24 @@ mod tests {
         assert!(StepName::new("1-login").is_err());
         assert!(StepName::new("variables").is_err());
         assert!(StepName::new("a".repeat(65)).is_err());
+    }
+
+    #[test]
+    fn step_source_keeps_curl_and_exec_typed() {
+        let curl = StepSource::Curl(CurlSourcePlan {
+            source: "curl https://example.test".into(),
+            span: span(),
+        });
+        let exec = StepSource::Exec(ExecSourcePlan {
+            source: "printf ok".into(),
+            span: span_at(10),
+        });
+
+        assert!(matches!(&curl, StepSource::Curl(_)));
+        assert!(matches!(&exec, StepSource::Exec(_)));
+        assert_eq!(curl.source(), "curl https://example.test");
+        assert_eq!(exec.source(), "printf ok");
+        assert_eq!(exec.span().byte_start, 10);
     }
 
     #[test]
