@@ -11,12 +11,13 @@ mkdir -p "$dist"
 stage=$(mktemp -d "$dist/.mdok-stage.XXXXXX")
 source_state=$(mktemp "$dist/.mdok-source-state.XXXXXX")
 source_tar=$(mktemp "$dist/.mdok-source-tar.XXXXXX")
+source_gzip=$(mktemp "$dist/.mdok-source-archive.XXXXXX")
 signing_key=${MDOK_SIGNING_KEY:-}
 public_key=${MDOK_SIGNING_PUBLIC_KEY:-$signing_key}
 require_signature=${MDOK_REQUIRE_SIGNATURE:-0}
 release_smoke=${MDOK_RELEASE_SMOKE:-0}
 allow_dirty=${MDOK_ALLOW_DIRTY_RELEASE:-0}
-cleanup() { rm -rf -- "$stage" "$source_state" "$source_tar"; }
+cleanup() { rm -rf -- "$stage" "$source_state" "$source_tar" "$source_gzip"; }
 trap cleanup EXIT HUP INT TERM
 
 case "$require_signature:$release_smoke:$allow_dirty" in
@@ -68,7 +69,8 @@ git -C "$root" archive \
   --format=tar \
   --prefix="mdok-$version-source/" \
   HEAD > "$source_tar"
-gzip -n < "$source_tar" > "$source_archive"
+gzip -n < "$source_tar" > "$source_gzip"
+mv -f "$source_gzip" "$source_archive"
 python3 - "$source_archive" "$version" <<'PY'
 import pathlib
 import sys

@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import os
 import stat
 import tarfile
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -60,10 +62,23 @@ def main() -> int:
     args = parser.parse_args()
     source = args.source.resolve()
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    if args.output.name.endswith(".zip"):
-        archive_zip(source, args.output, args.prefix)
-    else:
-        archive_tar(source, args.output, args.prefix)
+    temporary_file = tempfile.NamedTemporaryFile(
+        prefix=f".{args.output.name}.",
+        suffix=".tmp",
+        dir=args.output.parent,
+        delete=False,
+    )
+    temporary = Path(temporary_file.name)
+    temporary_file.close()
+    try:
+        if args.output.name.endswith(".zip"):
+            archive_zip(source, temporary, args.prefix)
+        else:
+            archive_tar(source, temporary, args.prefix)
+        os.replace(temporary, args.output)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     print(f"Wrote reproducible archive {args.output}")
     return 0
 

@@ -21,7 +21,7 @@ use mdok_report::{
 };
 use mdok_template::{
     Filter, PathPart, Template, TemplateError, TemplateExpression, TemplatePart,
-    lookup as lookup_template, render_expression,
+    lookup as lookup_template, render_expression_with_limit,
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -43,6 +43,13 @@ const EXIT_POLICY: u8 = 3;
 const EXIT_INTERNAL: u8 = 4;
 #[allow(dead_code)]
 const EXIT_INTERRUPTED: u8 = 130;
+const MAX_RENDERED_ARG_COUNT: usize = 256;
+const MAX_RENDERED_ARGUMENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_RENDERED_ARGV_BYTES: usize = 8 * 1024 * 1024;
+const MAX_CAPTURE_KEYS: usize = 256;
+const MAX_CAPTURE_DEPTH: usize = 32;
+const MAX_CAPTURE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_CAPTURE_TOTAL_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -755,15 +762,20 @@ fn emit_report(
             })?
         );
     } else if options.json_lines {
-        print!(
-            "{}",
-            report.json_lines().map_err(|error| {
-                cli_error(
-                    EXIT_INTERNAL,
-                    Diagnostic::error("MDOK-E800", "Event serialization failed", error.to_string()),
-                )
-            })?
-        );
+        let stdout = io::stdout();
+        let mut output = stdout.lock();
+        report.write_json_lines(&mut output).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Event serialization failed", error.to_string()),
+            )
+        })?;
+        output.flush().map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Event output failed", error.to_string()),
+            )
+        })?;
     } else {
         print!(
             "{}",
@@ -1402,6 +1414,13 @@ fn publish_captures(
 ) {
     let diagnostic_start = diagnostics.len();
     let mut published = BTreeMap::new();
+    let mut total_capture_bytes = variables
+        .values()
+        .try_fold(0usize, |total, variable| {
+            let size = serde_json::to_vec(&variable.value).ok()?.len();
+            total.checked_add(size)
+        })
+        .unwrap_or(usize::MAX);
     for expression in captures {
         let compiled = match compiled_jmespath(compiled_expressions, expression) {
             Ok(compiled) => compiled,
@@ -1425,7 +1444,20 @@ fn publish_captures(
                 continue;
             }
         };
-        let json: Value = match serde_json::from_str(&result.to_string()) {
+        let serialized = result.to_string();
+        if serialized.len() > MAX_CAPTURE_BYTES {
+            diagnostics.push(
+                Diagnostic::error(
+                    "MDOK-E700",
+                    "Capture resource limit exceeded",
+                    format!("capture result exceeds {MAX_CAPTURE_BYTES} bytes"),
+                )
+                .at_file(path)
+                .at_step(step_name.to_string()),
+            );
+            continue;
+        }
+        let json: Value = match serde_json::from_str(&serialized) {
             Ok(value) => value,
             Err(error) => {
                 diagnostics.push(
@@ -1452,6 +1484,36 @@ fn publish_captures(
             );
             continue;
         };
+        if object.len() > MAX_CAPTURE_KEYS || value_depth(&json) > MAX_CAPTURE_DEPTH {
+            diagnostics.push(
+                Diagnostic::error(
+                    "MDOK-E700",
+                    "Capture resource limit exceeded",
+                    format!(
+                        "capture must contain at most {MAX_CAPTURE_KEYS} keys and depth {MAX_CAPTURE_DEPTH}"
+                    ),
+                )
+                .at_file(path)
+                .at_step(step_name.to_string()),
+            );
+            continue;
+        }
+        if total_capture_bytes
+            .checked_add(serialized.len())
+            .is_none_or(|size| size > MAX_CAPTURE_TOTAL_BYTES)
+        {
+            diagnostics.push(
+                Diagnostic::error(
+                    "MDOK-E700",
+                    "Capture resource limit exceeded",
+                    format!("captured variables exceed {MAX_CAPTURE_TOTAL_BYTES} bytes"),
+                )
+                .at_file(path)
+                .at_step(step_name.to_string()),
+            );
+            continue;
+        }
+        total_capture_bytes += serialized.len();
         for (key, value) in object {
             if !valid_name(key) {
                 diagnostics.push(
@@ -2135,7 +2197,12 @@ fn read_bounded_source<R: Read>(reader: R) -> Result<Vec<u8>, SourceReadError> {
 }
 
 fn markdown_diagnostic(error: &MarkdownError, path: &Path) -> Diagnostic {
-    Diagnostic::error(error.code(), "Markdown planning error", error.to_string()).at_file(path)
+    let title = if error.code() == "MDOK-E700" {
+        "Markdown resource limit exceeded"
+    } else {
+        "Markdown planning error"
+    };
+    Diagnostic::error(error.code(), title, error.to_string()).at_file(path)
 }
 
 fn jmespath_expressions(body: &str, capture: bool) -> Vec<String> {
@@ -2360,24 +2427,61 @@ fn normalize_command(
     redact_secrets: bool,
     preserve_missing: bool,
 ) -> Vec<String> {
-    tokens
-        .iter()
-        .enumerate()
-        .map(|(index, token)| {
-            let parsed = templates
-                .and_then(|templates| templates.get(index))
-                .and_then(Option::as_ref);
-            render_templates(
-                token,
-                parsed,
-                variables,
-                path,
-                diagnostics,
-                redact_secrets,
-                preserve_missing,
+    if tokens.len() > MAX_RENDERED_ARG_COUNT {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E405",
+                "Command argv limit exceeded",
+                format!("command has more than {MAX_RENDERED_ARG_COUNT} arguments"),
             )
-        })
-        .collect()
+            .at_file(path),
+        );
+        return Vec::new();
+    }
+    let mut rendered_tokens = Vec::with_capacity(tokens.len());
+    let mut total_bytes = 0usize;
+    for (index, token) in tokens.iter().enumerate() {
+        let parsed = templates
+            .and_then(|templates| templates.get(index))
+            .and_then(Option::as_ref);
+        let rendered = render_templates(
+            token,
+            parsed,
+            variables,
+            path,
+            diagnostics,
+            redact_secrets,
+            preserve_missing,
+            MAX_RENDERED_ARGUMENT_BYTES,
+        );
+        if rendered.len() > MAX_RENDERED_ARGUMENT_BYTES {
+            diagnostics.push(
+                Diagnostic::error(
+                    "MDOK-E405",
+                    "Command argv limit exceeded",
+                    format!("one argument exceeds {MAX_RENDERED_ARGUMENT_BYTES} bytes"),
+                )
+                .at_file(path),
+            );
+            return Vec::new();
+        }
+        total_bytes = match total_bytes.checked_add(rendered.len()) {
+            Some(total) if total <= MAX_RENDERED_ARGV_BYTES => total,
+            _ => {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "MDOK-E405",
+                        "Command argv limit exceeded",
+                        format!("command argv exceeds {MAX_RENDERED_ARGV_BYTES} bytes"),
+                    )
+                    .at_file(path),
+                );
+                return Vec::new();
+            }
+        };
+        rendered_tokens.push(rendered);
+    }
+    rendered_tokens
 }
 
 fn positional_args(tokens: &[String]) -> Vec<&String> {
@@ -2464,9 +2568,21 @@ fn render_templates(
     diagnostics: &mut Vec<Diagnostic>,
     redact_secrets: bool,
     preserve_missing: bool,
+    max_bytes: usize,
 ) -> String {
     if !input.contains("{{") {
-        return input.to_owned();
+        if input.len() <= max_bytes {
+            return input.to_owned();
+        }
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E405",
+                "Command argv limit exceeded",
+                format!("one argument exceeds {max_bytes} bytes"),
+            )
+            .at_file(path),
+        );
+        return "[TEMPLATE_LIMIT]".to_string();
     }
     if let Some(parsed) = parsed_template {
         return render_parsed_template(
@@ -2476,6 +2592,7 @@ fn render_templates(
             diagnostics,
             redact_secrets,
             preserve_missing,
+            max_bytes,
         );
     }
     let parsed = match Template::parse(input) {
@@ -2492,6 +2609,7 @@ fn render_templates(
         diagnostics,
         redact_secrets,
         preserve_missing,
+        max_bytes,
     )
 }
 
@@ -2502,17 +2620,27 @@ fn render_parsed_template(
     diagnostics: &mut Vec<Diagnostic>,
     redact_secrets: bool,
     preserve_missing: bool,
+    max_bytes: usize,
 ) -> String {
     let values = variables_to_value_map(variables);
-    let mut output = String::new();
+    let mut output = String::with_capacity(parsed.source.len().min(max_bytes));
     for part in &parsed.parts {
         match part {
-            TemplatePart::Literal(value) => output.push_str(value),
+            TemplatePart::Literal(value) => {
+                if !append_rendered_text(&mut output, value, max_bytes) {
+                    push_render_limit_diagnostic(path, diagnostics, max_bytes);
+                    return "[TEMPLATE_LIMIT]".to_string();
+                }
+            }
             TemplatePart::Expression(expression) => {
                 let root = template_root(expression);
                 let Some(_variable) = variables.get(root) else {
                     if preserve_missing {
-                        output.push_str(&format_expression(expression));
+                        let formatted = format_expression(expression);
+                        if !append_rendered_text(&mut output, &formatted, max_bytes) {
+                            push_render_limit_diagnostic(path, diagnostics, max_bytes);
+                            return "[TEMPLATE_LIMIT]".to_string();
+                        }
                     } else {
                         diagnostics.push(
                             Diagnostic::error(
@@ -2522,29 +2650,67 @@ fn render_parsed_template(
                             )
                             .at_file(path),
                         );
-                        output.push_str("[MISSING_VARIABLE]");
+                        if !append_rendered_text(&mut output, "[MISSING_VARIABLE]", max_bytes) {
+                            push_render_limit_diagnostic(path, diagnostics, max_bytes);
+                            return "[TEMPLATE_LIMIT]".to_string();
+                        }
                     }
                     continue;
                 };
+                let remaining = max_bytes.saturating_sub(output.len());
                 match lookup_template(&values, &expression.path).and_then(|value| {
-                    render_expression(expression, &values).map(|rendered| (value, rendered))
+                    render_expression_with_limit(expression, &values, remaining)
+                        .map(|rendered| (value, rendered))
                 }) {
                     Ok((_, _rendered))
                         if redact_secrets
                             && template_expression_is_secret(expression, variables) =>
                     {
-                        output.push_str("[REDACTED]");
+                        if !append_rendered_text(&mut output, "[REDACTED]", max_bytes) {
+                            push_render_limit_diagnostic(path, diagnostics, max_bytes);
+                            return "[TEMPLATE_LIMIT]".to_string();
+                        }
                     }
-                    Ok((_, rendered)) => output.push_str(&rendered),
+                    Ok((_, rendered)) => {
+                        if !append_rendered_text(&mut output, &rendered, max_bytes) {
+                            push_render_limit_diagnostic(path, diagnostics, max_bytes);
+                            return "[TEMPLATE_LIMIT]".to_string();
+                        }
+                    }
                     Err(error) => {
                         push_template_error(error, path, diagnostics);
-                        output.push_str("[INVALID_TEMPLATE]");
+                        if !append_rendered_text(&mut output, "[INVALID_TEMPLATE]", max_bytes) {
+                            push_render_limit_diagnostic(path, diagnostics, max_bytes);
+                            return "[TEMPLATE_LIMIT]".to_string();
+                        }
                     }
                 }
             }
         }
     }
     output
+}
+
+fn append_rendered_text(output: &mut String, value: &str, max_bytes: usize) -> bool {
+    let Some(total) = output.len().checked_add(value.len()) else {
+        return false;
+    };
+    if total > max_bytes {
+        return false;
+    }
+    output.push_str(value);
+    true
+}
+
+fn push_render_limit_diagnostic(path: &Path, diagnostics: &mut Vec<Diagnostic>, max_bytes: usize) {
+    diagnostics.push(
+        Diagnostic::error(
+            "MDOK-E405",
+            "Command argv limit exceeded",
+            format!("rendered argument exceeds {max_bytes} bytes"),
+        )
+        .at_file(path),
+    );
 }
 
 fn is_secret_name(name: &str) -> bool {
@@ -2651,7 +2817,10 @@ fn expression_mentions_secret(expression: &str, variables: &BTreeMap<String, Var
 
 fn value_contains_known_secret(value: &Value, secrets: &[String]) -> bool {
     match value {
-        Value::String(text) => secrets.iter().any(|secret| secret == text),
+        Value::String(text) => secrets
+            .iter()
+            .filter(|secret| !secret.is_empty())
+            .any(|secret| text == secret || text.contains(secret)),
         Value::Array(items) => items
             .iter()
             .any(|item| value_contains_known_secret(item, secrets)),
@@ -2662,13 +2831,43 @@ fn value_contains_known_secret(value: &Value, secrets: &[String]) -> bool {
     }
 }
 
+fn value_depth(value: &Value) -> usize {
+    value_depth_limited(value, MAX_CAPTURE_DEPTH + 1)
+}
+
+fn value_depth_limited(value: &Value, remaining: usize) -> usize {
+    if remaining == 0 {
+        return MAX_CAPTURE_DEPTH + 1;
+    }
+    match value {
+        Value::Array(items) => {
+            1 + items
+                .iter()
+                .map(|item| value_depth_limited(item, remaining - 1))
+                .max()
+                .unwrap_or(0)
+        }
+        Value::Object(object) => {
+            1 + object
+                .values()
+                .map(|item| value_depth_limited(item, remaining - 1))
+                .max()
+                .unwrap_or(0)
+        }
+        _ => 1,
+    }
+}
+
 fn capture_result_is_secret(
     expression: &str,
     result: &Value,
     variables: &BTreeMap<String, Variable>,
     context: &Value,
 ) -> bool {
-    if expression_mentions_secret(expression, variables) || value_contains_secret_field(result) {
+    if context.get("secret_tainted").and_then(Value::as_bool) == Some(true)
+        || expression_mentions_secret(expression, variables)
+        || value_contains_secret_field(result)
+    {
         return true;
     }
     let mut known_secrets = collect_secret_values(variables);
@@ -2763,9 +2962,9 @@ fn validate_template_token(
             );
             continue;
         }
-        if let Err(error) = lookup_template(values, &expression.path)
-            .and_then(|_| render_expression(expression, values))
-        {
+        if let Err(error) = lookup_template(values, &expression.path).and_then(|_| {
+            render_expression_with_limit(expression, values, MAX_RENDERED_ARGUMENT_BYTES)
+        }) {
             let before = diagnostics.len();
             push_template_error(error, path, diagnostics);
             if diagnostics.len() > before
@@ -3881,7 +4080,12 @@ fn parse_duration(value: &str) -> Result<Duration, Box<CliError>> {
             Diagnostic::error("MDOK-E001", "Invalid duration", value.to_string()),
         ));
     }
-    Ok(Duration::from_secs_f64(seconds))
+    Duration::try_from_secs_f64(seconds).map_err(|_| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error("MDOK-E001", "Invalid duration", value.to_string()),
+        )
+    })
 }
 
 fn write_text(path: &Path, text: &str) -> Result<(), std::io::Error> {
@@ -3990,6 +4194,91 @@ mod tests {
             Redactor::new(collect_secret_values(&variables)).redact_text("nested-secret"),
             "[REDACTED]"
         );
+    }
+
+    #[test]
+    fn rendered_argv_has_aggregate_count_and_byte_limits() {
+        let tokens = (0..=MAX_RENDERED_ARG_COUNT)
+            .map(|index| {
+                if index == 0 {
+                    "curl".to_string()
+                } else {
+                    "value".to_string()
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut diagnostics = Vec::new();
+        assert!(
+            normalize_command(
+                &tokens,
+                None,
+                &BTreeMap::new(),
+                Path::new("argv.md"),
+                &mut diagnostics,
+                false,
+                false,
+            )
+            .is_empty()
+        );
+        assert_eq!(diagnostics.last().unwrap().code, "MDOK-E405");
+
+        let value = "x".repeat(1024 * 1024);
+        let variables = [(
+            "value".to_string(),
+            Variable {
+                value: Value::String(value),
+                secret: false,
+            },
+        )]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let template = Template::parse("{{value}}").unwrap();
+        let tokens = std::iter::once("curl".to_string())
+            .chain((0..9).map(|_| "{{value}}".to_string()))
+            .collect::<Vec<_>>();
+        let templates = std::iter::once(None)
+            .chain((0..9).map(|_| Some(template.clone())))
+            .collect::<Vec<_>>();
+        let mut diagnostics = Vec::new();
+        assert!(
+            normalize_command(
+                &tokens,
+                Some(&templates),
+                &variables,
+                Path::new("argv-bytes.md"),
+                &mut diagnostics,
+                false,
+                false,
+            )
+            .is_empty()
+        );
+        assert_eq!(diagnostics.last().unwrap().code, "MDOK-E405");
+    }
+
+    #[test]
+    fn derived_capture_values_remain_secret_tainted_and_bounded() {
+        assert!(value_contains_known_secret(
+            &json!("prefix-nested-secret-suffix"),
+            &["nested-secret".to_string()]
+        ));
+        let context = json!({"secret_tainted": true});
+        assert!(capture_result_is_secret(
+            "join(@, `x`)",
+            &json!({"value": "derived"}),
+            &BTreeMap::new(),
+            &context,
+        ));
+        let mut nested = json!("leaf");
+        for _ in 0..=MAX_CAPTURE_DEPTH {
+            nested = json!({"nested": nested});
+        }
+        assert!(value_depth(&nested) > MAX_CAPTURE_DEPTH);
+    }
+
+    #[test]
+    fn oversized_cli_durations_are_normal_input_errors() {
+        let error = parse_duration("1e300").unwrap_err();
+        assert_eq!(error.diagnostic.code, "MDOK-E001");
     }
 
     #[test]

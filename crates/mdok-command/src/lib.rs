@@ -163,6 +163,10 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
     let mut timed_out = false;
     let mut output_limit_exceeded = false;
     let status = loop {
+        if Instant::now() >= deadline {
+            timed_out = true;
+            break reap_group_with_deadline(child, None, deadline)?;
+        }
         if let Some(status) = child
             .try_wait()
             .map_err(|error| CommandError::new(E_START, format!("could not poll child: {error}")))?
@@ -171,10 +175,6 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
         }
         if output_state.truncated.load(Ordering::Acquire) {
             output_limit_exceeded = true;
-            break reap_group_with_deadline(child, None, deadline)?;
-        }
-        if Instant::now() >= deadline {
-            timed_out = true;
             break reap_group_with_deadline(child, None, deadline)?;
         }
         thread::sleep(Duration::from_millis(2));
@@ -643,6 +643,14 @@ mod tests {
         let mut output = policy();
         output.max_output_bytes = 0;
         assert_eq!(run(&["fixture".into()], &output).unwrap_err().code, E_LIMIT);
+    }
+
+    #[test]
+    fn checks_deadline_before_accepting_a_completed_leader() {
+        let mut command = policy();
+        command.timeout = Duration::from_nanos(1);
+        let error = run(&["fixture".into(), "--list".into()], &command).unwrap_err();
+        assert_eq!(error.code, E_TIMEOUT);
     }
 
     #[test]
