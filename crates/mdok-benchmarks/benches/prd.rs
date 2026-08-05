@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::{self, JoinHandle};
@@ -209,6 +210,41 @@ fn shell_parse(c: &mut Criterion) {
             BenchmarkId::new("workload", label),
             &source,
             |bench, source| bench.iter(|| black_box(mdok_shell::parse(black_box(source)).unwrap())),
+        );
+    }
+    let special_cases: [(&str, String); 4] = [
+        (
+            "unicode",
+            "curl --header 'X-Mdok: Grüßé こんにちは 🌱' https://example.test/items".to_owned(),
+        ),
+        (
+            "escaped_quotes",
+            r#"curl --header "X-Mdok: say \"hello\" and \\path" https://example.test/items"#
+                .to_owned(),
+        ),
+        ("template_masks", shell_source(32, 128)),
+        (
+            "source_map_translation",
+            "curl --header \"X-Mdok: first\\\n{{value|header}}\" https://example.test/items"
+                .to_owned(),
+        ),
+    ];
+    for (label, source) in special_cases {
+        group.throughput(Throughput::Bytes(source.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::new("special", label),
+            &source,
+            |bench, source| {
+                bench.iter(|| {
+                    black_box(
+                        mdok_shell::parse_with_path(
+                            black_box(source),
+                            PathBuf::from("<bench>/shell.md"),
+                        )
+                        .unwrap(),
+                    )
+                })
+            },
         );
     }
     group.finish();
