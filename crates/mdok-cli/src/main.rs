@@ -264,6 +264,7 @@ struct DocumentPlan {
     path: PathBuf,
     steps: Vec<StepPlan>,
     variables: BTreeMap<String, Variable>,
+    jmespath: BTreeMap<String, jmespath::Expression<'static>>,
 }
 
 #[derive(Clone, Debug)]
@@ -271,6 +272,7 @@ struct StepPlan {
     name: String,
     command: Vec<String>,
     raw_tokens: Vec<String>,
+    templates: Vec<Option<Template>>,
     checks: Vec<String>,
     captures: Vec<String>,
 }
@@ -832,6 +834,7 @@ where
         let tokens = &step.raw_tokens;
         let rendered_command = normalize_command(
             tokens,
+            Some(&step.templates),
             &variables,
             &plan.path,
             &mut report.diagnostics,
@@ -841,6 +844,7 @@ where
         let mut display_diagnostics = Vec::new();
         report.command = normalize_command(
             tokens,
+            Some(&step.templates),
             &variables,
             &plan.path,
             &mut display_diagnostics,
@@ -871,7 +875,9 @@ where
         ) {
             Ok(context) => {
                 for expression in &step.checks {
-                    match evaluate_check(expression, &context) {
+                    let result = compiled_jmespath(&plan.jmespath, expression)
+                        .and_then(|compiled| evaluate_check(compiled, &context));
+                    match result {
                         Ok(result) if result => report.checks.push(CheckReport {
                             expression: expression.clone(),
                             status: Status::Passed,
@@ -915,6 +921,7 @@ where
                         &step.captures,
                         &context,
                         &mut variables,
+                        &plan.jmespath,
                         &plan.path,
                         &step.name,
                         &mut report.diagnostics,
@@ -1025,6 +1032,7 @@ fn publish_captures(
     captures: &[String],
     context: &Value,
     variables: &mut BTreeMap<String, Variable>,
+    compiled_expressions: &BTreeMap<String, jmespath::Expression<'static>>,
     path: &Path,
     step_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1032,30 +1040,18 @@ fn publish_captures(
     let diagnostic_start = diagnostics.len();
     let mut published = BTreeMap::new();
     for expression in captures {
-        let normalized_expression = normalize_jmespath(expression);
-        let compiled = match jmespath::compile(&normalized_expression) {
+        let compiled = match compiled_jmespath(compiled_expressions, expression) {
             Ok(compiled) => compiled,
             Err(error) => {
                 diagnostics.push(
-                    Diagnostic::error("MDOK-E500", "Invalid capture", error.to_string())
+                    Diagnostic::error("MDOK-E501", "Capture expression unavailable", error)
                         .at_file(path)
                         .at_step(step_name.to_string()),
                 );
                 continue;
             }
         };
-        let input = match jmespath::Variable::try_from(context.clone()) {
-            Ok(input) => input,
-            Err(error) => {
-                diagnostics.push(
-                    Diagnostic::error("MDOK-E501", "Capture context error", error.to_string())
-                        .at_file(path)
-                        .at_step(step_name.to_string()),
-                );
-                continue;
-            }
-        };
-        let result = match compiled.search(input) {
+        let result = match compiled.search(context) {
             Ok(result) => result,
             Err(error) => {
                 diagnostics.push(
@@ -1132,14 +1128,22 @@ fn publish_captures(
     }
 }
 
-fn evaluate_check(expression: &str, context: &Value) -> Result<bool, String> {
-    let normalized_expression = normalize_jmespath(expression);
-    let expression =
-        jmespath::compile(&normalized_expression).map_err(|error| error.to_string())?;
-    let variable =
-        jmespath::Variable::try_from(context.clone()).map_err(|error| error.to_string())?;
+fn compiled_jmespath<'a>(
+    compiled_expressions: &'a BTreeMap<String, jmespath::Expression<'static>>,
+    source: &str,
+) -> Result<&'a jmespath::Expression<'static>, String> {
+    let normalized = normalize_jmespath(source);
+    compiled_expressions
+        .get(&normalized)
+        .ok_or_else(|| format!("compiled JMESPath expression is missing: {normalized}"))
+}
+
+fn evaluate_check(
+    expression: &jmespath::Expression<'static>,
+    context: &Value,
+) -> Result<bool, String> {
     let result = expression
-        .search(variable)
+        .search(context)
         .map_err(|error| error.to_string())?;
     result
         .as_boolean()
@@ -1438,6 +1442,7 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                             name,
                             command: tokens,
                             raw_tokens: Vec::new(),
+                            templates: Vec::new(),
                             checks: Vec::new(),
                             captures: Vec::new(),
                         });
@@ -1486,13 +1491,6 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                     continue;
                 };
                 for expression in jmespath_expressions(&fence.body, capture) {
-                    let normalized_expression = normalize_jmespath(&expression);
-                    if let Err(error) = jmespath::compile(&normalized_expression) {
-                        diagnostics.push(
-                            Diagnostic::error("MDOK-E500", "Invalid JMESPath", error.to_string())
-                                .at_file(path),
-                        );
-                    }
                     if capture {
                         step.captures.push(expression.to_string());
                     } else {
@@ -1540,8 +1538,27 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             );
         }
         let mut ignored = Vec::new();
-        step.command = normalize_command(&tokens, &variables, path, &mut ignored, true, true);
+        let templates = tokens
+            .iter()
+            .map(|token| {
+                if token.contains("{{") {
+                    Template::parse(token).ok()
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        step.command = normalize_command(
+            &tokens,
+            Some(&templates),
+            &variables,
+            path,
+            &mut ignored,
+            true,
+            true,
+        );
         step.raw_tokens = tokens;
+        step.templates = templates;
         if has_url_glob(&step.command) {
             diagnostics.push(
                 Diagnostic::error(
@@ -1567,6 +1584,7 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
         path: path.to_path_buf(),
         steps,
         variables,
+        jmespath: BTreeMap::new(),
     };
     if diagnostics
         .iter()
@@ -1606,6 +1624,26 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             plan.steps = authoritative_steps;
         }
     }
+    let mut compiled_expressions = BTreeMap::new();
+    for step in &plan.steps {
+        for expression in step.checks.iter().chain(step.captures.iter()) {
+            let normalized = normalize_jmespath(expression);
+            if compiled_expressions.contains_key(&normalized) {
+                continue;
+            }
+            match jmespath::compile(&normalized) {
+                Ok(compiled) => {
+                    compiled_expressions.insert(normalized, compiled);
+                }
+                Err(error) => diagnostics.push(
+                    Diagnostic::error("MDOK-E500", "Invalid JMESPath", error.to_string())
+                        .at_file(path)
+                        .at_step(step.name.clone()),
+                ),
+            }
+        }
+    }
+    plan.jmespath = compiled_expressions;
     for step in &plan.steps {
         for url in positional_args(&step.command) {
             if let Ok(url) = Url::parse(url)
@@ -1766,6 +1804,7 @@ fn has_url_glob(tokens: &[String]) -> bool {
 
 fn normalize_command(
     tokens: &[String],
+    templates: Option<&[Option<Template>]>,
     variables: &BTreeMap<String, Variable>,
     path: &Path,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1774,9 +1813,14 @@ fn normalize_command(
 ) -> Vec<String> {
     tokens
         .iter()
-        .map(|token| {
+        .enumerate()
+        .map(|(index, token)| {
+            let parsed = templates
+                .and_then(|templates| templates.get(index))
+                .and_then(Option::as_ref);
             render_templates(
                 token,
+                parsed,
                 variables,
                 path,
                 diagnostics,
@@ -1865,12 +1909,26 @@ fn positional_args(tokens: &[String]) -> Vec<&String> {
 
 fn render_templates(
     input: &str,
+    parsed_template: Option<&Template>,
     variables: &BTreeMap<String, Variable>,
     path: &Path,
     diagnostics: &mut Vec<Diagnostic>,
     redact_secrets: bool,
     preserve_missing: bool,
 ) -> String {
+    if !input.contains("{{") {
+        return input.to_owned();
+    }
+    if let Some(parsed) = parsed_template {
+        return render_parsed_template(
+            parsed,
+            variables,
+            path,
+            diagnostics,
+            redact_secrets,
+            preserve_missing,
+        );
+    }
     let parsed = match Template::parse(input) {
         Ok(template) => template,
         Err(error) => {
@@ -1878,6 +1936,24 @@ fn render_templates(
             return "[INVALID_TEMPLATE]".to_string();
         }
     };
+    render_parsed_template(
+        &parsed,
+        variables,
+        path,
+        diagnostics,
+        redact_secrets,
+        preserve_missing,
+    )
+}
+
+fn render_parsed_template(
+    parsed: &Template,
+    variables: &BTreeMap<String, Variable>,
+    path: &Path,
+    diagnostics: &mut Vec<Diagnostic>,
+    redact_secrets: bool,
+    preserve_missing: bool,
+) -> String {
     let values = variables_to_value_map(variables);
     let mut output = String::new();
     for part in &parsed.parts {
