@@ -27,6 +27,7 @@ rust-version = "1.85"
 anyhow = "1"
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
+command-group = "5.0.1"
 comrak = "0.54"
 jmespath = { version = "0.5", features = ["sync"] }
 percent-encoding = "2"

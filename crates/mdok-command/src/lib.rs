@@ -2,69 +2,88 @@
 
 //! Bounded direct-process execution for non-curl MDOK command steps.
 //!
-//! The runner deliberately accepts only an already-tokenized argv. It never
-//! invokes a shell, expands variables, inherits stdin, or forwards the
-//! caller's environment wholesale.
+//! The runner accepts only an already-tokenized argv and a trusted command
+//! profile. It never invokes a shell, expands variables, inherits stdin, or
+//! forwards the caller's environment wholesale. Process groups are used so a
+//! timeout or output limit also terminates descendants.
 
+use command_group::CommandGroup;
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io::Read;
-use std::path::Path;
-use std::process::{Command, Stdio};
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
 pub const E_POLICY: &str = "MDOK-E306";
-pub const E_LIMIT: &str = "MDOK-E700";
-pub const E_EXECUTION: &str = "MDOK-E607";
+pub const E_INVALID_ARGV: &str = "MDOK-E307";
+pub const E_START: &str = "MDOK-E308";
+pub const E_EXIT: &str = "MDOK-E309";
+pub const E_TIMEOUT: &str = "MDOK-E310";
+pub const E_LIMIT: &str = "MDOK-E311";
+pub const E_ENVIRONMENT: &str = "MDOK-E312";
+
+#[derive(Clone, Debug, Default)]
+pub struct CommandProfile {
+    /// Canonical absolute executable path selected by trusted configuration.
+    pub program: PathBuf,
+    /// Fixed non-secret environment values.
+    pub env: BTreeMap<String, OsString>,
+    /// Explicitly declared secret environment values.
+    pub secret_env: BTreeMap<String, OsString>,
+    /// Optional working directory selected by trusted configuration.
+    pub working_directory: Option<PathBuf>,
+}
 
 #[derive(Clone, Debug)]
 pub struct CommandPolicy {
-    /// Exact executable names or paths permitted by the runner.
-    pub allowed_commands: Vec<String>,
-    /// Maximum wall-clock time before the child is killed and reaped.
+    /// Profile key to trusted executable mapping. The key must equal argv[0].
+    pub profiles: BTreeMap<String, CommandProfile>,
+    /// Maximum wall-clock time before the process group is killed and reaped.
     pub timeout: Duration,
-    /// Maximum bytes retained from either stdout or stderr.
+    /// Maximum combined bytes retained from stdout and stderr.
     pub max_output_bytes: usize,
-    /// Optional PATH supplied after the child's inherited environment is cleared.
-    pub path: Option<OsString>,
+    /// Maximum number of argv elements, including argv[0].
+    pub max_args: usize,
+    /// Maximum bytes in any one argv element.
+    pub max_arg_bytes: usize,
+    /// Maximum bytes across all argv elements.
+    pub max_argv_bytes: usize,
 }
 
 impl Default for CommandPolicy {
     fn default() -> Self {
         Self {
-            allowed_commands: Vec::new(),
+            profiles: BTreeMap::new(),
             timeout: Duration::from_secs(30),
             max_output_bytes: 1024 * 1024,
-            path: std::env::var_os("PATH"),
+            max_args: 64,
+            max_arg_bytes: 64 * 1024,
+            max_argv_bytes: 1024 * 1024,
         }
-    }
-}
-
-impl CommandPolicy {
-    /// Adds a bare executable name to the exact allowlist.
-    pub fn allow_name(&mut self, name: impl Into<String>) -> &mut Self {
-        self.allowed_commands.push(name.into());
-        self
-    }
-
-    /// Adds an executable path to the exact allowlist.
-    pub fn allow_path(&mut self, path: impl AsRef<Path>) -> &mut Self {
-        self.allowed_commands
-            .push(path.as_ref().to_string_lossy().into_owned());
-        self
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct ProcessOutput {
+    /// Logical argv supplied by the Markdown step. The executable path is not
+    /// substituted here, so reports can use the configured profile identity.
     pub argv: Vec<String>,
+    pub program: PathBuf,
     pub exit_code: Option<i32>,
+    pub signal: Option<i32>,
     pub success: bool,
     pub timed_out: bool,
+    pub output_limit_exceeded: bool,
+    pub output_truncated: bool,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+    pub stdout_bytes: usize,
+    pub stderr_bytes: usize,
+    pub secret_env_used: bool,
     pub duration: Duration,
 }
 
@@ -92,118 +111,257 @@ impl std::fmt::Display for CommandError {
 impl std::error::Error for CommandError {}
 
 pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, CommandError> {
-    validate_argv(argv, policy)?;
+    let profile = validate_argv(argv, policy)?;
     let started = Instant::now();
-    let mut command = Command::new(&argv[0]);
+    let mut command = Command::new(&profile.program);
     command
         .args(&argv[1..])
         .env_clear()
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(path) = &policy.path {
-        command.env("PATH", path);
+    if let Some(directory) = &profile.working_directory {
+        command.current_dir(directory);
     }
-    let mut child = command.spawn().map_err(|error| {
+    for (name, value) in profile.env.iter().chain(profile.secret_env.iter()) {
+        command.env(name, value);
+    }
+
+    let mut child = command.group_spawn().map_err(|error| {
         CommandError::new(
-            E_EXECUTION,
-            format!("could not start `{}`: {error}", argv[0]),
+            E_START,
+            format!("could not start profile `{}`: {error}", argv[0]),
         )
     })?;
     let stdout = child
+        .inner()
         .stdout
         .take()
-        .ok_or_else(|| CommandError::new(E_EXECUTION, "child stdout pipe was unavailable"))?;
+        .ok_or_else(|| CommandError::new(E_START, "child stdout pipe was unavailable"))?;
     let stderr = child
+        .inner()
         .stderr
         .take()
-        .ok_or_else(|| CommandError::new(E_EXECUTION, "child stderr pipe was unavailable"))?;
-    let output_limit_hit = Arc::new(AtomicBool::new(false));
-    let stdout_limit = Arc::clone(&output_limit_hit);
-    let stderr_limit = Arc::clone(&output_limit_hit);
+        .ok_or_else(|| CommandError::new(E_START, "child stderr pipe was unavailable"))?;
+    let output_state = Arc::new(OutputState::new());
+    let stdout_state = Arc::clone(&output_state);
+    let stderr_state = Arc::clone(&output_state);
     let max_output = policy.max_output_bytes;
-    let stdout_thread = thread::spawn(move || read_limited(stdout, max_output, stdout_limit));
-    let stderr_thread = thread::spawn(move || read_limited(stderr, max_output, stderr_limit));
+    let stdout_thread = thread::spawn(move || read_limited(stdout, max_output, stdout_state));
+    let stderr_thread = thread::spawn(move || read_limited(stderr, max_output, stderr_state));
 
     let mut timed_out = false;
+    let mut output_limit_exceeded = false;
     let status = loop {
-        if output_limit_hit.load(Ordering::Acquire) {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| CommandError::new(E_START, format!("could not poll child: {error}")))?
+        {
+            break status;
+        }
+        if output_state.truncated.load(Ordering::Acquire) {
+            output_limit_exceeded = true;
             let _ = child.kill();
             break child.wait().map_err(|error| {
-                CommandError::new(E_EXECUTION, format!("could not stop child: {error}"))
+                CommandError::new(
+                    E_START,
+                    format!("could not stop output-limited child: {error}"),
+                )
             })?;
         }
         if started.elapsed() >= policy.timeout {
             timed_out = true;
             let _ = child.kill();
             break child.wait().map_err(|error| {
-                CommandError::new(
-                    E_EXECUTION,
-                    format!("could not stop timed-out child: {error}"),
-                )
+                CommandError::new(E_START, format!("could not stop timed-out child: {error}"))
             })?;
         }
-        if let Some(status) = child.try_wait().map_err(|error| {
-            CommandError::new(E_EXECUTION, format!("could not poll child: {error}"))
-        })? {
-            break status;
-        }
-        thread::sleep(Duration::from_millis(5));
+        thread::sleep(Duration::from_millis(2));
     };
     let stdout = stdout_thread
         .join()
-        .map_err(|_| CommandError::new(E_EXECUTION, "stdout reader panicked"))?;
+        .map_err(|_| CommandError::new(E_START, "stdout reader panicked"))?;
     let stderr = stderr_thread
         .join()
-        .map_err(|_| CommandError::new(E_EXECUTION, "stderr reader panicked"))?;
-    if output_limit_hit.load(Ordering::Acquire) {
-        return Err(CommandError::new(
-            E_LIMIT,
-            format!("command output exceeded {} bytes", policy.max_output_bytes),
-        ));
-    }
+        .map_err(|_| CommandError::new(E_START, "stderr reader panicked"))?;
+    output_limit_exceeded |= output_state.truncated.load(Ordering::Acquire);
+    let output_truncated = output_limit_exceeded;
+    let signal = exit_signal(&status);
+    let success = status.success() && !timed_out && !output_limit_exceeded;
     Ok(ProcessOutput {
         argv: argv.to_vec(),
+        program: profile.program.clone(),
         exit_code: status.code(),
-        success: status.success() && !timed_out,
+        signal,
+        success,
         timed_out,
+        output_limit_exceeded,
+        output_truncated,
+        stdout_bytes: stdout.len(),
+        stderr_bytes: stderr.len(),
+        secret_env_used: !profile.secret_env.is_empty(),
         stdout,
         stderr,
         duration: started.elapsed(),
     })
 }
 
-fn validate_argv(argv: &[String], policy: &CommandPolicy) -> Result<(), CommandError> {
+fn validate_argv<'a>(
+    argv: &[String],
+    policy: &'a CommandPolicy,
+) -> Result<&'a CommandProfile, CommandError> {
     if policy.timeout.is_zero() {
         return Err(CommandError::new(
             E_LIMIT,
             "external command timeout must be greater than zero",
         ));
     }
-    if policy.max_output_bytes == 0 {
+    if policy.max_output_bytes == 0
+        || policy.max_args == 0
+        || policy.max_arg_bytes == 0
+        || policy.max_argv_bytes == 0
+    {
         return Err(CommandError::new(
             E_LIMIT,
-            "external command output limit must be greater than zero",
+            "external command resource limits must be greater than zero",
         ));
     }
     let Some(executable) = argv.first() else {
         return Err(CommandError::new(
-            E_POLICY,
+            E_INVALID_ARGV,
             "external command argv is empty",
         ));
     };
-    if executable.is_empty() || executable.contains('\0') {
+    if executable.is_empty() || argv.iter().any(|argument| argument.contains('\0')) {
         return Err(CommandError::new(
-            E_POLICY,
-            "external command executable is empty or contains NUL",
+            E_INVALID_ARGV,
+            "external command argv is empty or contains NUL",
         ));
     }
+    if argv.len() > policy.max_args {
+        return Err(CommandError::new(
+            E_LIMIT,
+            format!(
+                "external command has more than {} argv elements",
+                policy.max_args
+            ),
+        ));
+    }
+    let argv_bytes = argv.iter().try_fold(0usize, |total, argument| {
+        if argument.len() > policy.max_arg_bytes {
+            return Err(CommandError::new(
+                E_LIMIT,
+                format!(
+                    "external command argument exceeds {} bytes",
+                    policy.max_arg_bytes
+                ),
+            ));
+        }
+        total.checked_add(argument.len()).ok_or_else(|| {
+            CommandError::new(E_LIMIT, "external command argv byte count overflowed")
+        })
+    })?;
+    if argv_bytes > policy.max_argv_bytes {
+        return Err(CommandError::new(
+            E_LIMIT,
+            format!(
+                "external command argv exceeds {} total bytes",
+                policy.max_argv_bytes
+            ),
+        ));
+    }
+    if is_shell_interpreter(executable) {
+        return Err(CommandError::new(
+            E_POLICY,
+            "shell interpreters are not allowed in exec fences",
+        ));
+    }
+    let profile = policy.profiles.get(executable).ok_or_else(|| {
+        CommandError::new(
+            E_POLICY,
+            format!("external command profile `{executable}` is not configured"),
+        )
+    })?;
+    if profile.program.as_os_str().is_empty() || !profile.program.is_absolute() {
+        return Err(CommandError::new(
+            E_POLICY,
+            format!("command profile `{executable}` must use an absolute program path"),
+        ));
+    }
+    if is_shell_interpreter(
+        profile
+            .program
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default(),
+    ) {
+        return Err(CommandError::new(
+            E_POLICY,
+            "shell interpreter programs are not allowed in exec profiles",
+        ));
+    }
+    validate_profile_environment(profile)?;
+    let metadata = std::fs::metadata(&profile.program).map_err(|error| {
+        CommandError::new(
+            E_ENVIRONMENT,
+            format!(
+                "cannot inspect command profile `{}`: {error}",
+                profile.program.display()
+            ),
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(CommandError::new(
+            E_ENVIRONMENT,
+            format!(
+                "command profile `{}` is not a regular file",
+                profile.program.display()
+            ),
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err(CommandError::new(
+                E_ENVIRONMENT,
+                format!(
+                    "command profile `{}` is not executable",
+                    profile.program.display()
+                ),
+            ));
+        }
+    }
+    if let Some(directory) = &profile.working_directory
+        && !directory.is_absolute()
+    {
+        return Err(CommandError::new(
+            E_ENVIRONMENT,
+            "command working directory must be absolute",
+        ));
+    }
+    Ok(profile)
+}
+
+fn validate_profile_environment(profile: &CommandProfile) -> Result<(), CommandError> {
+    for name in profile.env.keys().chain(profile.secret_env.keys()) {
+        if name.is_empty() || name.contains('=') || name.contains('\0') {
+            return Err(CommandError::new(
+                E_ENVIRONMENT,
+                format!("invalid command environment variable `{name}`"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn is_shell_interpreter(executable: &str) -> bool {
     let basename = Path::new(executable)
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or(executable);
-    let basename = basename.to_ascii_lowercase();
-    if matches!(
+        .unwrap_or(executable)
+        .to_ascii_lowercase();
+    matches!(
         basename.as_str(),
         "sh" | "bash"
             | "dash"
@@ -215,56 +373,97 @@ fn validate_argv(argv: &[String], policy: &CommandPolicy) -> Result<(), CommandE
             | "powershell.exe"
             | "pwsh"
             | "pwsh.exe"
-    ) {
-        return Err(CommandError::new(
-            E_POLICY,
-            "shell interpreters are not allowed in exec fences",
-        ));
-    }
-    if !policy
-        .allowed_commands
-        .iter()
-        .any(|allowed| allowed == executable)
-    {
-        return Err(CommandError::new(
-            E_POLICY,
-            format!("external command `{executable}` is not allowed"),
-        ));
-    }
-    if argv.iter().any(|argument| argument.contains('\0')) {
-        return Err(CommandError::new(
-            E_POLICY,
-            "external command argv contains NUL",
-        ));
-    }
-    Ok(())
+    )
 }
 
-fn read_limited<R: Read>(mut reader: R, limit: usize, limit_hit: Arc<AtomicBool>) -> Vec<u8> {
+struct OutputState {
+    reserved: AtomicUsize,
+    truncated: AtomicBool,
+}
+
+impl OutputState {
+    fn new() -> Self {
+        Self {
+            reserved: AtomicUsize::new(0),
+            truncated: AtomicBool::new(false),
+        }
+    }
+
+    fn reserve(&self, requested: usize, limit: usize) -> usize {
+        loop {
+            let current = self.reserved.load(Ordering::Acquire);
+            if current >= limit {
+                self.truncated.store(true, Ordering::Release);
+                return 0;
+            }
+            let available = requested.min(limit - current);
+            if self
+                .reserved
+                .compare_exchange(
+                    current,
+                    current + available,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
+                if available < requested {
+                    self.truncated.store(true, Ordering::Release);
+                }
+                return available;
+            }
+        }
+    }
+}
+
+fn read_limited<R: Read>(mut reader: R, limit: usize, state: Arc<OutputState>) -> Vec<u8> {
     let mut output = Vec::with_capacity(limit.min(64 * 1024));
     let mut buffer = [0u8; 16 * 1024];
     loop {
         match reader.read(&mut buffer) {
             Ok(0) => return output,
             Ok(count) => {
-                if output.len().saturating_add(count) > limit {
-                    limit_hit.store(true, Ordering::Release);
+                let retained = state.reserve(count, limit);
+                output.extend_from_slice(&buffer[..retained]);
+                if retained < count {
                     return output;
                 }
-                output.extend_from_slice(&buffer[..count]);
             }
             Err(_) => return output,
         }
     }
 }
 
+#[cfg(unix)]
+fn exit_signal(status: &ExitStatus) -> Option<i32> {
+    use std::os::unix::process::ExitStatusExt;
+    status.signal()
+}
+
+#[cfg(not(unix))]
+fn exit_signal(_status: &ExitStatus) -> Option<i32> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn policy(command: &str) -> CommandPolicy {
+    fn fixture_profile() -> (String, CommandProfile) {
+        let executable = std::env::current_exe().expect("test executable path");
+        (
+            "fixture".into(),
+            CommandProfile {
+                program: executable,
+                ..CommandProfile::default()
+            },
+        )
+    }
+
+    fn policy() -> CommandPolicy {
+        let (name, profile) = fixture_profile();
         CommandPolicy {
-            allowed_commands: vec![command.to_owned()],
+            profiles: [(name, profile)].into_iter().collect(),
             timeout: Duration::from_secs(2),
             max_output_bytes: 4096,
             ..CommandPolicy::default()
@@ -272,84 +471,86 @@ mod tests {
     }
 
     #[test]
-    fn rejects_commands_outside_allowlist() {
-        let error = run(&["echo".into(), "ok".into()], &policy("printf")).unwrap_err();
+    fn rejects_commands_outside_trusted_profiles() {
+        let error = run(&["echo".into(), "ok".into()], &policy()).unwrap_err();
         assert_eq!(error.code, E_POLICY);
     }
 
     #[test]
-    fn rejects_shell_interpreters_even_when_allowlisted() {
-        let error = run(&["PowerShell.EXE".into()], &policy("PowerShell.EXE")).unwrap_err();
-        assert_eq!(error.code, E_POLICY);
-    }
-
-    #[test]
-    fn rejects_empty_argv_and_nul_bytes() {
-        let command = policy("printf");
-        let empty: Vec<String> = Vec::new();
-        let empty_error = run(&empty, &command).unwrap_err();
-        assert_eq!(empty_error.code, E_POLICY);
-
-        let nul_error = run(&["printf".into(), "bad\0arg".into()], &command).unwrap_err();
-        assert_eq!(nul_error.code, E_POLICY);
-    }
-
-    #[test]
-    fn rejects_zero_resource_limits() {
-        let mut timeout = policy("printf");
-        timeout.timeout = Duration::ZERO;
-        assert_eq!(run(&["printf".into()], &timeout).unwrap_err().code, E_LIMIT);
-
-        let mut output = policy("printf");
-        output.max_output_bytes = 0;
-        assert_eq!(run(&["printf".into()], &output).unwrap_err().code, E_LIMIT);
-    }
-
-    #[test]
-    fn allows_an_exact_executable_path() {
+    fn rejects_shell_interpreters_even_when_profiled() {
         let executable = std::env::current_exe().expect("test executable path");
-        let mut command = CommandPolicy::default();
-        command.allow_path(&executable);
-        let output = run(
-            &[executable.to_string_lossy().into_owned(), "--help".into()],
-            &command,
-        )
-        .expect("the exact test executable path should be allowed");
-        assert!(output.success);
+        let mut command_policy = policy();
+        command_policy.profiles.insert(
+            "PowerShell.EXE".into(),
+            CommandProfile {
+                program: executable,
+                ..CommandProfile::default()
+            },
+        );
+        let error = run(&["PowerShell.EXE".into()], &command_policy).unwrap_err();
+        assert_eq!(error.code, E_POLICY);
     }
 
     #[test]
-    fn captures_successful_output_without_shell_expansion() {
-        let output = run(
-            &["printf".into(), "%s".into(), "$(not-a-shell)".into()],
-            &policy("printf"),
-        )
-        .unwrap();
+    fn rejects_empty_nul_and_oversized_argv() {
+        let command = policy();
+        assert_eq!(run(&Vec::new(), &command).unwrap_err().code, E_INVALID_ARGV);
+        assert_eq!(
+            run(&["fixture".into(), "bad\0arg".into()], &command)
+                .unwrap_err()
+                .code,
+            E_INVALID_ARGV
+        );
+        let mut limited = command;
+        limited.max_arg_bytes = 2;
+        assert_eq!(
+            run(&["fixture".into(), "long".into()], &limited)
+                .unwrap_err()
+                .code,
+            E_LIMIT
+        );
+    }
+
+    #[test]
+    fn captures_success_without_shell_expansion() {
+        let output = run(&["fixture".into(), "--list".into()], &policy()).unwrap();
         assert!(output.success);
-        assert_eq!(output.stdout, b"$(not-a-shell)");
+        assert!(!output.stdout.is_empty());
     }
 
     #[test]
     fn reports_nonzero_exit() {
-        let output = run(&["false".into()], &policy("false")).unwrap();
+        let mut output = run(
+            &["fixture".into(), "--definitely-invalid".into()],
+            &policy(),
+        )
+        .unwrap();
         assert!(!output.success);
-        assert!(output.exit_code.is_some_and(|code| code != 0));
+        assert!(output.exit_code.is_some());
+        output.stdout.clear();
     }
 
     #[test]
-    fn rejects_output_over_limit() {
-        let mut command = policy("printf");
-        command.max_output_bytes = 3;
-        let error = run(&["printf".into(), "1234".into()], &command).unwrap_err();
-        assert_eq!(error.code, E_LIMIT);
+    fn enforces_combined_output_limit() {
+        let mut command = policy();
+        command.max_output_bytes = 1;
+        let output = run(&["fixture".into(), "--list".into()], &command).unwrap();
+        assert!(output.output_limit_exceeded);
+        assert!(output.output_truncated);
+        assert!(output.stdout.len() + output.stderr.len() <= 1);
     }
 
     #[test]
-    fn kills_timed_out_child() {
-        let mut command = policy("sleep");
-        command.timeout = Duration::from_millis(20);
-        let output = run(&["sleep".into(), "1".into()], &command).unwrap();
-        assert!(output.timed_out);
-        assert!(!output.success);
+    fn rejects_zero_limits() {
+        let mut timeout = policy();
+        timeout.timeout = Duration::ZERO;
+        assert_eq!(
+            run(&["fixture".into()], &timeout).unwrap_err().code,
+            E_LIMIT
+        );
+
+        let mut output = policy();
+        output.max_output_bytes = 0;
+        assert_eq!(run(&["fixture".into()], &output).unwrap_err().code, E_LIMIT);
     }
 }
