@@ -1159,7 +1159,6 @@ name = "mdok-cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "base64",
  "clap",
  "jmespath",
  "mdok-core",
@@ -1167,8 +1166,6 @@ dependencies = [
  "mdok-markdown",
  "mdok-report",
  "mdok-template",
- "percent-encoding",
- "reqwest",
  "serde",
  "serde_json",
  "toml",
@@ -1245,8 +1242,6 @@ dependencies = [
 name = "mdok-runtime"
 version = "0.0.0"
 dependencies = [
- "base64",
- "jmespath",
  "mdok-core",
  "mdok-curl",
  "mdok-jmespath",
@@ -1256,7 +1251,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "url",
 ]
 
 [[package]]
