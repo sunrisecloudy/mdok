@@ -1,13 +1,62 @@
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::measurement::Measurement;
+use criterion::{
+    BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
+};
 use mdok_curl::{CurlPlan, CurlPolicy, ExecutionSession};
 use mdok_report::{CheckReport, DocumentReport, Event, EventMetadata, Report, Status, StepReport};
 use serde_json::{Value, json};
+use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+
+struct CountingAllocator;
+
+static ALLOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
+static ALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator;
+
+unsafe impl GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let pointer = unsafe { System.alloc(layout) };
+        if !pointer.is_null() {
+            ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
+            ALLOCATED_BYTES.fetch_add(layout.size(), Ordering::Relaxed);
+        }
+        pointer
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        unsafe { System.dealloc(pointer, layout) };
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct AllocationStats {
+    count: usize,
+    bytes: usize,
+}
+
+fn count_allocations<F, R>(work: F) -> (R, AllocationStats)
+where
+    F: FnOnce() -> R,
+{
+    ALLOCATION_COUNT.store(0, Ordering::Relaxed);
+    ALLOCATED_BYTES.store(0, Ordering::Relaxed);
+    let result = work();
+    (
+        result,
+        AllocationStats {
+            count: ALLOCATION_COUNT.load(Ordering::Relaxed),
+            bytes: ALLOCATED_BYTES.load(Ordering::Relaxed),
+        },
+    )
+}
 
 const BENCH_PATH: &str = "<bench>/document.md";
 const NORMAL_STEPS: usize = 10;
@@ -548,6 +597,107 @@ fn end_to_end(c: &mut Criterion) {
     group.finish();
 }
 
+fn allocation_case<M, F, R>(
+    group: &mut BenchmarkGroup<'_, M>,
+    name: &str,
+    mut work: F,
+    max_count: usize,
+    max_bytes: usize,
+) where
+    M: Measurement,
+    F: FnMut() -> R,
+{
+    group.bench_function(name, |bench| {
+        bench.iter(|| {
+            let (result, stats) = count_allocations(&mut work);
+            assert!(
+                stats.count <= max_count,
+                "{name} allocated {} objects, budget is {max_count}",
+                stats.count
+            );
+            assert!(
+                stats.bytes <= max_bytes,
+                "{name} allocated {} bytes, budget is {max_bytes}",
+                stats.bytes
+            );
+            black_box((result, stats))
+        })
+    });
+}
+
+fn allocation_budget(c: &mut Criterion) {
+    let mut group = c.benchmark_group("allocation_budget");
+    let source = markdown_source(NORMAL, "https://example.test");
+    allocation_case(
+        &mut group,
+        "markdown_plan_normal",
+        || {
+            let document = mdok_markdown::parse(&source, BENCH_PATH).unwrap();
+            mdok_markdown::plan_document(&document).unwrap()
+        },
+        4_096,
+        4 * 1024 * 1024,
+    );
+
+    let shell = shell_source(8, 64);
+    allocation_case(
+        &mut group,
+        "shell_parse_normal",
+        || mdok_shell::parse(&shell).unwrap(),
+        512,
+        256 * 1024,
+    );
+
+    let policy = CurlPolicy::local_test();
+    let argv = argv_for("https://example.test", NORMAL_STEPS);
+    allocation_case(
+        &mut group,
+        "curl_plan_normal",
+        || CurlPlan::parse(&argv, &policy).unwrap(),
+        512,
+        256 * 1024,
+    );
+
+    let value = evaluation_value(64);
+    let expression = mdok_jmespath::compile("items[].metadata.name").unwrap();
+    allocation_case(
+        &mut group,
+        "jmespath_eval_normal",
+        || expression.evaluate(&value).unwrap(),
+        1_024,
+        512 * 1024,
+    );
+
+    let report = report_with_events(256);
+    allocation_case(
+        &mut group,
+        "report_json_lines_256",
+        || report.json_lines().unwrap(),
+        8_192,
+        4 * 1024 * 1024,
+    );
+
+    let server = BodyServer::start(br#"{"ok":true}"#.to_vec(), true);
+    let transfer_argv = vec!["curl".to_owned(), server.address.clone()];
+    let transfer_plan = CurlPlan::parse(&transfer_argv, &policy).unwrap();
+    let mut session = ExecutionSession::new();
+    allocation_case(
+        &mut group,
+        "transfer_body_normal",
+        || {
+            let response = transfer_plan
+                .execute_in_session(&policy, &mut session)
+                .unwrap();
+            response.body_value(256 * 1024).unwrap()
+        },
+        4_096,
+        2 * 1024 * 1024,
+    );
+    drop(server);
+
+    group.finish();
+}
+
 fn criterion_config() -> Criterion {
     Criterion::default()
         .configure_from_args()
@@ -560,6 +710,6 @@ criterion_group! {
     name = prd;
     config = criterion_config();
     targets = markdown_extract, shell_parse, curl_parse, jmespath_compile, jmespath_eval,
-        body_capture, report, end_to_end
+        body_capture, report, end_to_end, allocation_budget
 }
 criterion_main!(prd);
