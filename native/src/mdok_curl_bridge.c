@@ -12,6 +12,7 @@
 #define MDOK_CURL_MAX_ARGC ((size_t)4096)
 #define MDOK_CURL_MAX_ARG_BYTES ((size_t)(64u * 1024u * 1024u))
 #define MDOK_CURL_MAX_BODY_BYTES ((size_t)(128u * 1024u * 1024u))
+#define MDOK_CURL_NATIVE_HARD_TIMEOUT_MS ((long)300000)
 
 struct mdok_curl_plan {
   char *url;
@@ -372,7 +373,19 @@ static void fill_transfer_info(CURL *easy, mdok_curl_transfer_info *info) {
   info->used_proxy = 0;
 }
 
-static CURLcode configure_easy(mdok_curl_session *session, CURL *easy, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, struct callback_context *context) {
+static long effective_timeout_ms(long plan_timeout_ms, uint64_t override_ms) {
+  uint64_t requested;
+  if (override_ms == UINT64_MAX) {
+    requested = plan_timeout_ms > 0 ? (uint64_t)plan_timeout_ms : 0;
+  } else {
+    requested = override_ms;
+  }
+  if (requested == 0 || requested > (uint64_t)MDOK_CURL_NATIVE_HARD_TIMEOUT_MS)
+    return MDOK_CURL_NATIVE_HARD_TIMEOUT_MS;
+  return (long)requested;
+}
+
+static CURLcode configure_easy(mdok_curl_session *session, CURL *easy, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, struct callback_context *context, uint64_t timeout_override_ms, uint64_t connect_timeout_override_ms) {
   CURLcode result;
 #define MDOK_SETOPT(option, value) do { \
     result = curl_easy_setopt(easy, option, value); \
@@ -399,8 +412,8 @@ static CURLcode configure_easy(mdok_curl_session *session, CURL *easy, const mdo
   MDOK_SETOPT(CURLOPT_SSL_VERIFYHOST, plan->insecure ? 0L : 2L);
   MDOK_SETOPT(CURLOPT_ACCEPT_ENCODING, plan->compressed ? "" : NULL);
   MDOK_SETOPT(CURLOPT_NOSIGNAL, 1L);
-  if (plan->timeout_ms > 0) MDOK_SETOPT(CURLOPT_TIMEOUT_MS, plan->timeout_ms);
-  if (plan->connect_timeout_ms > 0) MDOK_SETOPT(CURLOPT_CONNECTTIMEOUT_MS, plan->connect_timeout_ms);
+  MDOK_SETOPT(CURLOPT_TIMEOUT_MS, effective_timeout_ms(plan->timeout_ms, timeout_override_ms));
+  MDOK_SETOPT(CURLOPT_CONNECTTIMEOUT_MS, effective_timeout_ms(plan->connect_timeout_ms, connect_timeout_override_ms));
   if (plan->range != NULL) MDOK_SETOPT(CURLOPT_RANGE, plan->range);
   if (plan->user_agent != NULL) MDOK_SETOPT(CURLOPT_USERAGENT, plan->user_agent);
   if (plan->referer != NULL) MDOK_SETOPT(CURLOPT_REFERER, plan->referer);
@@ -459,7 +472,7 @@ static CURLMcode perform_multi(CURLM *multi, CURL *easy, CURLcode *out_transfer,
   return CURLM_OK;
 }
 
-mdok_curl_status mdok_curl_execute_with_info(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_transfer_info *out_info, mdok_curl_error *out_error) {
+static mdok_curl_status execute_with_info_internal(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_transfer_info *out_info, mdok_curl_error *out_error, uint64_t timeout_override_ms, uint64_t connect_timeout_override_ms) {
   CURL *easy;
   CURLcode result;
   CURLMcode multi_result = CURLM_OK;
@@ -492,7 +505,7 @@ mdok_curl_status mdok_curl_execute_with_info(mdok_curl_session *session, const m
     set_error(out_error, 0, "curl_easy_init failed");
     return MDOK_CURL_INTERNAL_ERROR;
   }
-  result = configure_easy(session, easy, plan, callbacks, &context);
+  result = configure_easy(session, easy, plan, callbacks, &context, timeout_override_ms, connect_timeout_override_ms);
   if (result == CURLE_OK && session != NULL) {
     if (session->multi == NULL) {
       set_error(out_error, 0, "curl session has no multi handle");
@@ -525,6 +538,14 @@ mdok_curl_status mdok_curl_execute_with_info(mdok_curl_session *session, const m
     return MDOK_CURL_TRANSFER_ERROR;
   }
   return MDOK_CURL_OK;
+}
+
+mdok_curl_status mdok_curl_execute_with_info(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_transfer_info *out_info, mdok_curl_error *out_error) {
+  return execute_with_info_internal(session, plan, callbacks, userdata, out_info, out_error, UINT64_MAX, UINT64_MAX);
+}
+
+mdok_curl_status mdok_curl_execute_with_info_and_timeouts(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_transfer_info *out_info, mdok_curl_error *out_error, uint64_t timeout_ms, uint64_t connect_timeout_ms) {
+  return execute_with_info_internal(session, plan, callbacks, userdata, out_info, out_error, timeout_ms, connect_timeout_ms);
 }
 
 mdok_curl_status mdok_curl_execute(mdok_curl_session *session, const mdok_curl_plan *plan, const mdok_curl_callbacks *callbacks, void *userdata, mdok_curl_error *out_error) {

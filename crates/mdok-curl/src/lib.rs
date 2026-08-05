@@ -11,6 +11,7 @@
 use base64::Engine as _;
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 use reqwest::blocking::{Client, ClientBuilder};
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::{
     ACCEPT, COOKIE, HeaderMap, HeaderName, HeaderValue, RANGE, REFERER, USER_AGENT,
 };
@@ -19,6 +20,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
+use std::future;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
@@ -175,6 +177,10 @@ impl CurlPolicy {
         let port = url
             .port_or_known_default()
             .ok_or_else(|| CurlError::new(E_POLICY, "URL has no known port"))?;
+        self.resolve_host(host, port).map(|_| ())
+    }
+
+    fn resolve_host(&self, host: &str, port: u16) -> Result<Vec<SocketAddr>, CurlError> {
         let addresses = (host, port)
             .to_socket_addrs()
             .map_err(|error| {
@@ -190,13 +196,21 @@ impl CurlPolicy {
                 "destination has no resolved addresses",
             ));
         }
-        for address in addresses {
-            self.check_socket_address(address)?;
+        if !self.allow_private_network {
+            for address in &addresses {
+                self.check_socket_address(*address)?;
+            }
         }
-        Ok(())
+        Ok(addresses)
     }
 
     fn read_file(&self, raw: &str) -> Result<Vec<u8>, CurlError> {
+        let canonical = self.canonical_read_path(raw)?;
+        fs::read(&canonical)
+            .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot read file: {e}")))
+    }
+
+    fn canonical_read_path(&self, raw: &str) -> Result<PathBuf, CurlError> {
         if raw == "-" || raw.starts_with("/dev/") || raw.starts_with("\\\\.\\") {
             return Err(CurlError::new(
                 E_FILE_DENIED,
@@ -224,8 +238,80 @@ impl CurlPolicy {
                 "file is outside the allowed read roots",
             ));
         }
-        fs::read(&canonical)
-            .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot read file: {e}")))
+        Ok(canonical)
+    }
+
+    fn file_len(&self, raw: &str) -> Result<u64, CurlError> {
+        let canonical = self.canonical_read_path(raw)?;
+        fs::metadata(&canonical)
+            .map(|metadata| metadata.len())
+            .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot access file: {e}")))
+    }
+
+    fn read_file_limited(&self, raw: &str, max_bytes: u64) -> Result<Vec<u8>, CurlError> {
+        let canonical = self.canonical_read_path(raw)?;
+        let mut file = fs::File::open(&canonical)
+            .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot read file: {e}")))?;
+        let length = file
+            .metadata()
+            .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot access file: {e}")))?
+            .len();
+        if length > max_bytes {
+            return Err(CurlError::new(
+                E_BODY_LIMIT,
+                "request body exceeds the configured limit",
+            ));
+        }
+        let capacity = usize::try_from(length).map_err(|_| {
+            CurlError::new(
+                E_BODY_LIMIT,
+                "request body cannot fit in the configured memory model",
+            )
+        })?;
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(capacity).map_err(|_| {
+            CurlError::new(
+                E_BODY_LIMIT,
+                "request body allocation exceeds the configured limit",
+            )
+        })?;
+        let mut total = 0u64;
+        let mut buffer = [0u8; 16 * 1024];
+        loop {
+            let remaining = max_bytes.saturating_sub(total);
+            if remaining == 0 {
+                let mut extra = [0u8; 1];
+                let count = file
+                    .read(&mut extra)
+                    .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot read file: {e}")))?;
+                if count != 0 {
+                    return Err(CurlError::new(
+                        E_BODY_LIMIT,
+                        "request body exceeds the configured limit",
+                    ));
+                }
+                break;
+            }
+            let requested = usize::try_from(remaining.min(buffer.len() as u64))
+                .expect("bounded body read fits usize");
+            let count = file
+                .read(&mut buffer[..requested])
+                .map_err(|e| CurlError::new(E_FILE_DENIED, format!("cannot read file: {e}")))?;
+            if count == 0 {
+                break;
+            }
+            bytes.try_reserve(count).map_err(|_| {
+                CurlError::new(
+                    E_BODY_LIMIT,
+                    "request body allocation exceeds the configured limit",
+                )
+            })?;
+            bytes.extend_from_slice(&buffer[..count]);
+            total = total
+                .checked_add(count as u64)
+                .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+        }
+        Ok(bytes)
     }
 
     fn check_artifact(&self, path: &Path) -> Result<(), CurlError> {
@@ -253,6 +339,37 @@ impl CurlPolicy {
         Ok(())
     }
 }
+
+#[derive(Clone)]
+struct PolicyDnsResolver {
+    policy: CurlPolicy,
+}
+
+impl Resolve for PolicyDnsResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let host = name.as_str().to_owned();
+        let result = self
+            .policy
+            .resolve_host(&host, 0)
+            .map(|addresses| Box::new(addresses.into_iter()) as Addrs)
+            .map_err(|error| {
+                Box::new(DnsPolicyError(error.to_string()))
+                    as Box<dyn std::error::Error + Send + Sync>
+            });
+        Box::pin(future::ready(result))
+    }
+}
+
+#[derive(Debug)]
+struct DnsPolicyError(String);
+
+impl std::fmt::Display for DnsPolicyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for DnsPolicyError {}
 
 #[derive(Debug, Error)]
 #[error("{code}: {message}")]
@@ -289,6 +406,200 @@ pub struct MultipartPart {
     pub file_name: Option<String>,
 }
 
+const REQWEST_MULTIPART_BOUNDARY_LEN: u64 = 67;
+const REQWEST_MULTIPART_PATH_SEGMENT: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'<')
+    .add(b'>')
+    .add(b'`')
+    .add(b'#')
+    .add(b'?')
+    .add(b'{')
+    .add(b'}')
+    .add(b'/')
+    .add(b'%');
+
+fn body_limit_error() -> CurlError {
+    CurlError::new(E_BODY_LIMIT, "request body exceeds the configured limit")
+}
+
+fn ensure_body_limit(length: u64, max: u64) -> Result<(), CurlError> {
+    if length > max {
+        Err(body_limit_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn body_parts_len(parts: &[Vec<u8>]) -> Result<u64, CurlError> {
+    let mut length = 0u64;
+    for (index, part) in parts.iter().enumerate() {
+        if index != 0 {
+            length = length
+                .checked_add(1)
+                .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+        }
+        length = length
+            .checked_add(
+                u64::try_from(part.len())
+                    .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?,
+            )
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    }
+    Ok(length)
+}
+
+fn encoded_length(value: &str, set: &'static percent_encoding::AsciiSet) -> Result<u64, CurlError> {
+    percent_encode(value.as_bytes(), set).try_fold(0u64, |length, chunk| {
+        length
+            .checked_add(
+                u64::try_from(chunk.len())
+                    .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?,
+            )
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))
+    })
+}
+
+fn form_encoded_length(value: &str) -> Result<u64, CurlError> {
+    percent_encode(value.as_bytes(), NON_ALPHANUMERIC).try_fold(0u64, |length, chunk| {
+        let chunk_length = if chunk == "%20" { 1 } else { chunk.len() };
+        length
+            .checked_add(
+                u64::try_from(chunk_length)
+                    .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?,
+            )
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))
+    })
+}
+
+fn multipart_header_len(name: &str, file_name: Option<&str>) -> Result<u64, CurlError> {
+    let encoded_name_len = encoded_length(name, REQWEST_MULTIPART_PATH_SEGMENT)?;
+    let raw_name_len = u64::try_from(name.len())
+        .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    let (name_prefix, name_suffix) = if encoded_name_len == raw_name_len {
+        (b"name=\"".as_slice(), 1u64)
+    } else {
+        (b"name*=utf-8''".as_slice(), 0u64)
+    };
+    let mut length = u64::try_from(b"Content-Disposition: form-data; ".len())
+        .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    length = length
+        .checked_add(name_prefix.len() as u64)
+        .and_then(|value| value.checked_add(encoded_name_len))
+        .and_then(|value| value.checked_add(name_suffix))
+        .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    if let Some(file_name) = file_name {
+        let file_name_len = file_name.bytes().try_fold(0u64, |length, byte| {
+            let byte_len = if matches!(byte, b'\\' | b'"' | b'\r' | b'\n') {
+                2
+            } else {
+                1
+            };
+            length
+                .checked_add(byte_len)
+                .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))
+        })?;
+        length = length
+            .checked_add(b"; filename=\"".len() as u64)
+            .and_then(|value| value.checked_add(file_name_len))
+            .and_then(|value| value.checked_add(1))
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    }
+    Ok(length)
+}
+
+fn multipart_part_len(
+    boundary_len: u64,
+    name: &str,
+    value_len: u64,
+    file_name: Option<&str>,
+) -> Result<u64, CurlError> {
+    let header_len = multipart_header_len(name, file_name)?;
+    2u64.checked_add(boundary_len)
+        .and_then(|length| length.checked_add(2))
+        .and_then(|length| length.checked_add(header_len))
+        .and_then(|length| length.checked_add(4))
+        .and_then(|length| length.checked_add(value_len))
+        .and_then(|length| length.checked_add(2))
+        .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))
+}
+
+fn multipart_wire_len(parts: &[MultipartPart], boundary_len: u64) -> Result<u64, CurlError> {
+    let mut length = 0u64;
+    for part in parts {
+        length = length
+            .checked_add(multipart_part_len(
+                boundary_len,
+                &part.name,
+                u64::try_from(part.value.len())
+                    .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?,
+                part.file_name.as_deref(),
+            )?)
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    }
+    if !parts.is_empty() {
+        length = length
+            .checked_add(2)
+            .and_then(|length| length.checked_add(boundary_len))
+            .and_then(|length| length.checked_add(4))
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    }
+    Ok(length)
+}
+
+fn multipart_wire_len_with_part(
+    parts: &[MultipartPart],
+    boundary_len: u64,
+    name: &str,
+    value_len: u64,
+    file_name: Option<&str>,
+) -> Result<u64, CurlError> {
+    let mut length = multipart_wire_len_without_closing_boundary(parts, boundary_len)?;
+    length = length
+        .checked_add(multipart_part_len(
+            boundary_len,
+            name,
+            value_len,
+            file_name,
+        )?)
+        .and_then(|length| length.checked_add(2))
+        .and_then(|length| length.checked_add(boundary_len))
+        .and_then(|length| length.checked_add(4))
+        .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+    Ok(length)
+}
+
+fn multipart_wire_len_without_closing_boundary(
+    parts: &[MultipartPart],
+    boundary_len: u64,
+) -> Result<u64, CurlError> {
+    parts.iter().try_fold(0u64, |length, part| {
+        length
+            .checked_add(multipart_part_len(
+                boundary_len,
+                &part.name,
+                u64::try_from(part.value.len())
+                    .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?,
+                part.file_name.as_deref(),
+            )?)
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))
+    })
+}
+
+fn validate_request_body(body: Option<&RequestBody>, max: u64) -> Result<(), CurlError> {
+    match body {
+        Some(RequestBody::Bytes(bytes)) => {
+            ensure_body_limit(u64::try_from(bytes.len()).unwrap_or(u64::MAX), max)
+        }
+        Some(RequestBody::Multipart(parts)) => ensure_body_limit(
+            multipart_wire_len(parts, REQWEST_MULTIPART_BOUNDARY_LEN)?,
+            max,
+        ),
+        None => Ok(()),
+    }
+}
+
 fn request_body_len(body: &RequestBody) -> u64 {
     match body {
         RequestBody::Bytes(bytes) => bytes.len() as u64,
@@ -299,18 +610,28 @@ fn request_body_len(body: &RequestBody) -> u64 {
     }
 }
 
-fn join_body_parts(parts: &[Vec<u8>]) -> Option<Vec<u8>> {
+fn join_body_parts(parts: &[Vec<u8>], max: u64) -> Result<Option<Vec<u8>>, CurlError> {
     if parts.is_empty() {
-        return None;
+        return Ok(None);
     }
+    let length = body_parts_len(parts)?;
+    ensure_body_limit(length, max)?;
+    let capacity = usize::try_from(length)
+        .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body cannot fit in memory"))?;
     let mut joined = Vec::new();
+    joined.try_reserve_exact(capacity).map_err(|_| {
+        CurlError::new(
+            E_BODY_LIMIT,
+            "request body allocation exceeds the configured limit",
+        )
+    })?;
     for (index, part) in parts.iter().enumerate() {
         if index > 0 {
             joined.extend_from_slice(b"&");
         }
         joined.extend_from_slice(part);
     }
-    Some(joined)
+    Ok(Some(joined))
 }
 
 fn native_response_with_body(
@@ -839,9 +1160,10 @@ impl CurlPlan {
         if cancelled.is_some_and(|callback| callback()) {
             return Err(CurlError::new(E_CANCELLED, "transfer cancelled"));
         }
+        validate_request_body(self.body.as_ref(), policy.max_body_bytes)?;
         policy.check_url(&self.url)?;
         policy.check_resolved_url(&self.url)?;
-        if self.native_eligible() {
+        if self.native_eligible(policy) {
             return self.execute_native(policy, session, cancelled);
         }
         let redirects = Arc::new(Mutex::new(Vec::<RedirectHop>::new()));
@@ -907,6 +1229,9 @@ impl CurlPlan {
             // Never inherit HTTP(S)_PROXY from the host process implicitly.
             builder = builder.no_proxy();
         }
+        builder = builder.dns_resolver(Arc::new(PolicyDnsResolver {
+            policy: policy.clone(),
+        }));
         for (host, port, addr) in &self.resolve {
             builder = builder.resolve(host, *addr);
             let _ = port;
@@ -994,6 +1319,7 @@ impl CurlPlan {
         redirects: &Arc<Mutex<Vec<RedirectHop>>>,
         cancelled: Option<&dyn Fn() -> bool>,
     ) -> Result<TransferResponse, CurlError> {
+        validate_request_body(self.body.as_ref(), policy.max_body_bytes)?;
         let mut req = client.request(
             Method::from_bytes(self.method.as_bytes())
                 .map_err(|e| CurlError::new(E_POLICY, e.to_string()))?,
@@ -1034,6 +1360,10 @@ impl CurlPlan {
             Some(RequestBody::Bytes(bytes)) => req = req.body(bytes.clone()),
             Some(RequestBody::Multipart(parts)) => {
                 let mut form = reqwest::blocking::multipart::Form::new();
+                ensure_body_limit(
+                    multipart_wire_len(parts, form.boundary().len() as u64)?,
+                    policy.max_body_bytes,
+                )?;
                 for part in parts {
                     let mut p = reqwest::blocking::multipart::Part::bytes(part.value.clone());
                     if let Some(name) = &part.file_name {
@@ -1095,7 +1425,7 @@ impl CurlPlan {
         })
     }
 
-    fn native_eligible(&self) -> bool {
+    fn native_eligible(&self, policy: &CurlPolicy) -> bool {
         self.native_argv.len() >= 2
             && self.native_argv.first().map(String::as_str) == Some("curl")
             && !self.native_argv.iter().skip(1).any(|argument| {
@@ -1133,6 +1463,14 @@ impl CurlPlan {
             && !self.native_argv_has_empty_header()
             && !matches!(self.body, Some(RequestBody::Multipart(_)))
             && !self.compressed
+            && !self.follow_redirects
+            && (policy.allow_private_network
+                || self
+                    .url
+                    .host_str()
+                    .is_some_and(|host| host.parse::<std::net::IpAddr>().is_ok()))
+            && native_timeout_supported(self.timeout)
+            && native_timeout_supported(self.connect_timeout)
             && self.user.is_none()
             && self.bearer.is_none()
             && self.cookie.is_none()
@@ -1193,6 +1531,7 @@ impl CurlPlan {
         execution: &mut ExecutionSession,
         cancelled: Option<&dyn Fn() -> bool>,
     ) -> Result<TransferResponse, CurlError> {
+        validate_request_body(self.body.as_ref(), policy.max_body_bytes)?;
         let arguments = self
             .native_argv
             .iter()
@@ -1209,10 +1548,12 @@ impl CurlPlan {
             BodySink::new(policy.memory_body_threshold_bytes, policy.max_body_bytes);
         let result = execution
             .native_mut()?
-            .execute_detailed_with_body_sink(
+            .execute_detailed_with_body_sink_and_timeouts(
                 &parsed,
                 max_body_bytes,
                 policy.max_header_bytes,
+                native_timeout_ms(self.timeout),
+                native_timeout_ms(self.connect_timeout),
                 cancelled,
                 &mut |chunk| {
                     body_sink.push(chunk).map_err(|error| {
@@ -1339,8 +1680,18 @@ impl<'a> ParserState<'a> {
     }
     fn data(&mut self, value: String, raw: bool, binary: bool) -> Result<(), CurlError> {
         let bytes = if (!raw || binary) && value.starts_with('@') {
-            self.policy.read_file(&value[1..])?
+            let path = &value[1..];
+            let capacity = self.body_part_capacity()?;
+            let length = self.policy.file_len(path)?;
+            if length > capacity {
+                return Err(body_limit_error());
+            }
+            self.policy.read_file_limited(path, capacity)?
         } else {
+            self.ensure_body_part_capacity(
+                u64::try_from(value.len())
+                    .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?,
+            )?;
             value.into_bytes()
         };
         self.body_parts.push(bytes);
@@ -1348,6 +1699,15 @@ impl<'a> ParserState<'a> {
         Ok(())
     }
     fn data_urlencode(&mut self, value: String) -> Result<(), CurlError> {
+        let encoded_len = if let Some((key, val)) = value.split_once('=') {
+            form_encoded_length(key)?
+                .checked_add(1)
+                .and_then(|length| form_encoded_length(val).ok()?.checked_add(length))
+                .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?
+        } else {
+            form_encoded_length(&value)?
+        };
+        self.ensure_body_part_capacity(encoded_len)?;
         let encoded = if let Some((key, val)) = value.split_once('=') {
             format!("{}={}", form_encode(key), form_encode(val))
         } else {
@@ -1369,20 +1729,47 @@ impl<'a> ParserState<'a> {
         let (name, value) = value
             .split_once('=')
             .ok_or_else(|| CurlError::new(E_POLICY, "form must be name=value"))?;
-        let (bytes, filename) = if let Some(file) = value.strip_prefix('@') {
+        let (file, filename) = if let Some(file) = value.strip_prefix('@') {
             (
-                self.policy.read_file(file)?,
+                Some(file),
                 Some(
                     Path::new(file)
                         .file_name()
                         .and_then(|n| n.to_str())
-                        .unwrap_or("upload")
-                        .to_owned(),
+                        .unwrap_or("upload"),
                 ),
             )
         } else {
-            (value.as_bytes().to_vec(), None)
+            (None, None)
         };
+        let existing = match &self.body {
+            Some(RequestBody::Multipart(parts)) => parts.as_slice(),
+            _ => &[],
+        };
+        let value_len = if let Some(file) = file {
+            self.policy.file_len(file)?
+        } else {
+            u64::try_from(value.len())
+                .map_err(|_| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?
+        };
+        let fixed_len = multipart_wire_len_with_part(
+            existing,
+            REQWEST_MULTIPART_BOUNDARY_LEN,
+            name,
+            0,
+            filename,
+        )?;
+        ensure_body_limit(fixed_len, self.policy.max_body_bytes)?;
+        let value_capacity = self.policy.max_body_bytes - fixed_len;
+        if value_len > value_capacity {
+            return Err(body_limit_error());
+        }
+        let bytes = if let Some(file) = file {
+            self.policy.read_file_limited(file, value_capacity)?
+        } else {
+            value.as_bytes().to_vec()
+        };
+        let filename = filename.map(str::to_owned);
         match &mut self.body {
             Some(RequestBody::Multipart(parts)) => parts.push(MultipartPart {
                 name: name.to_owned(),
@@ -1401,14 +1788,37 @@ impl<'a> ParserState<'a> {
         Ok(())
     }
     fn upload(&mut self, value: String) -> Result<(), CurlError> {
-        let bytes = if let Some(path) = value.strip_prefix('@') {
-            self.policy.read_file(path)?
+        let path = if let Some(path) = value.strip_prefix('@') {
+            path
         } else {
-            self.policy.read_file(&value)?
+            &value
         };
+        let length = self.policy.file_len(path)?;
+        ensure_body_limit(length, self.policy.max_body_bytes)?;
+        let bytes = self
+            .policy
+            .read_file_limited(path, self.policy.max_body_bytes)?;
         self.body = Some(RequestBody::Bytes(bytes));
         self.method = "PUT".into();
         Ok(())
+    }
+    fn body_part_capacity(&self) -> Result<u64, CurlError> {
+        let current = body_parts_len(&self.body_parts)?;
+        let separator = u64::from(!self.body_parts.is_empty());
+        let used = current
+            .checked_add(separator)
+            .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "request body length overflow"))?;
+        if used > self.policy.max_body_bytes {
+            return Err(body_limit_error());
+        }
+        Ok(self.policy.max_body_bytes - used)
+    }
+    fn ensure_body_part_capacity(&self, part_len: u64) -> Result<(), CurlError> {
+        if part_len > self.body_part_capacity()? {
+            Err(body_limit_error())
+        } else {
+            Ok(())
+        }
     }
     fn finish(mut self) -> Result<CurlPlan, CurlError> {
         let mut url = Url::parse(&self.urls.remove(0))
@@ -1417,7 +1827,7 @@ impl<'a> ParserState<'a> {
         for (_, _, address) in &self.resolve {
             self.policy.check_socket_address(*address)?;
         }
-        let joined = join_body_parts(&self.body_parts);
+        let joined = join_body_parts(&self.body_parts, self.policy.max_body_bytes)?;
         if self.get {
             if self.body.is_some() {
                 return Err(CurlError::new(
@@ -1451,6 +1861,7 @@ impl<'a> ParserState<'a> {
                 ));
             }
         }
+        validate_request_body(self.body.as_ref(), self.policy.max_body_bytes)?;
         Ok(CurlPlan {
             url,
             method: self.method,
@@ -1844,7 +2255,23 @@ fn parse_duration(value: &str, name: &str) -> Result<Duration, CurlError> {
     if !seconds.is_finite() || seconds < 0.0 {
         return Err(CurlError::new(E_POLICY, format!("invalid {name}: {value}")));
     }
-    Ok(Duration::from_secs_f64(seconds))
+    Duration::try_from_secs_f64(seconds)
+        .map_err(|_| CurlError::new(E_POLICY, format!("invalid {name}: {value}")))
+}
+fn native_timeout_ms(timeout: Option<Duration>) -> Option<u64> {
+    timeout.and_then(|duration| {
+        let millis = duration.as_millis();
+        let rounded = millis.checked_add(u128::from(
+            !duration.subsec_nanos().is_multiple_of(1_000_000),
+        ))?;
+        u64::try_from(rounded).ok()
+    })
+}
+fn native_timeout_supported(timeout: Option<Duration>) -> bool {
+    timeout.map_or(true, |duration| {
+        native_timeout_ms(Some(duration))
+            .is_some_and(|millis| millis <= mdok_curl_sys::MAX_NATIVE_TIMEOUT_MS)
+    })
 }
 fn form_encode(value: &str) -> String {
     percent_encode(value.as_bytes(), NON_ALPHANUMERIC)
@@ -1969,6 +2396,9 @@ fn classify_reqwest_error_code(
     details: &str,
 ) -> &'static str {
     let lower = details.to_ascii_lowercase();
+    if lower.contains("mdok-e604") {
+        return E_CONNECT_POLICY;
+    }
     if lower.contains("mdok-e304") {
         return E_POLICY;
     }
@@ -2342,5 +2772,85 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.code, E_TLS);
+    }
+
+    #[test]
+    fn native_fast_path_requires_safe_redirect_and_hostname_policy() {
+        let plan = parse(&["curl", "https://example.test"]).unwrap();
+        assert!(!plan.native_eligible(&CurlPolicy::default()));
+        assert!(plan.native_eligible(&CurlPolicy::local_test()));
+
+        let mut redirects = plan.clone();
+        redirects.follow_redirects = true;
+        assert!(!redirects.native_eligible(&CurlPolicy::local_test()));
+    }
+
+    #[test]
+    fn oversized_durations_are_normal_parse_errors() {
+        let result = std::panic::catch_unwind(|| parse_duration("1e300", "max-time"));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().unwrap_err().code, E_POLICY);
+        assert!(!native_timeout_supported(Some(Duration::from_secs(301))));
+        assert!(native_timeout_supported(Some(Duration::from_secs(300))));
+    }
+
+    #[test]
+    fn request_body_files_are_rejected_before_reading_over_limit() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"too large").unwrap();
+        let parent = file.path().parent().unwrap().to_path_buf();
+        let mut policy = CurlPolicy::local_test();
+        policy.allow_file_reads = true;
+        policy.allowed_read_roots = vec![parent];
+        policy.max_body_bytes = 2;
+        let error = CurlPlan::parse(
+            &[
+                "curl".into(),
+                "--data-binary".into(),
+                format!("@{}", file.path().display()),
+                "https://example.test".into(),
+            ],
+            &policy,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, E_BODY_LIMIT);
+
+        let error = CurlPlan::parse(
+            &[
+                "curl".into(),
+                "--data".into(),
+                "too large".into(),
+                "https://example.test".into(),
+            ],
+            &policy,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, E_BODY_LIMIT);
+    }
+
+    #[test]
+    fn multipart_body_preflight_accounts_for_overhead_without_rejecting_valid_values() {
+        let arguments = vec![
+            "curl".to_owned(),
+            "--form".to_owned(),
+            "field=value".to_owned(),
+            "https://example.test".to_owned(),
+        ];
+        let unrestricted = CurlPolicy::default();
+        let plan = CurlPlan::parse(&arguments, &unrestricted).unwrap();
+        let Some(RequestBody::Multipart(parts)) = plan.body else {
+            panic!("expected multipart body");
+        };
+        let required = multipart_wire_len(&parts, REQWEST_MULTIPART_BOUNDARY_LEN).unwrap();
+
+        let mut limited = unrestricted.clone();
+        limited.max_body_bytes = required - 1;
+        assert_eq!(
+            CurlPlan::parse(&arguments, &limited).unwrap_err().code,
+            E_BODY_LIMIT
+        );
+
+        limited.max_body_bytes = required;
+        assert!(CurlPlan::parse(&arguments, &limited).is_ok());
     }
 }

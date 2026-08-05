@@ -108,6 +108,18 @@ mdok_curl_status mdok_curl_execute_with_info(
   mdok_curl_transfer_info *out_info,
   mdok_curl_error *out_error);
 
+/* Additive timeout variant. A zero timeout selects the bridge hard default;
+ * values above the bridge maximum are clamped defensively. */
+mdok_curl_status mdok_curl_execute_with_info_and_timeouts(
+  mdok_curl_session *session,
+  const mdok_curl_plan *plan,
+  const mdok_curl_callbacks *callbacks,
+  void *userdata,
+  mdok_curl_transfer_info *out_info,
+  mdok_curl_error *out_error,
+  uint64_t timeout_ms,
+  uint64_t connect_timeout_ms);
+
 void mdok_curl_plan_free(mdok_curl_plan *plan);
 
 #ifdef __cplusplus

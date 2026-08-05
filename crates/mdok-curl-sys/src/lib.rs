@@ -100,6 +100,16 @@ unsafe extern "C" {
         out_info: *mut mdok_curl_transfer_info,
         out_error: *mut mdok_curl_error,
     ) -> c_int;
+    pub fn mdok_curl_execute_with_info_and_timeouts(
+        session: *mut mdok_curl_session,
+        plan: *const mdok_curl_plan,
+        callbacks: *const mdok_curl_callbacks,
+        userdata: *mut c_void,
+        out_info: *mut mdok_curl_transfer_info,
+        out_error: *mut mdok_curl_error,
+        timeout_ms: u64,
+        connect_timeout_ms: u64,
+    ) -> c_int;
     pub fn mdok_curl_plan_free(plan: *mut mdok_curl_plan);
     pub fn mdok_curl_last_error_message() -> *const c_char;
     pub fn mdok_curl_reserved(userdata: *mut c_void);
@@ -122,6 +132,8 @@ pub const BODY_SINK_ERROR_CODE: i32 = -10_003;
 pub const TIMEOUT_ERROR_CODE: i32 = 28; // libcurl CURLE_OPERATION_TIMEDOUT
 pub const TOO_MANY_REDIRECTS_ERROR_CODE: i32 = 47; // libcurl CURLE_TOO_MANY_REDIRECTS
 pub const CANCELLED_STATUS: c_int = 4;
+/// Maximum timeout accepted by the native bridge, in milliseconds.
+pub const MAX_NATIVE_TIMEOUT_MS: u64 = 5 * 60 * 1000;
 
 const DEFAULT_NATIVE_BODY_LIMIT: usize = 128 * 1024 * 1024;
 const DEFAULT_NATIVE_HEADER_LIMIT: usize = 16 * 1024 * 1024;
@@ -290,7 +302,14 @@ impl Session {
         max_header_bytes: usize,
         cancelled: Option<&dyn Fn() -> bool>,
     ) -> Result<NativeTransferResult, BridgeError> {
-        self.execute_detailed_inner(plan, max_body_bytes, max_header_bytes, cancelled, None)
+        self.execute_detailed_inner(
+            plan,
+            max_body_bytes,
+            max_header_bytes,
+            cancelled,
+            None,
+            None,
+        )
     }
 
     /// Execute a transfer while streaming body chunks to a caller-owned sink.
@@ -309,6 +328,30 @@ impl Session {
             max_body_bytes,
             max_header_bytes,
             cancelled,
+            None,
+            Some(body_sink),
+        )
+    }
+
+    /// Execute a transfer with effective Rust-side timeouts supplied to the
+    /// native bridge. A zero value requests the bridge hard default; the
+    /// bridge clamps direct callers to the same maximum.
+    pub fn execute_detailed_with_body_sink_and_timeouts(
+        &mut self,
+        plan: &Plan,
+        max_body_bytes: usize,
+        max_header_bytes: usize,
+        timeout_ms: Option<u64>,
+        connect_timeout_ms: Option<u64>,
+        cancelled: Option<&dyn Fn() -> bool>,
+        body_sink: BodySinkCallback<'_>,
+    ) -> Result<NativeTransferResult, BridgeError> {
+        self.execute_detailed_inner(
+            plan,
+            max_body_bytes,
+            max_header_bytes,
+            cancelled,
+            Some((timeout_ms.unwrap_or(0), connect_timeout_ms.unwrap_or(0))),
             Some(body_sink),
         )
     }
@@ -319,6 +362,7 @@ impl Session {
         max_body_bytes: usize,
         max_header_bytes: usize,
         cancelled: Option<&'cancel dyn Fn() -> bool>,
+        timeouts: Option<(u64, u64)>,
         body_sink: Option<BodySinkCallback<'sink>>,
     ) -> Result<NativeTransferResult, BridgeError> {
         let mut capture = NativeCapture {
@@ -349,14 +393,27 @@ impl Session {
         // SAFETY: the opaque handles are owned by the session and plan; the
         // callback context remains alive for the synchronous C call.
         let status = unsafe {
-            mdok_curl_execute_with_info(
-                self.as_ptr(),
-                plan.as_ptr(),
-                &callbacks,
-                &mut capture as *mut NativeCapture as *mut c_void,
-                &mut info,
-                &mut error,
-            )
+            if let Some((timeout_ms, connect_timeout_ms)) = timeouts {
+                mdok_curl_execute_with_info_and_timeouts(
+                    self.as_ptr(),
+                    plan.as_ptr(),
+                    &callbacks,
+                    &mut capture as *mut NativeCapture as *mut c_void,
+                    &mut info,
+                    &mut error,
+                    timeout_ms,
+                    connect_timeout_ms,
+                )
+            } else {
+                mdok_curl_execute_with_info(
+                    self.as_ptr(),
+                    plan.as_ptr(),
+                    &callbacks,
+                    &mut capture as *mut NativeCapture as *mut c_void,
+                    &mut info,
+                    &mut error,
+                )
+            }
         };
         if capture.body_limit {
             return Err(BridgeError {
