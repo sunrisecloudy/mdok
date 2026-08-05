@@ -8,19 +8,22 @@
 #![forbid(unsafe_code)]
 
 use clap::{Args, Parser, Subcommand};
+use mdok_command::{CommandPolicy, ProcessOutput, run as run_external_command};
 use mdok_curl::{CurlError, CurlPlan, CurlPolicy, ExecutionSession};
 use mdok_markdown::{MarkdownError, parse, plan_document};
 use mdok_report::{
-    CheckReport, Diagnostic, DocumentReport, Event, EventMetadata, Redactor, Report, Severity,
-    Status, StepReport, write_atomic_json,
+    CheckReport, Diagnostic, DocumentReport, Event, EventMetadata, ExternalExecutionResult,
+    Redactor, Report, Severity, Status, StepExecutionMetadata, StepKind as ReportStepKind,
+    StepReport, write_atomic_json,
 };
 use mdok_template::{
     Filter, PathPart, Template, TemplateError, TemplateExpression, TemplatePart,
     lookup as lookup_template, render_expression,
 };
 use serde::Deserialize;
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::ffi::OsString;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -161,6 +164,16 @@ struct ExecutionConfig {
     total_timeout: Option<String>,
     #[serde(default)]
     allowed_schemes: Vec<String>,
+    #[serde(default)]
+    command_timeout: Option<String>,
+    #[serde(default = "default_command_output_bytes")]
+    max_command_output_bytes: usize,
+    #[serde(default = "default_command_args")]
+    max_command_args: usize,
+    #[serde(default = "default_command_arg_bytes")]
+    max_command_arg_bytes: usize,
+    #[serde(default = "default_command_argv_bytes")]
+    max_command_argv_bytes: usize,
 }
 
 impl Default for ExecutionConfig {
@@ -173,8 +186,29 @@ impl Default for ExecutionConfig {
             connect_timeout: None,
             total_timeout: None,
             allowed_schemes: Vec::new(),
+            command_timeout: None,
+            max_command_output_bytes: default_command_output_bytes(),
+            max_command_args: default_command_args(),
+            max_command_arg_bytes: default_command_arg_bytes(),
+            max_command_argv_bytes: default_command_argv_bytes(),
         }
     }
+}
+
+fn default_command_output_bytes() -> usize {
+    1024 * 1024
+}
+
+fn default_command_args() -> usize {
+    64
+}
+
+fn default_command_arg_bytes() -> usize {
+    64 * 1024
+}
+
+fn default_command_argv_bytes() -> usize {
+    1024 * 1024
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -197,6 +231,31 @@ struct PolicyConfig {
     allowed_read_paths: Vec<String>,
     #[serde(default)]
     allowed_write_paths: Vec<String>,
+    #[serde(default)]
+    exec: ExecPolicyConfig,
+    /// Legacy exact command entries are accepted only when they are absolute
+    /// executable paths. New documents should use `[policy.exec.commands]`.
+    #[serde(default)]
+    allowed_commands: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct ExecPolicyConfig {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    working_directory: Option<String>,
+    #[serde(default)]
+    commands: BTreeMap<String, CommandProfileConfig>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct CommandProfileConfig {
+    program: String,
+    #[serde(default)]
+    env: BTreeMap<String, String>,
+    #[serde(default)]
+    secret_env: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -239,6 +298,21 @@ struct EffectiveConfig {
     fail_fast: bool,
     timeout: Duration,
     max_body: usize,
+    command_timeout: Duration,
+    max_command_output_bytes: usize,
+    max_command_args: usize,
+    max_command_arg_bytes: usize,
+    max_command_argv_bytes: usize,
+    exec_enabled: bool,
+    command_working_directory: Option<PathBuf>,
+    command_profiles: BTreeMap<String, ResolvedCommandProfile>,
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedCommandProfile {
+    program: PathBuf,
+    env: BTreeMap<String, String>,
+    secret_env: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug)]
@@ -270,6 +344,7 @@ struct DocumentPlan {
 #[derive(Clone, Debug)]
 struct StepPlan {
     name: String,
+    kind: StepKind,
     command: Vec<String>,
     raw_tokens: Vec<String>,
     templates: Vec<Option<Template>>,
@@ -277,10 +352,22 @@ struct StepPlan {
     captures: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StepKind {
+    Curl,
+    Exec,
+}
+
 #[derive(Clone, Debug)]
 struct PlanOutcome {
     plan: Option<DocumentPlan>,
     diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Clone, Debug)]
+struct DocumentRun {
+    report: DocumentReport,
+    executions: Vec<Option<ExternalExecutionResult>>,
 }
 
 #[derive(Clone, Debug)]
@@ -404,11 +491,12 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
             if let Some(error) = stream_error {
                 return Err(error);
             }
-            let failed = result.status.is_failure();
+            let failed = result.report.status.is_failure();
             let event_start = report.events.len();
-            append_document_event(&mut report, &result, document_ordinal);
+            append_document_event(&mut report, &result.report, document_ordinal);
             stream_event_range(&report, event_start)?;
-            report.add_document(result);
+            attach_execution_metadata(&mut report, document_ordinal, &result);
+            report.add_document(result.report);
             if failed && (cli.options.fail_fast || config.fail_fast) {
                 break;
             }
@@ -418,7 +506,7 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
             let mut results = Vec::with_capacity(paths.len());
             for path in paths {
                 let result = process_document(&path, mode, &config, &cli.options);
-                let failed = result.status.is_failure();
+                let failed = result.report.status.is_failure();
                 results.push(result);
                 if failed && (cli.options.fail_fast || config.fail_fast) {
                     break;
@@ -449,7 +537,13 @@ fn report_exit_code(report: &Report) -> u8 {
     let policy_failure = diagnostics.iter().any(|diagnostic| {
         matches!(
             diagnostic.code.as_str(),
-            "MDOK-E302" | "MDOK-E303" | "MDOK-E304" | "MDOK-E602" | "MDOK-E603" | "MDOK-E604"
+            "MDOK-E302"
+                | "MDOK-E303"
+                | "MDOK-E304"
+                | "MDOK-E306"
+                | "MDOK-E602"
+                | "MDOK-E603"
+                | "MDOK-E604"
         )
     });
     if policy_failure {
@@ -505,12 +599,33 @@ fn print_version(options: &CommonOptions) -> Result<u8, Box<CliError>> {
     Ok(EXIT_OK)
 }
 
-fn append_report_document(report: &mut Report, document: DocumentReport, document_ordinal: usize) {
-    for (step_ordinal, step) in document.steps.iter().enumerate() {
-        append_step_event(report, &document.path, document_ordinal, step_ordinal, step);
+fn append_report_document(report: &mut Report, document: DocumentRun, document_ordinal: usize) {
+    attach_execution_metadata(report, document_ordinal, &document);
+    for (step_ordinal, step) in document.report.steps.iter().enumerate() {
+        append_step_event(
+            report,
+            &document.report.path,
+            document_ordinal,
+            step_ordinal,
+            step,
+        );
     }
-    append_document_event(report, &document, document_ordinal);
-    report.add_document(document);
+    append_document_event(report, &document.report, document_ordinal);
+    report.add_document(document.report);
+}
+
+fn attach_execution_metadata(report: &mut Report, document_ordinal: usize, document: &DocumentRun) {
+    for (step_ordinal, execution) in document.executions.iter().enumerate() {
+        let Some(execution) = execution else {
+            continue;
+        };
+        report.set_step_execution_metadata(StepExecutionMetadata::new(
+            document_ordinal,
+            step_ordinal,
+            Some(ReportStepKind::Exec),
+            Some(execution.clone()),
+        ));
+    }
 }
 
 fn append_step_event(
@@ -647,7 +762,7 @@ fn process_documents_parallel(
     config: EffectiveConfig,
     options: CommonOptions,
     jobs: usize,
-) -> Vec<DocumentReport> {
+) -> Vec<DocumentRun> {
     let paths = Arc::new(paths);
     let slots = Arc::new(Mutex::new((0..paths.len()).collect::<Vec<usize>>()));
     let results = Arc::new(Mutex::new(vec![None; paths.len()]));
@@ -684,7 +799,7 @@ fn process_document(
     mode: Mode,
     config: &EffectiveConfig,
     options: &CommonOptions,
-) -> DocumentReport {
+) -> DocumentRun {
     process_document_with_hook(path, mode, config, options, |_, _| {})
 }
 
@@ -694,49 +809,63 @@ fn process_document_with_hook<F>(
     config: &EffectiveConfig,
     options: &CommonOptions,
     mut on_step: F,
-) -> DocumentReport
+) -> DocumentRun
 where
     F: FnMut(usize, &StepReport),
 {
     let started = Instant::now();
     let outcome = build_plan(path, config);
     let Some(plan) = outcome.plan else {
-        return DocumentReport {
-            path: path.display().to_string(),
-            status: if outcome.diagnostics.iter().any(|diagnostic| {
-                matches!(
-                    diagnostic.code.as_str(),
-                    "MDOK-E302"
-                        | "MDOK-E303"
-                        | "MDOK-E304"
-                        | "MDOK-E602"
-                        | "MDOK-E603"
-                        | "MDOK-E604"
-                )
-            }) {
-                Status::Error
-            } else {
-                Status::Failed
+        return DocumentRun {
+            report: DocumentReport {
+                path: path.display().to_string(),
+                status: if outcome.diagnostics.iter().any(|diagnostic| {
+                    matches!(
+                        diagnostic.code.as_str(),
+                        "MDOK-E302"
+                            | "MDOK-E303"
+                            | "MDOK-E304"
+                            | "MDOK-E306"
+                            | "MDOK-E312"
+                            | "MDOK-E602"
+                            | "MDOK-E603"
+                            | "MDOK-E604"
+                    )
+                }) {
+                    Status::Error
+                } else {
+                    Status::Failed
+                },
+                duration_ms: started.elapsed().as_millis() as u64,
+                steps: Vec::new(),
+                diagnostics: outcome.diagnostics,
             },
-            duration_ms: started.elapsed().as_millis() as u64,
-            steps: Vec::new(),
-            diagnostics: outcome.diagnostics,
+            executions: Vec::new(),
         };
     };
     let mut document = match mode {
         Mode::Test => execute_plan_with_hook(&plan, config, options, &mut on_step),
-        Mode::Lint => plan_report(&plan, Status::Passed, true),
-        Mode::Plan => plan_report(&plan, Status::Planned, true),
-        Mode::List => plan_report(&plan, Status::Planned, false),
+        Mode::Lint => DocumentRun {
+            report: plan_report(&plan, Status::Passed, true),
+            executions: Vec::new(),
+        },
+        Mode::Plan => DocumentRun {
+            report: plan_report(&plan, Status::Planned, true),
+            executions: Vec::new(),
+        },
+        Mode::List => DocumentRun {
+            report: plan_report(&plan, Status::Planned, false),
+            executions: Vec::new(),
+        },
     };
     if mode != Mode::Test {
-        for (step_ordinal, step) in document.steps.iter().enumerate() {
+        for (step_ordinal, step) in document.report.steps.iter().enumerate() {
             on_step(step_ordinal, step);
         }
     }
-    document.diagnostics.extend(outcome.diagnostics);
-    document.path = path.display().to_string();
-    document.duration_ms = started.elapsed().as_millis() as u64;
+    document.report.diagnostics.extend(outcome.diagnostics);
+    document.report.path = path.display().to_string();
+    document.report.duration_ms = started.elapsed().as_millis() as u64;
     document
 }
 
@@ -779,7 +908,7 @@ fn execute_plan_with_hook<F>(
     config: &EffectiveConfig,
     options: &CommonOptions,
     on_step: &mut F,
-) -> DocumentReport
+) -> DocumentRun
 where
     F: FnMut(usize, &StepReport),
 {
@@ -804,7 +933,7 @@ where
                         Diagnostic::error(
                             "MDOK-E302",
                             "Offline execution denied",
-                            "--offline prevents network transfers in test mode",
+                            "--offline prevents curl transfers and external commands in test mode",
                         )
                         .at_file(&plan.path)
                         .at_step(step.name.clone()),
@@ -817,9 +946,13 @@ where
         for (step_ordinal, step) in document.steps.iter().enumerate() {
             on_step(step_ordinal, step);
         }
-        return document;
+        return DocumentRun {
+            report: document,
+            executions: vec![None; plan.steps.len()],
+        };
     }
     let mut steps = Vec::new();
+    let mut executions = Vec::new();
     for step in &plan.steps {
         let started = Instant::now();
         let mut report = StepReport {
@@ -832,6 +965,28 @@ where
             duration_ms: 0,
         };
         let tokens = &step.raw_tokens;
+        if step.kind == StepKind::Exec
+            && step
+                .templates
+                .iter()
+                .flatten()
+                .flat_map(Template::expressions)
+                .any(|expression| {
+                    variables
+                        .get(template_root(expression))
+                        .is_some_and(|variable| variable.secret)
+                })
+        {
+            report.diagnostics.push(
+                Diagnostic::error(
+                    "MDOK-E404",
+                    "Secret in external command argv",
+                    "secret values may only enter an exec process through a declared secret_env mapping",
+                )
+                .at_file(&plan.path)
+                .at_step(step.name.clone()),
+            );
+        }
         let rendered_command = normalize_command(
             tokens,
             Some(&step.templates),
@@ -860,20 +1015,72 @@ where
             );
             let step_ordinal = steps.len();
             steps.push(report);
+            executions.push(None);
             on_step(step_ordinal, steps.last().expect("step was just pushed"));
             if options.fail_fast || config.fail_fast {
                 break;
             }
             continue;
         }
-        match transfer(
-            &rendered_command,
-            config,
-            &variables_to_value(&variables),
-            &Value::Object(step_summaries.clone()),
-            &mut session,
-        ) {
+        let context_result = match step.kind {
+            StepKind::Curl => transfer(
+                &rendered_command,
+                config,
+                &variables_to_value(&variables),
+                &Value::Object(step_summaries.clone()),
+                &mut session,
+            ),
+            StepKind::Exec => execute_external_command(
+                &rendered_command,
+                config,
+                &variables_to_value(&variables),
+                &Value::Object(step_summaries.clone()),
+            ),
+        };
+        let mut execution = None;
+        match context_result {
             Ok(context) => {
+                if step.kind == StepKind::Exec {
+                    execution = execution_result_from_context(&context, &report.command);
+                }
+                if step.kind == StepKind::Exec
+                    && context.get("success").and_then(Value::as_bool) == Some(false)
+                {
+                    report.status = Status::Failed;
+                    let timed_out = context
+                        .get("timed_out")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    let output_limit_exceeded = context
+                        .get("output_limit_exceeded")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    let code = if timed_out {
+                        mdok_command::E_TIMEOUT
+                    } else if output_limit_exceeded {
+                        mdok_command::E_LIMIT
+                    } else {
+                        mdok_command::E_EXIT
+                    };
+                    let message = if timed_out {
+                        "external command exceeded its configured timeout".to_owned()
+                    } else if output_limit_exceeded {
+                        "external command exceeded its combined output limit".to_owned()
+                    } else {
+                        format!(
+                            "external command exited with status {}",
+                            context
+                                .get("exit_code")
+                                .and_then(Value::as_i64)
+                                .map_or_else(|| "unknown".to_owned(), |value| value.to_string())
+                        )
+                    };
+                    report.diagnostics.push(
+                        Diagnostic::error(code, "External command failed", message)
+                            .at_file(&plan.path)
+                            .at_step(step.name.clone()),
+                    );
+                }
                 for expression in &step.checks {
                     let result = compiled_jmespath(&plan.jmespath, expression)
                         .and_then(|compiled| evaluate_check(compiled, &context));
@@ -951,21 +1158,25 @@ where
         );
         let step_ordinal = steps.len();
         steps.push(report);
+        executions.push(execution);
         on_step(step_ordinal, steps.last().expect("step was just pushed"));
         if failed && (options.fail_fast || config.fail_fast) {
             break;
         }
     }
-    DocumentReport {
-        path: plan.path.display().to_string(),
-        status: if steps.iter().any(|step| step.status.is_failure()) {
-            Status::Failed
-        } else {
-            Status::Passed
+    DocumentRun {
+        report: DocumentReport {
+            path: plan.path.display().to_string(),
+            status: if steps.iter().any(|step| step.status.is_failure()) {
+                Status::Failed
+            } else {
+                Status::Passed
+            },
+            duration_ms: 0,
+            steps,
+            diagnostics: Vec::new(),
         },
-        duration_ms: 0,
-        steps,
-        diagnostics: Vec::new(),
+        executions,
     }
 }
 
@@ -1022,6 +1233,122 @@ fn transfer(
     response
         .evaluation_json_limited(variables, steps, config.max_body)
         .map_err(curl_diagnostic)
+}
+
+fn execute_external_command(
+    argv: &[String],
+    config: &EffectiveConfig,
+    variables: &Value,
+    steps: &Value,
+) -> Result<Value, Diagnostic> {
+    let policy = CommandPolicy {
+        profiles: config
+            .command_profiles
+            .iter()
+            .map(|(name, profile)| {
+                (
+                    name.clone(),
+                    mdok_command::CommandProfile {
+                        program: profile.program.clone(),
+                        env: profile
+                            .env
+                            .iter()
+                            .map(|(key, value)| (key.clone(), OsString::from(value)))
+                            .collect(),
+                        secret_env: profile
+                            .secret_env
+                            .iter()
+                            .map(|(key, value)| (key.clone(), OsString::from(value)))
+                            .collect(),
+                        working_directory: config.command_working_directory.clone(),
+                    },
+                )
+            })
+            .collect(),
+        timeout: config.command_timeout,
+        max_output_bytes: config.max_command_output_bytes,
+        max_args: config.max_command_args,
+        max_arg_bytes: config.max_command_arg_bytes,
+        max_argv_bytes: config.max_command_argv_bytes,
+    };
+    let output = run_external_command(argv, &policy).map_err(command_diagnostic)?;
+    Ok(command_context(&output, variables, steps))
+}
+
+fn command_context(output: &ProcessOutput, variables: &Value, steps: &Value) -> Value {
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stdout_json = serde_json::from_str::<Value>(&stdout).ok();
+    json!({
+        "kind": "exec",
+        "program": output.program.display().to_string(),
+        "argv": &output.argv,
+        "exit_code": output.exit_code,
+        "signal": output.signal,
+        "success": output.success,
+        "timed_out": output.timed_out,
+        "output_limit_exceeded": output.output_limit_exceeded,
+        "output_truncated": output.output_truncated,
+        "stdout": stdout,
+        "stderr": stderr,
+        "stdout_json": stdout_json,
+        "stdout_bytes": output.stdout_bytes,
+        "stderr_bytes": output.stderr_bytes,
+        "secret_env_used": output.secret_env_used,
+        "duration_ms": output.duration.as_millis() as u64,
+        "variables": variables,
+        "steps": steps,
+    })
+}
+
+fn execution_result_from_context(
+    context: &Value,
+    redacted_argv: &[String],
+) -> Option<ExternalExecutionResult> {
+    (context.get("kind")?.as_str()? == "exec").then(|| ExternalExecutionResult {
+        program: context
+            .get("program")
+            .and_then(Value::as_str)
+            .unwrap_or("<configured command>")
+            .to_owned(),
+        argv: redacted_argv.to_vec(),
+        exit_code: context
+            .get("exit_code")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok()),
+        signal: context
+            .get("signal")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok()),
+        timed_out: context
+            .get("timed_out")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        output_limit_exceeded: context
+            .get("output_limit_exceeded")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        output_truncated: context
+            .get("output_truncated")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        stdout_bytes: context
+            .get("stdout_bytes")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        stderr_bytes: context
+            .get("stderr_bytes")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        duration_ms: context
+            .get("duration_ms")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+    })
+}
+
+fn command_diagnostic(error: mdok_command::CommandError) -> Diagnostic {
+    Diagnostic::error(error.code, "External command error", error.message)
 }
 
 fn curl_diagnostic(error: CurlError) -> Diagnostic {
@@ -1367,13 +1694,18 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                     ),
                 }
             }
-            "curl" => {
+            "curl" | "exec" => {
+                let kind = if fence.language == "curl" {
+                    StepKind::Curl
+                } else {
+                    StepKind::Exec
+                };
                 let Some(name) = fence.attrs.get("name").cloned() else {
                     diagnostics.push(
                         Diagnostic::error(
                             "MDOK-E100",
                             "Missing step name",
-                            "curl fences require name=...",
+                            format!("{} fences require name=...", fence.language),
                         )
                         .at_file(path),
                     );
@@ -1384,7 +1716,7 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                         Diagnostic::error(
                             "MDOK-E100",
                             "Invalid fence metadata",
-                            "curl fence name cannot be empty",
+                            format!("{} fence name cannot be empty", fence.language),
                         )
                         .at_file(path),
                     );
@@ -1403,12 +1735,15 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                 }
                 match tokenize_command(&fence.body) {
                     Ok(tokens) => {
-                        if tokens.len() > 1 && tokens.iter().skip(1).any(|token| token == "curl") {
+                        if kind == StepKind::Curl
+                            && tokens.len() > 1
+                            && tokens.iter().skip(1).any(|token| token == "curl")
+                        {
                             diagnostics.push(
                                 Diagnostic::error(
                                     "MDOK-E201",
                                     "Forbidden shell construct",
-                                    "a curl fence may contain only one simple command",
+                                    "a command fence may contain only one simple command",
                                 )
                                 .at_file(path),
                             );
@@ -1419,13 +1754,15 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                                 Diagnostic::error(
                                     "MDOK-E201",
                                     "Forbidden shell construct",
-                                    "variable assignments are not allowed in curl fences",
+                                    "variable assignments are not allowed in command fences",
                                 )
                                 .at_file(path),
                             );
                             continue;
                         }
-                        if tokens.first().map(String::as_str) != Some("curl") {
+                        if kind == StepKind::Curl
+                            && tokens.first().map(String::as_str) != Some("curl")
+                        {
                             diagnostics.push(
                                 Diagnostic::error(
                                     "MDOK-E202",
@@ -1436,10 +1773,15 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                             );
                             continue;
                         }
-                        let mut step_diagnostics = validate_command(&tokens, path, config);
+                        let mut step_diagnostics = if kind == StepKind::Curl {
+                            validate_command(&tokens, path, config)
+                        } else {
+                            validate_exec_command(&tokens, path, config)
+                        };
                         diagnostics.append(&mut step_diagnostics);
                         steps.push(StepPlan {
                             name,
+                            kind,
                             command: tokens,
                             raw_tokens: Vec::new(),
                             templates: Vec::new(),
@@ -1450,7 +1792,11 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                     Err(message) => diagnostics.push(
                         Diagnostic::error(
                             tokenize_error_code(&message),
-                            "Invalid curl syntax",
+                            if kind == StepKind::Curl {
+                                "Invalid curl syntax"
+                            } else {
+                                "Invalid external command syntax"
+                            },
                             message,
                         )
                         .at_file(path),
@@ -1559,7 +1905,7 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
         );
         step.raw_tokens = tokens;
         step.templates = templates;
-        if has_url_glob(&step.command) {
+        if step.kind == StepKind::Curl && has_url_glob(&step.command) {
             diagnostics.push(
                 Diagnostic::error(
                     "MDOK-E304",
@@ -1570,14 +1916,25 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                 .at_step(step.name.clone()),
             );
         }
-        if !step.command.iter().any(|argument| argument.contains("{{"))
-            && let Err(error) = CurlPlan::parse(&step.command, &curl_policy(config))
-        {
-            diagnostics.push(
-                curl_diagnostic(error)
-                    .at_file(path)
-                    .at_step(step.name.clone()),
-            );
+        if !step.command.iter().any(|argument| argument.contains("{{")) {
+            match step.kind {
+                StepKind::Curl => {
+                    if let Err(error) = CurlPlan::parse(&step.command, &curl_policy(config)) {
+                        diagnostics.push(
+                            curl_diagnostic(error)
+                                .at_file(path)
+                                .at_step(step.name.clone()),
+                        );
+                    }
+                }
+                StepKind::Exec => {
+                    diagnostics.extend(
+                        validate_exec_command(&step.command, path, config)
+                            .into_iter()
+                            .map(|diagnostic| diagnostic.at_step(step.name.clone())),
+                    );
+                }
+            }
         }
     }
     let mut plan = DocumentPlan {
@@ -1645,11 +2002,13 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
     }
     plan.jmespath = compiled_expressions;
     for step in &plan.steps {
-        for url in positional_args(&step.command) {
-            if let Ok(url) = Url::parse(url)
-                && let Err(diagnostic) = enforce_policy(&url, config)
-            {
-                diagnostics.push(diagnostic.at_file(path).at_step(step.name.clone()));
+        if step.kind == StepKind::Curl {
+            for url in positional_args(&step.command) {
+                if let Ok(url) = Url::parse(url)
+                    && let Err(diagnostic) = enforce_policy(&url, config)
+                {
+                    diagnostics.push(diagnostic.at_file(path).at_step(step.name.clone()));
+                }
             }
         }
     }
@@ -1794,6 +2153,100 @@ fn validate_command(tokens: &[String], path: &Path, config: &EffectiveConfig) ->
         );
     }
     diagnostics
+}
+
+fn validate_exec_command(
+    tokens: &[String],
+    path: &Path,
+    config: &EffectiveConfig,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let Some(executable) = tokens.first() else {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E202",
+                "Invalid external command",
+                "an exec fence must contain one non-empty command",
+            )
+            .at_file(path),
+        );
+        return diagnostics;
+    };
+    if executable.contains("{{") || executable.contains('\0') {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E202",
+                "Invalid external command",
+                "the executable name must be a literal without templates or NUL bytes",
+            )
+            .at_file(path),
+        );
+    }
+    if executable.starts_with('-') {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E202",
+                "Invalid external command",
+                "the executable name cannot start with `-`",
+            )
+            .at_file(path),
+        );
+    }
+    if is_shell_interpreter(executable) {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E307",
+                "Shell interpreter denied",
+                "shell interpreters cannot be selected by an exec profile",
+            )
+            .at_file(path),
+        );
+    }
+    if !config.exec_enabled {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E306",
+                "External command denied",
+                "external commands are disabled; enable policy.exec.enabled",
+            )
+            .at_file(path),
+        );
+    } else if !config.command_profiles.contains_key(executable) {
+        diagnostics.push(
+            Diagnostic::error(
+                "MDOK-E306",
+                "External command denied",
+                if config.command_profiles.is_empty() {
+                    "no trusted command profiles are configured".to_owned()
+                } else {
+                    format!("`{executable}` is not in policy.exec.commands")
+                },
+            )
+            .at_file(path),
+        );
+    }
+    diagnostics
+}
+
+fn is_shell_interpreter(executable: &str) -> bool {
+    let basename = Path::new(executable)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(executable)
+        .to_ascii_lowercase();
+    matches!(
+        basename.as_str(),
+        "sh" | "bash"
+            | "dash"
+            | "zsh"
+            | "fish"
+            | "cmd"
+            | "cmd.exe"
+            | "powershell"
+            | "powershell.exe"
+            | "pwsh"
+            | "pwsh.exe"
+    )
 }
 
 fn has_url_glob(tokens: &[String]) -> bool {
@@ -2754,6 +3207,13 @@ fn load_config(
         .map(parse_duration)
         .transpose()?
         .unwrap_or(Duration::from_secs(30));
+    let command_timeout = options
+        .timeout
+        .as_deref()
+        .or(file.execution.command_timeout.as_deref())
+        .map(parse_duration)
+        .transpose()?
+        .unwrap_or(timeout);
     let connect_timeout = file
         .execution
         .connect_timeout
@@ -2782,6 +3242,24 @@ fn load_config(
         .iter()
         .map(|path| config_root.join(path.trim_end_matches("/**")))
         .collect::<Vec<_>>();
+    let command_working_directory = file
+        .policy
+        .exec
+        .working_directory
+        .as_deref()
+        .map(|path| resolve_command_directory(&config_root, path))
+        .transpose()?;
+    let mut command_profiles = resolve_command_profiles(&file.policy.exec, &config_root, &vars)?;
+    for configured in &file.policy.allowed_commands {
+        let program = resolve_command_program(&config_root, configured)?;
+        command_profiles
+            .entry(configured.clone())
+            .or_insert(ResolvedCommandProfile {
+                program,
+                env: BTreeMap::new(),
+                secret_env: BTreeMap::new(),
+            });
+    }
     let allow_private_network = file.policy.allow_private_network
         || file
             .policy
@@ -2823,7 +3301,201 @@ fn load_config(
         fail_fast: options.fail_fast || file.execution.fail_fast,
         timeout,
         max_body,
+        command_timeout,
+        max_command_output_bytes: file.execution.max_command_output_bytes.max(1),
+        max_command_args: file.execution.max_command_args.max(1),
+        max_command_arg_bytes: file.execution.max_command_arg_bytes.max(1),
+        max_command_argv_bytes: file.execution.max_command_argv_bytes.max(1),
+        exec_enabled: file.policy.exec.enabled || !file.policy.allowed_commands.is_empty(),
+        command_working_directory,
+        command_profiles,
     })
+}
+
+fn resolve_command_profiles(
+    policy: &ExecPolicyConfig,
+    config_root: &Path,
+    variables: &BTreeMap<String, Variable>,
+) -> Result<BTreeMap<String, ResolvedCommandProfile>, Box<CliError>> {
+    let mut profiles = BTreeMap::new();
+    for (name, profile) in &policy.commands {
+        if !valid_name(name) {
+            return Err(cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-E312",
+                    "Invalid command profile",
+                    format!("command profile `{name}` is not a valid name"),
+                ),
+            ));
+        }
+        let program = resolve_command_program(config_root, &profile.program)?;
+        let mut env = BTreeMap::new();
+        for (key, value) in &profile.env {
+            validate_command_environment_name(key)?;
+            env.insert(key.clone(), value.clone());
+        }
+        let mut secret_env = BTreeMap::new();
+        for (key, variable_name) in &profile.secret_env {
+            validate_command_environment_name(key)?;
+            let Some(variable) = variables.get(variable_name) else {
+                return Err(cli_error(
+                    EXIT_INPUT,
+                    Diagnostic::error(
+                        "MDOK-E404",
+                        "Missing command secret",
+                        format!(
+                            "command profile `{name}` maps `{key}` from undefined variable `{variable_name}`"
+                        ),
+                    ),
+                ));
+            };
+            let Some(value) = variable.value.as_str() else {
+                return Err(cli_error(
+                    EXIT_INPUT,
+                    Diagnostic::error(
+                        "MDOK-E404",
+                        "Invalid command secret",
+                        format!(
+                            "command profile `{name}` secret variable `{variable_name}` must be a string"
+                        ),
+                    ),
+                ));
+            };
+            secret_env.insert(key.clone(), value.to_owned());
+        }
+        profiles.insert(
+            name.clone(),
+            ResolvedCommandProfile {
+                program,
+                env,
+                secret_env,
+            },
+        );
+    }
+    Ok(profiles)
+}
+
+fn resolve_command_program(config_root: &Path, configured: &str) -> Result<PathBuf, Box<CliError>> {
+    if configured.is_empty() {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command profile",
+                "command profile program cannot be empty",
+            ),
+        ));
+    }
+    let configured_path = PathBuf::from(configured);
+    let candidate = if configured_path.is_absolute() {
+        configured_path
+    } else {
+        config_root.join(configured_path)
+    };
+    let canonical = fs::canonicalize(&candidate).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command profile",
+                format!("cannot resolve `{}`: {error}", candidate.display()),
+            ),
+        )
+    })?;
+    let metadata = fs::metadata(&canonical).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command profile",
+                format!("cannot inspect `{}`: {error}", canonical.display()),
+            ),
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command profile",
+                format!("`{}` is not a regular file", canonical.display()),
+            ),
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err(cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-E312",
+                    "Invalid command profile",
+                    format!("`{}` is not executable", canonical.display()),
+                ),
+            ));
+        }
+    }
+    Ok(canonical)
+}
+
+fn resolve_command_directory(
+    config_root: &Path,
+    configured: &str,
+) -> Result<PathBuf, Box<CliError>> {
+    let configured_path = PathBuf::from(configured);
+    let candidate = if configured_path.is_absolute() {
+        configured_path
+    } else {
+        config_root.join(configured_path)
+    };
+    let canonical = fs::canonicalize(&candidate).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command working directory",
+                format!("cannot resolve `{}`: {error}", candidate.display()),
+            ),
+        )
+    })?;
+    if !canonical.is_dir() {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command working directory",
+                format!("`{}` is not a directory", canonical.display()),
+            ),
+        ));
+    }
+    Ok(canonical)
+}
+
+fn validate_command_environment_name(name: &str) -> Result<(), Box<CliError>> {
+    let upper = name.to_ascii_uppercase();
+    let blocked = matches!(
+        upper.as_str(),
+        "LD_PRELOAD" | "LD_LIBRARY_PATH" | "DYLD_INSERT_LIBRARIES" | "DYLD_LIBRARY_PATH"
+    ) || upper.starts_with("PYTHONPATH")
+        || upper == "PYTHONINSPECT"
+        || upper == "NODE_OPTIONS"
+        || upper == "RUBYOPT"
+        || upper == "PERL5OPT"
+        || upper == "BASH_ENV"
+        || upper == "ENV";
+    if name.is_empty() || name.contains('=') || name.contains('\0') || blocked {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E312",
+                "Invalid command environment",
+                format!("environment variable `{name}` is not permitted"),
+            ),
+        ));
+    }
+    Ok(())
 }
 
 fn find_config(path: &Path) -> Option<PathBuf> {

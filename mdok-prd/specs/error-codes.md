@@ -16,6 +16,13 @@
 | MDOK-E303 | Filesystem access denied. |
 | MDOK-E304 | Multiple curl transfers are not supported in version 1. |
 | MDOK-E305 | Required curl/libcurl build feature unavailable. |
+| MDOK-E306 | External command is not allowed by the command policy. |
+| MDOK-E307 | External command argv or direct-command syntax is invalid. |
+| MDOK-E308 | External command could not be started or reaped. |
+| MDOK-E309 | External command exited unsuccessfully. |
+| MDOK-E310 | External command exceeded its timeout. |
+| MDOK-E311 | External command argv or output resource limit exceeded. |
+| MDOK-E312 | External command environment or working-directory policy violation. |
 | MDOK-E400 | Invalid template syntax. |
 | MDOK-E401 | Missing variable. |
 | MDOK-E402 | Template type/filter error. |
