@@ -941,7 +941,7 @@ impl CurlPlan {
             if let Ok(mut hops) = redirects.lock() {
                 hops.clear();
             }
-            match self.execute_once(&client, policy, started, &redirects) {
+            match self.execute_once(&client, policy, started, &redirects, cancelled) {
                 Ok(response)
                     if attempt >= self.retries || !is_retryable_status(response.status) =>
                 {
@@ -980,6 +980,7 @@ impl CurlPlan {
         policy: &CurlPolicy,
         started: Instant,
         redirects: &Arc<Mutex<Vec<RedirectHop>>>,
+        cancelled: Option<&dyn Fn() -> bool>,
     ) -> Result<TransferResponse, CurlError> {
         let mut req = client.request(
             Method::from_bytes(self.method.as_bytes())
@@ -1041,6 +1042,7 @@ impl CurlPlan {
             &mut response,
             policy.memory_body_threshold_bytes,
             policy.max_body_bytes,
+            cancelled,
         )?;
         let cookies = cookies_from_headers(&headers);
         let downloaded_bytes = body.len();
@@ -1610,53 +1612,91 @@ impl TransferResponse {
     }
 }
 
-fn capture_body(
-    response: &mut reqwest::blocking::Response,
+fn capture_body<R: Read>(
+    response: &mut R,
     threshold: usize,
     max: u64,
+    cancelled: Option<&dyn Fn() -> bool>,
 ) -> Result<BodyStorage, CurlError> {
-    let mut memory = Vec::new();
-    let mut spool: Option<(NamedTempFile, u64)> = None;
+    let mut sink = BodySink::new(threshold, max);
     let mut buf = [0u8; 16 * 1024];
-    let mut len = 0u64;
     loop {
+        if cancelled.is_some_and(|callback| callback()) {
+            return Err(CurlError::new(E_CANCELLED, "transfer cancelled"));
+        }
         let count = response.read(&mut buf).map_err(map_body_read_error)?;
         if count == 0 {
             break;
         }
-        len = len
-            .checked_add(count as u64)
+        sink.push(&buf[..count])?;
+    }
+    Ok(sink.finish())
+}
+
+#[derive(Debug)]
+struct BodySink {
+    memory: Vec<u8>,
+    spool: Option<NamedTempFile>,
+    threshold: usize,
+    max: u64,
+    len: u64,
+}
+
+impl BodySink {
+    fn new(threshold: usize, max: u64) -> Self {
+        Self {
+            memory: Vec::new(),
+            spool: None,
+            threshold,
+            max,
+            len: 0,
+        }
+    }
+
+    fn push(&mut self, chunk: &[u8]) -> Result<(), CurlError> {
+        let chunk_len = u64::try_from(chunk.len())
+            .map_err(|_| CurlError::new(E_BODY_LIMIT, "body length overflow"))?;
+        let new_len = self
+            .len
+            .checked_add(chunk_len)
             .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "body length overflow"))?;
-        if len > max {
+        if new_len > self.max {
             return Err(CurlError::new(
                 E_BODY_LIMIT,
                 "response body exceeds the configured limit",
             ));
         }
-        if let Some((file, written)) = &mut spool {
-            file.as_file_mut()
-                .write_all(&buf[..count])
-                .map_err(|e| CurlError::new(E_TRANSFER, e.to_string()))?;
-            *written += count as u64;
-        } else if memory.len().saturating_add(count) <= threshold {
-            memory.extend_from_slice(&buf[..count]);
+
+        if let Some(file) = &mut self.spool {
+            write_body_chunk(file.as_file_mut(), chunk)?;
+        } else if chunk.len() <= self.threshold.saturating_sub(self.memory.len()) {
+            self.memory.extend_from_slice(chunk);
         } else {
             let mut file =
                 NamedTempFile::new().map_err(|e| CurlError::new(E_TRANSFER, e.to_string()))?;
-            file.as_file_mut()
-                .write_all(&memory)
-                .and_then(|_| file.as_file_mut().write_all(&buf[..count]))
-                .map_err(|e| CurlError::new(E_TRANSFER, e.to_string()))?;
-            spool = Some((file, memory.len() as u64 + count as u64));
-            memory.clear();
+            let buffered = std::mem::take(&mut self.memory);
+            write_body_chunk(file.as_file_mut(), &buffered)?;
+            write_body_chunk(file.as_file_mut(), chunk)?;
+            self.spool = Some(file);
+        }
+        self.len = new_len;
+        Ok(())
+    }
+
+    fn finish(self) -> BodyStorage {
+        BodyStorage {
+            memory: (self.spool.is_none()).then_some(self.memory),
+            spool: self.spool.map(NamedTempFile::into_temp_path),
+            len: self.len,
+            truncated: false,
         }
     }
-    Ok(BodyStorage {
-        memory: if spool.is_none() { Some(memory) } else { None },
-        spool: spool.map(|(file, _)| file.into_temp_path()),
-        len,
-        truncated: false,
-    })
+}
+
+fn write_body_chunk<W: Write>(writer: &mut W, chunk: &[u8]) -> Result<(), CurlError> {
+    writer
+        .write_all(chunk)
+        .map_err(|e| CurlError::new(E_TRANSFER, e.to_string()))
 }
 
 fn map_body_read_error(error: std::io::Error) -> CurlError {
@@ -1921,11 +1961,147 @@ fn classify_reqwest_error_code(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct ChunkReader {
+        bytes: Vec<u8>,
+        offset: usize,
+        chunk_size: usize,
+    }
+
+    impl ChunkReader {
+        fn new(bytes: &[u8], chunk_size: usize) -> Self {
+            assert!(chunk_size > 0);
+            Self {
+                bytes: bytes.to_vec(),
+                offset: 0,
+                chunk_size,
+            }
+        }
+    }
+
+    impl Read for ChunkReader {
+        fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+            if self.offset == self.bytes.len() {
+                return Ok(0);
+            }
+            let count = self
+                .chunk_size
+                .min(output.len())
+                .min(self.bytes.len() - self.offset);
+            output[..count].copy_from_slice(&self.bytes[self.offset..self.offset + count]);
+            self.offset += count;
+            Ok(count)
+        }
+    }
+
+    struct PartialWriter {
+        bytes: Vec<u8>,
+        max_write: usize,
+    }
+
+    impl Write for PartialWriter {
+        fn write(&mut self, input: &[u8]) -> std::io::Result<usize> {
+            let count = self.max_write.min(input.len());
+            self.bytes.extend_from_slice(&input[..count]);
+            Ok(count)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
     fn parse(args: &[&str]) -> Result<CurlPlan, CurlError> {
         CurlPlan::parse(
             &args.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>(),
             &CurlPolicy::default(),
         )
+    }
+
+    #[test]
+    fn body_sink_keeps_exact_threshold_in_memory_and_spills_after_it() {
+        let payload = b"0123456789";
+        let mut exact_reader = ChunkReader::new(payload, 3);
+        let exact = capture_body(&mut exact_reader, payload.len(), 100, None).unwrap();
+        assert_eq!(exact.len(), payload.len() as u64);
+        assert!(!exact.is_spooled());
+        assert_eq!(exact.bytes(100).unwrap(), payload);
+
+        let mut spill_reader = ChunkReader::new(payload, 3);
+        let spill = capture_body(&mut spill_reader, payload.len() - 1, 100, None).unwrap();
+        assert_eq!(spill.len(), payload.len() as u64);
+        assert!(spill.is_spooled());
+        assert_eq!(spill.bytes(100).unwrap(), payload);
+    }
+
+    #[test]
+    fn body_sink_handles_empty_and_zero_threshold_bodies() {
+        let mut empty_reader = ChunkReader::new(&[], 1);
+        let empty = capture_body(&mut empty_reader, 0, 0, None).unwrap();
+        assert!(empty.is_empty());
+        assert!(!empty.is_spooled());
+
+        let mut reader = ChunkReader::new(b"x", 1);
+        let one_byte_spill = capture_body(&mut reader, 0, 1, None).unwrap();
+        assert!(one_byte_spill.is_spooled());
+        assert_eq!(one_byte_spill.bytes(1).unwrap(), b"x");
+    }
+
+    #[test]
+    fn body_sink_rejects_max_overflow_before_writing_and_cleans_spool() {
+        let mut sink = BodySink::new(2, 3);
+        sink.push(b"abc").unwrap();
+        let path = sink.spool.as_ref().unwrap().path().to_path_buf();
+        assert!(path.exists());
+        let error = sink.push(b"d").unwrap_err();
+        assert_eq!(error.code, E_BODY_LIMIT);
+        drop(sink);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn body_sink_rejects_length_counter_overflow() {
+        let mut sink = BodySink::new(8, u64::MAX);
+        sink.len = u64::MAX - 1;
+        let error = sink.push(b"xx").unwrap_err();
+        assert_eq!(error.code, E_BODY_LIMIT);
+        assert_eq!(error.message, "body length overflow");
+    }
+
+    #[test]
+    fn body_sink_retries_partial_writes_until_the_chunk_is_complete() {
+        let mut writer = PartialWriter {
+            bytes: Vec::new(),
+            max_write: 2,
+        };
+        write_body_chunk(&mut writer, b"partial writes").unwrap();
+        assert_eq!(writer.bytes, b"partial writes");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn body_sink_spool_has_private_temp_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut sink = BodySink::new(0, 1);
+        sink.push(b"x").unwrap();
+        let path = sink.spool.as_ref().unwrap().path();
+        let mode = fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+
+    #[test]
+    fn body_capture_checks_cancellation_between_reader_chunks() {
+        let mut reader = ChunkReader::new(b"abcdef", 1);
+        let checks = std::cell::Cell::new(0);
+        let cancelled = || {
+            let next = checks.get() + 1;
+            checks.set(next);
+            next >= 3
+        };
+        let error = capture_body(&mut reader, 10, 10, Some(&cancelled)).unwrap_err();
+        assert_eq!(error.code, E_CANCELLED);
+        assert!(reader.offset < reader.bytes.len());
     }
     #[test]
     fn parses_data_and_headers() {
