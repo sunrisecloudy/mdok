@@ -316,6 +316,24 @@ fn validate_argv<'a>(
             ),
         )
     })?;
+    let canonical = std::fs::canonicalize(&profile.program).map_err(|error| {
+        CommandError::new(
+            E_ENVIRONMENT,
+            format!(
+                "cannot canonicalize command profile `{}`: {error}",
+                profile.program.display()
+            ),
+        )
+    })?;
+    if canonical != profile.program {
+        return Err(CommandError::new(
+            E_ENVIRONMENT,
+            format!(
+                "command profile `{}` must be canonicalized",
+                profile.program.display()
+            ),
+        ));
+    }
     if !metadata.is_file() {
         return Err(CommandError::new(
             E_ENVIRONMENT,
@@ -351,7 +369,11 @@ fn validate_argv<'a>(
 
 fn validate_profile_environment(profile: &CommandProfile) -> Result<(), CommandError> {
     for name in profile.env.keys().chain(profile.secret_env.keys()) {
-        if name.is_empty() || name.contains('=') || name.contains('\0') {
+        if name.is_empty()
+            || name.contains('=')
+            || name.contains('\0')
+            || is_dangerous_environment_name(name)
+        {
             return Err(CommandError::new(
                 E_ENVIRONMENT,
                 format!("invalid command environment variable `{name}`"),
@@ -359,6 +381,18 @@ fn validate_profile_environment(profile: &CommandProfile) -> Result<(), CommandE
         }
     }
     Ok(())
+}
+
+fn is_dangerous_environment_name(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
+    matches!(
+        upper.as_str(),
+        "LD_PRELOAD" | "LD_LIBRARY_PATH" | "DYLD_INSERT_LIBRARIES" | "DYLD_LIBRARY_PATH"
+    ) || upper.starts_with("PYTHONPATH")
+        || matches!(
+            upper.as_str(),
+            "PYTHONINSPECT" | "NODE_OPTIONS" | "RUBYOPT" | "PERL5OPT" | "BASH_ENV" | "ENV"
+        )
 }
 
 fn is_shell_interpreter(executable: &str) -> bool {
@@ -558,5 +592,20 @@ mod tests {
         let mut output = policy();
         output.max_output_bytes = 0;
         assert_eq!(run(&["fixture".into()], &output).unwrap_err().code, E_LIMIT);
+    }
+
+    #[test]
+    fn rejects_dangerous_profile_environment() {
+        let mut command = policy();
+        command
+            .profiles
+            .get_mut("fixture")
+            .expect("fixture profile")
+            .env
+            .insert("LD_PRELOAD".into(), OsString::from("unsafe"));
+        assert_eq!(
+            run(&["fixture".into()], &command).unwrap_err().code,
+            E_ENVIRONMENT
+        );
     }
 }
