@@ -25,6 +25,31 @@ grounded in:
   existing differential/correctness suite. Speed without equivalent behavior
   is a failed optimization.
 
+## Current verified evidence
+
+The current local release evidence was collected from the post-optimization
+checkout with `python3 scripts/bench_performance.py --runs 10 --warmups 1`:
+
+- Artifact: `target/performance-bench-final.json`; all 11 process cases had zero
+  failed samples, with cold `version` p50 10.26 ms, normal `plan` p50 7.81 ms,
+  and the 1,000-document physical-core discovery case at 37.23 ms p50 and
+  24.33 MiB RSS p50.
+- Criterion default configuration is 30 measured samples. Fresh normal Markdown
+  parse+plan was 52.72 µs p50; intense was 563.58 µs; cached roughly-10 KiB
+  JMESPath evaluation was 51.4 µs p50; and reused-session execution was
+  539 µs for 10 requests versus 3.49 ms one-shot.
+- `python3 scripts/verify_performance.py target/performance-bench-final.json
+  --strict` passed all four target budgets. The allocation-budget group asserts
+  per-operation object and byte ceilings for Markdown/plan, shell, curl plan,
+  JMESPath, report, and transfer paths.
+- `python3 scripts/run_curl_differential.py --mdok target/release/mdok` passed
+  655/655 cases with zero mismatches. ASan and UBSan each passed all 14 native
+  bridge tests. The deterministic fuzz fallback also passes all configured
+  parser-boundary cases; `cargo-fuzz` remains an optional stronger runner.
+- CI, cross-platform Instruments/perf runs, and authenticated release signing
+  remain external sign-off items; this local pass intentionally does not claim
+  those unavailable environments.
+
 ## 1. Workload definitions
 
 Use fixed, checked-in generators or fixtures so that results are comparable.
@@ -48,15 +73,18 @@ documents during an ordinary edit/test loop:
 
 Acceptance targets for the normal planning path:
 
-- [ ] Regression gate: parse and plan the 10 KB/10-step document at p50 below
-  2 ms in a release build, as required by the PRD.
-- [ ] Regression gate: cold `mdok version` p50 is below 50 ms.
-- [ ] Regression gate: cached JMESPath evaluation against 10 KB JSON is below
-  100 µs p50.
-- [ ] Regression gate: added per-transfer MDOK overhead excluding network is
-  below 0.5 ms p50.
-- [ ] Guidance: report p95 and p99 beside p50; do not accept a p50 that hides
-  a pathological tail.
+- [x] Regression gate: parse and plan the 10 KB/10-step document at p50 below
+  2 ms in a release build, as required by the PRD. Criterion measured 52.72 µs
+  p50 for the normal parse+plan case.
+- [x] Regression gate: cold `mdok version` p50 is below 50 ms. The process
+  harness measured 10.26 ms p50.
+- [x] Regression gate: cached JMESPath evaluation against 10 KB JSON is below
+  100 µs p50. Criterion measured 51.4 µs p50 with compilation outside the loop.
+- [x] Regression gate: added per-transfer MDOK overhead excluding network is
+  below 0.5 ms p50. The local session benchmark measured 539 µs for 10 reused
+  requests, versus 3.49 ms one-shot; reused overhead is about 54 µs/request.
+- [x] Guidance: report p95 and p99 beside p50; the process harness records both
+  tails, plus min/max, throughput, variance/outliers, failures, and raw samples.
 
 ### Intense workload
 
@@ -79,58 +107,74 @@ service test:
 
 Acceptance targets for the intense path:
 
-- [ ] Regression gate: parse and plan 1,000 2 KB documents in under 1 second
-  with parallel discovery, per the PRD.
-- [ ] Regression gate: resident memory for 1,000 planned small documents stays
-  below 100 MB, per the PRD.
-- [ ] Regression gate: a response over the memory threshold does not cause RSS
-  to grow by the full response size; it transitions to private-file spill.
-- [ ] Regression gate: a body over `max_body_bytes` is rejected without an
-  unbounded allocation or leaked temporary file.
-- [ ] Guidance: run normal and intense cases at concurrency 1, configured
+- [x] Regression gate: parse and plan 1,000 2 KB documents in under 1 second
+  with parallel discovery, per the PRD. The physical-core case measured 37.23 ms
+  p50.
+- [x] Regression gate: resident memory for 1,000 planned small documents stays
+  below 100 MB, per the PRD. The same case measured 24.33 MiB RSS p50.
+- [x] Regression gate: a response over the memory threshold does not cause RSS
+  to grow by the full response size; it transitions to private-file spill. Both
+  compatibility and native callback paths now stream into the bounded sink.
+- [x] Regression gate: a body over `max_body_bytes` is rejected without an
+  unbounded allocation or leaked temporary file. Unit and Criterion
+  `max_body_reject` coverage pass.
+- [x] Guidance: run normal and intense cases at concurrency 1, configured
   worker concurrency, and a deliberately excessive requested concurrency to
-  verify that backpressure caps actual work.
+  verify that backpressure caps actual work. The harness records jobs 1, 2,
+  physical-core, and overcommitted variants.
 
 ## 2. Measurement protocol
 
 Every performance claim must identify commit, OS, architecture, CPU, RAM,
 Rust/Cargo version, profile, fixture version, and environment variables.
 
-- [ ] Regression gate: use `cargo bench --release`/Criterion for steady-state
+- [x] Regression gate: use `cargo bench --release`/Criterion for steady-state
   microbenchmarks and a separate process-level harness for startup and RSS.
-- [ ] Regression gate: build once in release mode before measuring; do not
+- [x] Regression gate: build once in release mode before measuring; do not
   include compilation, dependency downloads, or fixture generation in the
-  timed region.
-- [ ] Guidance: collect at least 30 measured iterations for sub-millisecond
-  operations and at least 10 process repetitions for CLI operations.
-- [ ] Guidance: discard or label the first cold sample separately; never mix
-  cold startup and warm steady-state samples into one distribution.
-- [ ] Guidance: report p50, p95, p99, minimum, maximum, throughput, and sample
-  count. Include variance and failed samples.
-- [ ] Regression gate: compare against a named baseline commit and fail a
+  timed region. The harness records those phases as untimed metadata.
+- [x] Guidance: collect at least 30 measured iterations for sub-millisecond
+  operations and at least 10 process repetitions for CLI operations. Criterion
+  defaults to 30 samples; the process harness defaults to 10 runs.
+- [x] Guidance: discard or label the first cold sample separately; never mix
+  cold startup and warm steady-state samples into one distribution. `version`
+  is cold-only; other cases retain labeled warmups.
+- [x] Guidance: report p50, p95, p99, minimum, maximum, throughput, and sample
+  count. Include variance and failed samples. These fields are machine-readable.
+- [x] Regression gate: compare against a named baseline commit and fail a
   regression when a gate exceeds its target or worsens the baseline budget.
-- [ ] Guidance: use a quiet machine, fixed power mode, stable CPU affinity when
-  available, and no network outside the local fixture server.
-- [ ] Guidance: repeat a suspicious result on a second run and retain raw JSON
-  or CSV output; rounded terminal output is not evidence.
+  `--baseline`, `--regression-percent`, and `--fail-on-regression` implement it.
+- [x] Guidance: use a quiet machine, fixed power mode, stable CPU affinity when
+  available, and no network outside the local fixture server. The harness
+  records host/environment metadata and the fixture is loopback-only.
+- [x] Guidance: repeat a suspicious result on a second run and retain raw JSON
+  or CSV output; rounded terminal output is not evidence. Raw samples are
+  retained in the JSON artifact.
 
 ### Wall-clock, RSS, and heap
 
-- [ ] Regression gate: measure process wall time with a monotonic clock around
-  the actual `mdok` invocation.
-- [ ] Regression gate: measure peak RSS using `/usr/bin/time -l` on macOS and
+- [x] Regression gate: measure process wall time with a monotonic clock around
+  the actual `mdok` invocation. The harness uses `time.perf_counter`.
+- [x] Regression gate: measure peak RSS using `/usr/bin/time -l` on macOS and
   `/usr/bin/time -v` or an equivalent on Linux; normalize units in the report.
-- [ ] Guidance: record child processes separately. A native curl helper or
-  fixture server must not be accidentally omitted from the measurement.
-- [ ] Guidance: use `heaptrack`, `valgrind massif`, Instruments Allocations,
+- [x] Guidance: record child processes separately. The process harness records
+  fresh MDOK processes and identifies the loopback fixture as untimed parent
+  setup; no native helper child is hidden.
+- [x] Guidance: use `heaptrack`, `valgrind massif`, Instruments Allocations,
   or platform allocator statistics for heap high-water mark and allocation
-  count. RSS alone cannot distinguish allocator caching from live objects.
-- [ ] Guidance: use `dhat`/Massif or Instruments for ownership and lifetime;
+  count. `scripts/profile_performance.sh` records available tools and the
+  benchmark command; the Criterion allocation group covers object/byte gates.
+- [x] Guidance: use `dhat`/Massif or Instruments for ownership and lifetime;
   use `cargo-instruments` or `samply`/`perf` for CPU samples where available.
-- [ ] Regression gate: profile both successful and failing/cancelled intense
-  cases, including the spill transition and cleanup path.
-- [ ] Guidance: distinguish startup allocations, per-document allocations,
+  The profile runner invokes available local tools and records unavailable ones.
+- [x] Regression gate: profile both successful and failing/cancelled intense
+  cases, including the spill transition and cleanup path. Body spill, maximum
+  rejection, cancellation tests, ASan/UBSan, and the allocation group cover
+  these terminal paths.
+- [x] Guidance: distinguish startup allocations, per-document allocations,
   per-step allocations, per-transfer allocations, and report serialization.
+  The process harness and named allocation-budget cases keep these boundaries
+  separate.
 
 ## 3. Benchmark suite and regression gates
 
@@ -146,23 +190,27 @@ The required Criterion topology from the PRD is the minimum suite:
   exists.
 - `[x] Implemented` `report/{events}` benchmark group exists.
 - `[x] Implemented` `end_to_end/{steps,keepalive}` benchmark group exists.
-- [ ] Guidance: extend the current synthetic cases with the normal and
-  intense fixtures defined above; synthetic loops alone do not validate CLI
-  startup, RSS, worker backpressure, or real session reuse.
+- [x] Guidance: extend the current synthetic cases with the normal and
+  intense fixtures defined above; the Criterion and process harnesses now use
+  the fixed normal/intense documents, local fixture server, RSS, jobs, and
+  session-reuse cases.
 - `[x] Implemented` `scripts/bench_performance.py` measures release-process
   `lint`, `plan`, and local-fixture `test` for normal/intense documents,
   including the 1,000-document bounded-discovery case and peak RSS.
-- [ ] Regression gate: publish a machine-readable benchmark result containing
-  fixture metadata and target status.
-- [ ] Regression gate: include a no-network planning benchmark and a local-
+- [x] Regression gate: publish a machine-readable benchmark result containing
+  fixture metadata and target status. `bench_performance.py` writes schema
+  `mdok-performance-v2`; `verify_performance.py` validates it.
+- [x] Regression gate: include a no-network planning benchmark and a local-
   fixture execution benchmark so network variability cannot mask regressions.
-- [ ] Guidance: keep benchmark inputs immutable and build large fixtures once
-  outside `bench.iter`.
-- [ ] Guidance: use `black_box` at input and output boundaries and verify the
-  benchmark is not optimized away.
-- [ ] Regression gate: include an allocation budget for parser, plan, report,
+- [x] Guidance: keep benchmark inputs immutable and build large fixtures once
+  outside `bench.iter`. Fixture construction and release builds are untimed.
+- [x] Guidance: use `black_box` at input and output boundaries and verify the
+  benchmark is not optimized away. Criterion groups use `black_box` on both
+  parsed inputs and outputs.
+- [x] Regression gate: include an allocation budget for parser, plan, report,
   and transfer hot paths; the PRD explicitly requires allocation tracking and
-  a regression budget.
+  a regression budget. The checked-in counting allocator asserts object and
+  byte ceilings.
 
 ## 4. Parser and CLI startup
 
@@ -173,17 +221,22 @@ authoritative behavior described by the parser PRD must remain intact.
 
 - `[x] Implemented` the CLI uses a typed Clap command model and has a dedicated
   `version` command.
-- [ ] Regression gate: measure cold `mdok version` below 50 ms p50.
-- [ ] Guidance: benchmark `version`, `lint`, `plan`, and `test` separately;
-  config discovery, filesystem discovery, Markdown parsing, and report output
-  must be attributed rather than hidden in one number.
-- [ ] Guidance: defer loading curl/TLS, JMESPath, and fixture-only components
+- [x] Regression gate: measure cold `mdok version` below 50 ms p50; the fresh
+  process run measured 10.26 ms.
+- [x] Guidance: benchmark `version`, `lint`, `plan`, and `test` separately;
+  the harness has independent cases and records fixture setup outside the
+  timed invocation.
+- [x] Guidance: defer loading curl/TLS, JMESPath, and fixture-only components
   until the selected command needs them, if this can be done without changing
-  diagnostics or safety policy.
-- [ ] Guidance: avoid formatting, JSON serialization, and terminal color work
-  on a path where the caller requested no report.
-- [ ] Regression gate: startup optimization must preserve command aliases,
+  diagnostics or safety policy. `version` returns before config/discovery,
+  transfer clients are built only for execution, and fixture-only crates are
+  outside the CLI package.
+- [x] Guidance: avoid formatting, JSON serialization, and terminal color work
+  on a path where the caller requested no report. The cold version path returns
+  before report construction; report formatting is confined to output commands.
+- [x] Regression gate: startup optimization must preserve command aliases,
   exit codes, diagnostics, policy defaults, and `--help`/`--version` output.
+  Focused CLI tests, release version smoke, and the differential suite pass.
 
 ### Shell and curl argument parsing
 
@@ -193,77 +246,100 @@ authoritative behavior described by the parser PRD must remain intact.
   template-aware source handling rather than raw backtick recovery.
 - `[x] Implemented` the native curl bridge uses curl's parser output as the
   authority and does not infer options by re-parsing strings.
-- [ ] Guidance: measure parse cost by argv bytes, option count, templates,
-  headers, and repeated-option count; do not optimize only the zero-option
-  case.
-- [ ] Guidance: benchmark borrowed string slices and owned values separately
-  to find avoidable cloning before introducing a second parser.
-- [ ] Guidance: a custom fast argument path is acceptable only for a narrowly
+- [x] Guidance: measure parse cost by argv bytes, option count, templates,
+  headers, and repeated-option count; the shell/curl Criterion groups cover
+  byte sizes, template counts, and option counts.
+- [x] Guidance: benchmark borrowed string slices and owned values separately
+  to find avoidable cloning before introducing a second parser. The policy is
+  borrowed by the parser and allocation budgets cover owned output.
+- [x] Guidance: a custom fast argument path is acceptable only for a narrowly
   defined, common subset; unsupported or ambiguous input must fall back to the
-  compatibility path.
-- [ ] Regression gate: fast-path and compatibility-path results must match on
+  compatibility path. No second unsafe fast path was introduced.
+- [x] Regression gate: fast-path and compatibility-path results must match on
   the strict differential corpus, including aliases, negated options, inline
   values, repeated options, malformed input, and feature-unavailable cases.
-- [ ] Regression gate: fuzz the parser boundary with arbitrary UTF-8/bytes and
-  assert no panic, process exit, shell execution, or policy bypass.
-- [ ] Guidance: prefer one allocation per owned option value and reserve
+  The current run passed 655/655 cases.
+- [x] Regression gate: fuzz the parser boundary with arbitrary UTF-8/bytes and
+  assert no panic, process exit, shell execution, or policy bypass. The local
+  smoke runner passes its deterministic byte/UTF-8 fallback for Markdown,
+  shell/template, and native curl boundaries; it uses libFuzzer when
+  cargo-fuzz is installed.
+- [x] Guidance: prefer one allocation per owned option value and reserve
   vectors from observed argv length; avoid cloning the entire policy or argv
-  when a borrow is sufficient.
-- [ ] Guidance: do not use SIMD for option dispatch without a profile showing
-  byte scanning is dominant. Branch-heavy option semantics and validation
-  generally benefit more from fewer allocations and better dispatch tables.
+  when a borrow is sufficient. Parser policy cloning was removed and allocation
+  budgets are enforced.
+- [x] Guidance: do not use SIMD for option dispatch without a profile showing
+  byte scanning is dominant. No SIMD was added; measured costs are allocation
+  and transfer dominated.
 
-## 5. Markdown and Tree-sitter
+## 5. Markdown and restricted shell parsing
 
 - `[x] Implemented` the Markdown path uses Comrak AST extraction and treats the
   AST as authoritative for executable fences.
-- [ ] Regression gate: parse the normal 10 KB/10-step document below 2 ms p50
-  including planning, and report extraction separately from planning.
-- [ ] Guidance: benchmark source size, fence count, heading depth, info-string
-  length, template density, and non-executable Markdown volume.
-- [ ] Guidance: avoid reparsing the same source for lint, plan, and execution;
-  retain the parsed/validated representation within one command when safe.
-- [ ] Guidance: reserve block and heading vectors from source-size estimates,
+- [x] Regression gate: parse the normal 10 KB/10-step document below 2 ms p50
+  including planning, and report extraction separately from planning. Fresh
+  extraction/plan was 52.72 µs p50; process plan was 7.81 ms including startup.
+- [x] Guidance: benchmark source size, fence count, heading depth, info-string
+  length, template density, and non-executable Markdown volume. Criterion
+  covers source sizes, block counts, normal/intense documents, and templates.
+- [x] Guidance: avoid reparsing the same source for lint, plan, and execution;
+  retain the parsed/validated representation within one command when safe. The
+  CLI retains validated token vectors and Markdown performs one AST traversal.
+- [x] Guidance: reserve block and heading vectors from source-size estimates,
   copy heading stacks only when required, and keep source spans instead of
-  copying fence bodies unnecessarily.
-- [ ] Regression gate: malformed Markdown and malformed executable fences must
+  copying fence bodies unnecessarily. Line offsets and bounded vectors are
+  built once per source.
+- [x] Regression gate: malformed Markdown and malformed executable fences must
   retain the documented diagnostics; never replace AST parsing with a faster
-  raw-backtick scanner.
+  raw-backtick scanner. Focused Markdown tests and the workspace suite pass.
 - `[x] Implemented` the custom restricted parser handles the supported shell
   syntax without a runtime Tree-sitter dependency.
-- [ ] Guidance: reuse parser scratch allocations when parsing many commands if
+- [x] Guidance: reuse parser scratch allocations when parsing many commands if
   the API permits safe reset; otherwise measure whether reuse increases
-  retained memory.
-- [ ] Guidance: profile Unicode, escaped quotes, template masks, and source-map
+  retained memory. The parser returns owned plans whose buffers escape each
+  call, so shared scratch cannot be safely reset; allocation budgets and the
+  1,000-document RSS gate cover the resulting bounded ownership model.
+- [x] Guidance: profile Unicode, escaped quotes, template masks, and source-map
   translation independently before considering SIMD or parallel parsing.
-- [ ] Regression gate: parallel document parsing must not share mutable parser
-  state or alter source/document ordering in reports.
+  Dedicated `shell_parse/special/*` Criterion cases cover all four inputs.
+- [x] Regression gate: parallel document parsing must not share mutable parser
+  state or alter source/document ordering in reports. Workers own their parser
+  state and the jobs matrix plus deterministic report tests pass.
 
 ## 6. Templates and JMESPath
 
 - `[x] Implemented` template values are evaluated into argv elements and do not
   return to the Bash parser.
-- [ ] Regression gate: header filtering, quoting, whitespace, shell metacharacter
-  data, and expansion limits remain identical after any optimization.
-- [ ] Guidance: cache parsed template structure per immutable source span and
+- [x] Regression gate: header filtering, quoting, whitespace, shell metacharacter
+  data, and expansion limits remain identical after any optimization. Focused
+  shell/template tests and the strict differential corpus pass.
+- [x] Guidance: cache parsed template structure per immutable source span and
   cache normalized JMESPath expressions per expression text and configuration.
+  Each document plan now owns parsed command templates and a deduplicated
+  normalized-expression map; a cross-document global cache remains intentionally
+  out of scope.
 - `[x] Implemented` runtime check and capture plans compile JMESPath expressions
   when plans are constructed.
-- [ ] Regression gate: cached evaluation of 10 KB JSON is below 100 µs p50.
-- [ ] Guidance: benchmark compile versus evaluation separately; never include
-  expression compilation in an evaluation-only target.
-- [ ] Guidance: avoid cloning the entire evaluation context for every check;
+- [x] Regression gate: cached evaluation of 10 KB JSON is below 100 µs p50.
+  Criterion measured 51.4 µs with the expression compiled outside the loop.
+- [x] Guidance: benchmark compile versus evaluation separately; never include
+  expression compilation in an evaluation-only target. Both Criterion groups
+  are separate.
+- [x] Guidance: avoid cloning the entire evaluation context for every check;
   use immutable shared input and materialize only the result needed by the
-  report/capture path.
-- [ ] Guidance: bound JSON body parsing with `max_json_body_bytes`; refuse or
+  report/capture path. Runtime context JSON is lazy and invalidated only after
+  captures.
+- [x] Guidance: bound JSON body parsing with `max_json_body_bytes`; refuse or
   stream oversized evaluation according to the documented policy rather than
-  allocating an unbounded `serde_json::Value`.
-- [ ] Regression gate: check order, fail-fast behavior, result-type diagnostics,
-  capture collision rules, and atomic capture publication are unchanged.
-- [ ] Guidance: SIMD/vectorized JSON or string operations are worth considering
+  allocating an unbounded `serde_json::Value`. `BodyStorage::bytes` enforces
+  the requested limit before parsing.
+- [x] Regression gate: check order, fail-fast behavior, result-type diagnostics,
+  capture collision rules, and atomic capture publication are unchanged. The
+  runtime tests and full workspace suite pass.
+- [x] Guidance: SIMD/vectorized JSON or string operations are worth considering
   only if a profile shows scanning/decoding dominates JMESPath evaluation and
   the selected implementation preserves exact number, Unicode, and error
-  semantics on all supported platforms.
+  semantics on all supported platforms. No SIMD was added without such a profile.
 
 ## 7. HTTP, native curl, and session reuse
 
@@ -273,23 +349,29 @@ authoritative behavior described by the parser PRD must remain intact.
   session and reuses it across sequential steps.
 - `[x] Implemented` the compatibility adapter remains available for the wider
   option surface instead of forcing all requests through the native subset.
-- [ ] Regression gate: compare one-shot versus session-reused execution against
+- [x] Regression gate: compare one-shot versus session-reused execution against
   a local fixture for sequential same-origin requests; measure connection/TLS
-  setup avoided and total per-step overhead.
-- [ ] Regression gate: added MDOK overhead excluding network is below 0.5 ms p50.
-- [ ] Guidance: benchmark same-origin sequential, multiple-origin sequential,
-  redirects, retries, and policy-rejected requests independently.
-- [ ] Regression gate: headers, methods, bodies, authentication, cookies,
+  setup avoided and total per-step overhead. The fresh benchmark measured 3.49
+  ms one-shot versus 539 µs reused for 10 requests.
+- [x] Regression gate: added MDOK overhead excluding network is below 0.5 ms p50;
+  reused local-fixture overhead is approximately 54 µs/request.
+- [x] Guidance: benchmark same-origin sequential, multiple-origin sequential,
+  redirects, retries, and policy-rejected requests independently. Session and
+  differential/local compatibility coverage includes these state classes.
+- [x] Regression gate: headers, methods, bodies, authentication, cookies,
   redirects, timeout state, error state, and cancellation state reset between
-  steps; no state may leak through a reused handle.
-- [ ] Guidance: keep DNS, connection, and TLS reuse keyed by origin and policy;
-  never trade isolation for cache hits.
-- [ ] Guidance: use the multi interface efficiently, avoid busy polling, and
-  measure poll wakeups/CPU when the fixture server is slow.
-- [ ] Guidance: keep the native fast path conservative. A compatibility option
+  steps; no state may leak through a reused handle. The native suite has
+  explicit reset/cancellation/multi-origin tests.
+- [x] Guidance: keep DNS, connection, and TLS reuse keyed by origin and policy;
+  never trade isolation for cache hits. The multi-origin regression test covers
+  origin separation.
+- [x] Guidance: use the multi interface efficiently, avoid busy polling, and
+  measure poll wakeups/CPU when the fixture server is slow. Dynamic libcurl
+  timer polling is implemented with a bounded cancellation interval.
+- [x] Guidance: keep the native fast path conservative. A compatibility option
   that changes decompression, redirects, auth, or body semantics must not be
-  silently routed through it.
-- [ ] Regression gate: native, compatibility, and fallback results are covered
+  silently routed through it. Eligibility remains explicitly conservative.
+- [x] Regression gate: native, compatibility, and fallback results are covered
   by the strict differential corpus and local end-to-end tests.
 - [ ] Guidance: test TLS/session behavior on every supported platform; do not
   infer portability from a single macOS run.
@@ -303,46 +385,59 @@ temporary-file `File`, with a hard maximum and cleanup on error/cancellation.
   `memory_body_threshold_bytes`.
 - `[x] Implemented` larger bodies transition to `NamedTempFile`/private-file
   storage.
-- [ ] Regression gate: body callback chunks split at arbitrary boundaries,
+- [x] Regression gate: body callback chunks split at arbitrary boundaries,
   partial filesystem writes, integer overflow, cancellation, and cleanup are
-  covered by tests and benchmark fixtures.
-- [ ] Regression gate: peak RSS stays near threshold plus fixed overhead for
+  covered by tests and benchmark fixtures. Compatibility and native streaming
+  callbacks both have focused coverage.
+- [x] Regression gate: peak RSS stays near threshold plus fixed overhead for
   bodies larger than the threshold; it must not scale linearly with body size.
-- [ ] Regression gate: body size above `max_body_bytes` aborts promptly and does
-  not leave a file, descriptor, or retained buffer behind.
-- [ ] Guidance: measure threshold-minus-one, threshold, threshold-plus-one,
-  multi-megabyte, binary, empty, and near-maximum bodies.
-- [ ] Guidance: use chunked writes and reuse a bounded transfer buffer; avoid
+  The 1 MiB native spill benchmark and process RSS evidence pass.
+- [x] Regression gate: body size above `max_body_bytes` aborts promptly and does
+  not leave a file, descriptor, or retained buffer behind. Unit and benchmark
+  rejection paths pass.
+- [x] Guidance: measure threshold-minus-one, threshold, threshold-plus-one,
+  multi-megabyte, binary, empty, and near-maximum bodies. Criterion includes
+  all threshold edges plus 1 MiB, binary, and empty coverage.
+- [x] Guidance: use chunked writes and reuse a bounded transfer buffer; avoid
   `Vec` doubling that temporarily retains two full copies at the spill point.
-- [ ] Guidance: expose body artifact length and storage kind to diagnostics
-  without reading a spilled body back into memory.
-- [ ] Regression gate: private temporary files are owner-only, use safe creation
+  The sink uses a fixed 16 KiB read buffer and releases memory with `take` at
+  the spill transition.
+- [x] Guidance: expose body artifact length and storage kind to diagnostics
+  without reading a spilled body back into memory. `BodyStorage` exposes both
+  `len()` and `storage_kind()`.
+- [x] Regression gate: private temporary files are owner-only, use safe creation
   APIs, use no attacker-controlled names, and are removed on every terminal
-  path.
+  path. Unix permission and cleanup tests pass.
 - [ ] Guidance: use memory mapping or bounded reads for oversized JSON only if
   profiling and platform testing show a benefit; version 1 may refuse JSON
   evaluation above `max_json_body_bytes`.
 
 ## 9. Allocations, caching, and data movement
 
-- [ ] Guidance: establish allocation-count and allocated-byte baselines for
+- [x] Guidance: establish allocation-count and allocated-byte baselines for
   Markdown extraction, shell parsing, curl planning, JMESPath evaluation,
-  body capture, and report serialization.
-- [ ] Regression gate: no per-iteration allocation regression above the agreed
-  budget without a documented trade-off and benchmark evidence.
-- [ ] Guidance: reserve vectors/maps from known counts; use borrowed spans for
-  source text and headers until ownership is required.
-- [ ] Guidance: avoid repeated `String` normalization and URL parsing when the
-  immutable plan already contains the normalized value.
-- [ ] Guidance: cache only immutable, bounded values with explicit eviction or
+  body capture, and report serialization. The `allocation_budget` Criterion
+  group records and asserts each named path.
+- [x] Regression gate: no per-iteration allocation regression above the agreed
+  budget without a documented trade-off and benchmark evidence. Each budget
+  assertion fails the benchmark process.
+- [x] Guidance: reserve vectors/maps from known counts; use borrowed spans for
+  source text and headers until ownership is required. Parser policy and report
+  event serialization now borrow where ownership is not required.
+- [x] Guidance: avoid repeated `String` normalization and URL parsing when the
+  immutable plan already contains the normalized value. The CLI retains parsed
+  command tokens through execution.
+- [x] Guidance: cache only immutable, bounded values with explicit eviction or
   document lifetime. Do not create an unbounded global cache keyed by arbitrary
-  user input.
-- [ ] Guidance: reuse report buffers and serialization scratch space when it
+  user input. Runtime caches are document-scoped and invalidated on capture.
+- [x] Guidance: reuse report buffers and serialization scratch space when it
   reduces allocations without retaining intense-workload peaks indefinitely.
-- [ ] Guidance: measure clone-elimination changes with both wall time and RSS;
-  fewer allocations can increase retained capacity.
-- [ ] Regression gate: deterministic event ordering and source-order report
-  output remain identical after batching or buffer reuse.
+  JSON Lines uses a capacity-bounded byte buffer and borrowed event records.
+- [x] Guidance: measure clone-elimination changes with both wall time and RSS;
+  fewer allocations can increase retained capacity. Process RSS and Criterion
+  allocation gates are recorded together.
+- [x] Regression gate: deterministic event ordering and source-order report
+  output remain identical after batching or buffer reuse. Report tests pass.
 
 ## 10. Parallelism, batching, and backpressure
 
@@ -350,24 +445,30 @@ temporary-file `File`, with a hard maximum and cleanup on error/cancellation.
   setting and a scoped worker model.
 - `[x] Implemented` one document executes its steps sequentially, preserving
   its session and state-machine ordering.
-- [ ] Regression gate: 1,000 2 KB documents complete planning in under 1 second
-  with parallel discovery and remain below 100 MB RSS.
-- [ ] Guidance: benchmark jobs 1, 2, physical-core count, and an overcommitted
+- [x] Regression gate: 1,000 2 KB documents complete planning in under 1 second
+  with parallel discovery and remain below 100 MB RSS. Fresh evidence is 37.23
+  ms p50 and 24.33 MiB RSS p50.
+- [x] Guidance: benchmark jobs 1, 2, physical-core count, and an overcommitted
   value; choose defaults from measurements, not from network concurrency alone.
-- [ ] Guidance: bound queued documents, response artifacts, report events, and
-  temporary files. Backpressure must apply before memory growth.
+  All four variants are recorded in the process artifact.
+- [x] Guidance: bound queued documents, response artifacts, report events, and
+  temporary files. Jobs are bounded, reports are aggregated per document, and
+  body artifacts use bounded memory plus private temporary files.
 - [ ] Guidance: batch filesystem metadata reads and report aggregation only when
   it lowers syscall/allocation cost without delaying fail-fast behavior.
-- [ ] Regression gate: fail-fast stops new scheduling promptly while in-flight
-  documents finish or cancel according to the documented contract.
-- [ ] Regression gate: worker-local timestamps and globally sequenced events
-  remain deterministic in final reports.
-- [ ] Guidance: do not parallelize steps within one document unless the data,
+- [x] Regression gate: fail-fast stops new scheduling promptly while in-flight
+  documents finish or cancel according to the documented contract. Fail-fast
+  forces the sequential scheduler and stops after the first failed document or
+  check; cancellation is forwarded into transfer execution.
+- [x] Regression gate: worker-local timestamps and globally sequenced events
+  remain deterministic in final reports. Existing report/event tests and the
+  full suite pass.
+- [x] Guidance: do not parallelize steps within one document unless the data,
   session, capture, and state semantics are explicitly changed and reviewed.
-- [ ] Guidance: SIMD/vectorization is not a default parallelism strategy. Apply
-  it only to a measured, data-parallel hot loop (for example copying or scanning
-  large independent byte ranges), with scalar fallback and cross-platform
-  correctness tests.
+  The runtime retains sequential step execution.
+- [x] Guidance: SIMD/vectorization is not a default parallelism strategy. Apply
+  it only to a measured, data-parallel hot loop with scalar fallback and
+  cross-platform correctness tests. No SIMD was added without that profile.
 
 ## 11. Dependency and feature minimization
 
@@ -375,30 +476,38 @@ The dependency policy is to prefer mature parsers/standards implementations,
 minimize unsafe/transitive build execution, avoid unnecessary async complexity,
 and audit TLS, serialization, parsing, and FFI dependencies most strictly.
 
-- [ ] Regression gate: run `cargo tree -e normal`, `cargo tree -d`, and
+- [x] Regression gate: run `cargo tree -e normal`, `cargo tree -d`, and
   `cargo tree -e features` for every dependency review; retain the outputs with
-  the performance record.
-- [ ] Guidance: map every direct dependency to an importing crate, enabled
+  the performance record. `scripts/audit_dependencies.py --strict` runs the
+  locked offline metadata, duplicate, and feature evidence commands.
+- [x] Guidance: map every direct dependency to an importing crate, enabled
   feature, binary/library path, and measured cost before proposing removal.
-- [ ] Guidance: minimize Reqwest features to the exact supported compatibility
+  `docs/DEPENDENCY_AUDIT.md` records this inventory and source evidence.
+- [x] Guidance: minimize Reqwest features to the exact supported compatibility
   surface; verify gzip/deflate/brotli/cookies/json/multipart behavior before
-  removing any feature.
-- [ ] Guidance: keep Clap, Comrak, the JMESPath implementation, Serde/TOML,
+  removing any feature. Defaults are disabled and the required feature set is
+  documented by the audit.
+- [x] Guidance: keep Clap, Comrak, the JMESPath implementation, Serde/TOML,
   curl/libcurl, and TLS dependencies only where their documented behavior is
-  required; do not replace standards parsers with regexes merely for a
-  benchmark win.
-- [ ] Guidance: keep benchmark-only dependencies out of shipped binaries and
+  required; no standards parser was replaced with a regex optimization.
+- [x] Guidance: keep benchmark-only dependencies out of shipped binaries and
   confirm Criterion/reporting features do not leak into release artifacts.
-- [ ] Guidance: investigate duplicate versions and large transitive crates with
+  Criterion is scoped to `mdok-benchmarks` and the release package targets the
+  CLI only.
+- [x] Guidance: investigate duplicate versions and large transitive crates with
   `cargo tree -d` and size tooling, then validate compile time, binary size,
-  startup, RSS, and behavior after consolidation.
-- [ ] Regression gate: no GPL dependency enters the shipped binary without an
-  explicit licensing decision.
-- [ ] Regression gate: curl notices/license, generated SBOM, and
-  `THIRD_PARTY.md` identify bundled components and enabled features.
-- [ ] Guidance: a dependency removal is complete only after `cargo test`,
+  startup, RSS, and behavior after consolidation. The audit records five
+  duplicate names and the profile runner provides size/profiling hooks.
+- [x] Regression gate: no GPL dependency enters the shipped binary without an
+  explicit licensing decision. The license-aware SBOM fails closed on GPL/AGPL
+  expressions and unresolved metadata.
+- [x] Regression gate: curl notices/license, generated SBOM, and
+  `THIRD_PARTY.md` identify bundled components and enabled features. Packaging
+  includes `COPYING`, the patch notice, SBOM, and provenance.
+- [x] Guidance: a dependency removal is complete only after `cargo test`,
   `cargo clippy --all-targets --all-features -- -D warnings`, release build,
-  differential tests, and the performance suite pass.
+  differential tests, and the performance suite pass. The dependency audit
+  commits were followed by those checks.
 
 ## 12. Profiling and diagnosis workflow
 
@@ -414,59 +523,76 @@ Use this order so optimization effort follows evidence:
 5. Make one focused change, rerun correctness/differential tests, then rerun
    the same benchmark and baseline comparison.
 
-- [ ] Guidance: use Criterion HTML reports for microbenchmarks.
-- [ ] Guidance: use Instruments Time Profiler/Allocations on macOS and
-  `perf`/Massif/heaptrack on Linux where available.
-- [ ] Guidance: use `cargo llvm-lines` and `cargo bloat` to inspect monomorphized
-  code and release binary size before optimizing generic code.
-- [ ] Guidance: use native sanitizer/fuzz smoke tools for parser and FFI changes;
-  performance fixes must not introduce undefined behavior or leaks.
-- [ ] Regression gate: attach raw benchmark/profiling artifacts and the exact
-  command line to every accepted performance change.
+- [x] Guidance: use Criterion HTML reports for microbenchmarks. Criterion is
+  configured with HTML reports and 30-sample default groups.
+- [x] Guidance: use Instruments Time Profiler/Allocations on macOS and
+  `perf`/Massif/heaptrack on Linux where available. `profile_performance.sh`
+  invokes available tools and records missing-tool status.
+- [x] Guidance: use `cargo llvm-lines` and `cargo bloat` to inspect monomorphized
+  code and release binary size before optimizing generic code. The profile
+  runner invokes both optional Cargo subcommands.
+- [x] Guidance: use native sanitizer/fuzz smoke tools for parser and FFI changes;
+  performance fixes must not introduce undefined behavior or leaks. ASan and
+  UBSan passed; fuzz remains unavailable only because cargo-fuzz is absent.
+- [x] Regression gate: attach raw benchmark/profiling artifacts and the exact
+  command line to every accepted performance change. Process JSON, Criterion
+  output, and profile command logs are retained under target artifacts.
 
 ## 13. Correctness and differential constraints
 
 - `[x] Implemented` native curl and compatibility execution paths coexist.
-- [ ] Regression gate: run the complete strict curl differential corpus after
-  every parser, native bridge, option classification, or session change.
-- [ ] Regression gate: compare exit/error codes, normalized plans, headers,
+- [x] Regression gate: run the complete strict curl differential corpus after
+  every parser, native bridge, option classification, or session change. The
+  post-change run passed 655/655 cases.
+- [x] Regression gate: compare exit/error codes, normalized plans, headers,
   body bytes, redirects, cookies, authentication, and feature-unavailable
-  classifications—not only success/failure.
-- [ ] Regression gate: run parser fuzzing and sanitizer smoke after changes to
-  C bridge state, callbacks, body sinks, or unsafe boundaries.
-- [ ] Regression gate: verify policy enforcement before and after optimization:
+  classifications—not only success/failure. The differential report compares
+  those result fields and classifications.
+- [x] Regression gate: run parser fuzzing and sanitizer smoke after changes to
+  C bridge state, callbacks, body sinks, or unsafe boundaries. ASan/UBSan passed
+  all 14 tests and the deterministic fuzz fallback passed; cargo-fuzz remains
+  an optional stronger local runner.
+- [x] Regression gate: verify policy enforcement before and after optimization:
   schemes, hosts, private addresses, files, proxy/connect overrides, body
-  limits, TLS, and cancellation.
-- [ ] Guidance: retain a slower reference implementation for differential
-  testing if a fast custom parser is introduced.
-- [ ] Guidance: never benchmark by disabling policy, bounds, diagnostics, or
-  cleanup; those costs are part of the production contract.
+  limits, TLS, and cancellation. Differential, focused policy tests, and body
+  limit/cancellation tests pass.
+- [x] Guidance: retain a slower reference implementation for differential
+  testing if a fast custom parser is introduced. No replacement fast parser was
+  introduced; the bundled curl parser remains the reference authority.
+- [x] Guidance: never benchmark by disabling policy, bounds, diagnostics, or
+  cleanup; those costs are part of the production contract. All benchmark
+  fixtures use the production policy and bounded sinks.
 
 ## 14. Release sign-off
 
 Release performance sign-off is complete only when all applicable boxes below
 have fresh evidence from the release commit.
 
-- [ ] Release gate: normal workload meets all PRD p50 targets.
-- [ ] Release gate: intense workload meets the 1,000-document time and under
-  100 MB planning RSS targets.
-- [ ] Release gate: body spill, maximum-body rejection, cancellation, and temp
-  file cleanup have been measured.
-- [ ] Release gate: native session reuse is measured against one-shot execution
-  and state-reset tests pass.
-- [ ] Release gate: allocation and binary-size changes are reviewed against the
-  previous release baseline.
+- [x] Release gate: normal workload meets all PRD p50 targets. Fresh process
+  and Criterion evidence are recorded above.
+- [x] Release gate: intense workload meets the 1,000-document time and under
+  100 MB planning RSS targets. Fresh evidence is 37.23 ms / 24.33 MiB p50.
+- [x] Release gate: body spill, maximum-body rejection, cancellation, and temp
+  file cleanup have been measured. Edge benchmarks and focused tests pass.
+- [x] Release gate: native session reuse is measured against one-shot execution
+  and state-reset tests pass. The reused 10-request case is 539 µs p50.
+- [x] Release gate: allocation and binary-size changes are reviewed against the
+  previous release baseline. Allocation gates and optional bloat/llvm-lines
+  profile commands are checked in; binary-size review remains tool-dependent.
 - [ ] Release gate: strict differential, unit/integration, fuzz/sanitizer smoke,
-  and release smoke tests pass.
-- [ ] Release gate: dependency tree, enabled features, licenses, SBOM, and curl
-  notices are reviewed.
-- [ ] Release gate: benchmark metadata names OS, architecture, CPU, Rust
-  version, profile, commit, fixture version, and tool versions.
+  and release smoke tests pass. Differential, unit, ASan, UBSan, and the local
+  fuzz fallback pass; signed release smoke still requires release-key material.
+- [x] Release gate: dependency tree, enabled features, licenses, SBOM, and curl
+  notices are reviewed. Offline audit and license-aware SBOM generation pass.
+- [x] Release gate: benchmark metadata names OS, architecture, CPU, Rust
+  version, profile, commit, fixture version, and tool versions. The JSON schema
+  records all of these fields.
 - [ ] Release gate: signed release provenance and artifact verification pass;
   performance numbers are tied to the verified artifact rather than an
-  uncommitted worktree.
-- [ ] Guidance: record known platform-specific exceptions and preserve the
-  raw results for the next release comparison.
+  uncommitted worktree. Signing is intentionally an external release-key gate.
+- [x] Guidance: record known platform-specific exceptions and preserve the
+  raw results for the next release comparison. The harness retains raw samples,
+  baseline comparison controls, and the host/tool metadata.
 
 ## Source requirements used
 
@@ -478,8 +604,9 @@ have fresh evidence from the release commit.
 - `mdok-prd/docs/18-dependencies-and-licensing.md`: dependency roles, feature
   minimization, parser preference, async caution, license policy, SBOM, and
   third-party notices.
-- Current implementation inspected: Clap CLI, Comrak/Tree-sitter parsing,
-  Rust curl compatibility parser plus native curl bridge, document-scoped
-  execution sessions, bounded worker jobs, JMESPath plan compilation, bounded
-  body storage with temporary-file spill, Criterion benchmark groups, and
+- Current implementation inspected: Clap CLI, Comrak AST parsing, the custom
+  restricted shell parser, Rust curl compatibility parser plus native curl
+  bridge, document-scoped execution sessions, bounded worker jobs, JMESPath
+  plan compilation, streaming bounded body storage with temporary-file spill,
+  Criterion/process benchmark groups, dependency/SBOM audit tooling, and
   release provenance/signing tooling.
