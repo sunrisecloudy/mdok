@@ -270,7 +270,7 @@ struct DocumentPlan {
 struct StepPlan {
     name: String,
     command: Vec<String>,
-    raw_command: String,
+    raw_tokens: Vec<String>,
     checks: Vec<String>,
     captures: Vec<String>,
 }
@@ -829,32 +829,9 @@ where
             diagnostics: Vec::new(),
             duration_ms: 0,
         };
-        let tokens = match tokenize_command(&step.raw_command) {
-            Ok(tokens) => tokens,
-            Err(message) => {
-                report.status = Status::Failed;
-                report.diagnostics.push(
-                    Diagnostic::error(
-                        tokenize_error_code(&message),
-                        "Invalid curl syntax",
-                        message,
-                    )
-                    .at_file(&plan.path)
-                    .at_step(step.name.clone()),
-                );
-                report.duration_ms = started.elapsed().as_millis() as u64;
-                step_summaries.insert(
-                    step.name.clone(),
-                    serde_json::json!({"status": report.status.as_str()}),
-                );
-                let step_ordinal = steps.len();
-                steps.push(report);
-                on_step(step_ordinal, steps.last().expect("step was just pushed"));
-                continue;
-            }
-        };
+        let tokens = &step.raw_tokens;
         let rendered_command = normalize_command(
-            &tokens,
+            tokens,
             &variables,
             &plan.path,
             &mut report.diagnostics,
@@ -863,7 +840,7 @@ where
         );
         let mut display_diagnostics = Vec::new();
         report.command = normalize_command(
-            &tokens,
+            tokens,
             &variables,
             &plan.path,
             &mut display_diagnostics,
@@ -1460,7 +1437,7 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
                         steps.push(StepPlan {
                             name,
                             command: tokens,
-                            raw_command: fence.body,
+                            raw_tokens: Vec::new(),
                             checks: Vec::new(),
                             captures: Vec::new(),
                         });
@@ -1550,9 +1527,10 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
         .collect::<BTreeSet<_>>();
     let values = variables_to_value_map(&variables);
     for step in &mut steps {
-        for token in tokenize_command(&step.raw_command).unwrap_or_default() {
+        let tokens = std::mem::take(&mut step.command);
+        for token in &tokens {
             validate_template_token(
-                &token,
+                token,
                 &values,
                 &variables,
                 &capture_names,
@@ -1562,14 +1540,8 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             );
         }
         let mut ignored = Vec::new();
-        step.command = normalize_command(
-            &tokenize_command(&step.raw_command).unwrap_or_default(),
-            &variables,
-            path,
-            &mut ignored,
-            true,
-            true,
-        );
+        step.command = normalize_command(&tokens, &variables, path, &mut ignored, true, true);
+        step.raw_tokens = tokens;
         if has_url_glob(&step.command) {
             diagnostics.push(
                 Diagnostic::error(
@@ -1618,7 +1590,6 @@ fn build_plan(path: &Path, config: &EffectiveConfig) -> PlanOutcome {
             let Some(mut step) = by_name.remove(core_step.name.as_str()) else {
                 continue;
             };
-            step.raw_command = core_step.curl.source;
             step.checks = core_step
                 .checks
                 .into_iter()

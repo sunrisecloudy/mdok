@@ -115,51 +115,68 @@ pub fn parse_document(
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
     let arena = Arena::new();
     let root = parse_comrak_document(&arena, source, &Options::default());
-    let headings = collect_headings(root, source);
+    let line_offsets = source_line_offsets(source);
     let mut blocks = Vec::new();
+    let mut heading_stack = Vec::<(usize, String)>::new();
     for node in root.descendants() {
-        let NodeValue::CodeBlock(code) = &node.data().value else {
-            continue;
-        };
-        if !code.fenced || !code.info.split_whitespace().any(|word| word == "mdok") {
-            continue;
-        }
-        let info = parse_info_string(&code.info).map_err(MarkdownError::Metadata)?;
-        let sourcepos = node.data().sourcepos;
-        let start = source_offset(source, sourcepos.start.line, sourcepos.start.column);
-        let end = source_offset(source, sourcepos.end.line, sourcepos.end.column)
-            .saturating_add(1)
-            .min(source.len());
-        let span = SourceSpan::new(
-            path.clone(),
-            start,
-            end,
-            sourcepos.start.line as u32,
-            sourcepos.start.column as u32,
-        );
-        let heading_path = headings
-            .iter()
-            .filter(|(line, _)| *line < sourcepos.start.line)
-            .fold(Vec::<(usize, String)>::new(), |mut stack, (_, heading)| {
-                let (level, title) = heading.clone();
-                while stack
-                    .last()
-                    .is_some_and(|(old_level, _)| *old_level >= level)
-                {
-                    stack.pop();
+        match &node.data().value {
+            NodeValue::Heading(heading) => {
+                let mut title = String::new();
+                for child in node.descendants().skip(1) {
+                    match &child.data().value {
+                        NodeValue::Text(text) => title.push_str(text.as_ref()),
+                        NodeValue::Code(code) => title.push_str(&code.literal),
+                        NodeValue::SoftBreak | NodeValue::LineBreak => title.push(' '),
+                        _ => {}
+                    }
                 }
-                stack.push((level, title));
-                stack
-            })
-            .into_iter()
-            .map(|(_, title)| title)
-            .collect();
-        blocks.push(classify(
-            info,
-            code.literal.to_string(),
-            span,
-            heading_path,
-        )?);
+                while heading_stack
+                    .last()
+                    .is_some_and(|(old_level, _)| *old_level >= heading.level as usize)
+                {
+                    heading_stack.pop();
+                }
+                heading_stack.push((heading.level as usize, title.trim().to_owned()));
+            }
+            NodeValue::CodeBlock(code)
+                if code.fenced && code.info.split_whitespace().any(|word| word == "mdok") =>
+            {
+                let info = parse_info_string(&code.info).map_err(MarkdownError::Metadata)?;
+                let sourcepos = node.data().sourcepos;
+                let start = source_offset(
+                    &line_offsets,
+                    source,
+                    sourcepos.start.line,
+                    sourcepos.start.column,
+                );
+                let end = source_offset(
+                    &line_offsets,
+                    source,
+                    sourcepos.end.line,
+                    sourcepos.end.column,
+                )
+                .saturating_add(1)
+                .min(source.len());
+                let span = SourceSpan::new(
+                    path.clone(),
+                    start,
+                    end,
+                    sourcepos.start.line as u32,
+                    sourcepos.start.column as u32,
+                );
+                let heading_path = heading_stack
+                    .iter()
+                    .map(|(_, title)| title.clone())
+                    .collect();
+                blocks.push(classify(
+                    info,
+                    code.literal.to_string(),
+                    span,
+                    heading_path,
+                )?);
+            }
+            _ => {}
+        }
     }
     Ok(MarkdownDocument { path, blocks })
 }
@@ -361,41 +378,25 @@ fn classify(
     }
 }
 
-fn source_offset(source: &str, line: usize, column: usize) -> usize {
-    let mut offset: usize = 0;
-    for (current_line, part) in (1..).zip(source.split_inclusive('\n')) {
-        if current_line == line {
-            return offset
-                .saturating_add(column.saturating_sub(1))
-                .min(source.len());
-        }
-        offset += part.len();
-    }
-    offset.min(source.len())
+fn source_line_offsets(source: &str) -> Vec<usize> {
+    let mut offsets = Vec::with_capacity(source.bytes().filter(|byte| *byte == b'\n').count() + 1);
+    offsets.push(0);
+    offsets.extend(
+        source
+            .bytes()
+            .enumerate()
+            .filter_map(|(index, byte)| (byte == b'\n').then_some(index + 1)),
+    );
+    offsets
 }
 
-fn collect_headings(root: comrak::Node<'_>, _source: &str) -> Vec<(usize, (usize, String))> {
-    root.descendants()
-        .filter_map(|node| {
-            let level = match node.data().value {
-                NodeValue::Heading(heading) => heading.level as usize,
-                _ => return None,
-            };
-            let mut title = String::new();
-            for child in node.descendants().skip(1) {
-                match &child.data().value {
-                    NodeValue::Text(text) => title.push_str(text.as_ref()),
-                    NodeValue::Code(code) => title.push_str(&code.literal),
-                    NodeValue::SoftBreak | NodeValue::LineBreak => title.push(' '),
-                    _ => {}
-                }
-            }
-            Some((
-                node.data().sourcepos.start.line,
-                (level, title.trim().to_owned()),
-            ))
-        })
-        .collect()
+fn source_offset(line_offsets: &[usize], source: &str, line: usize, column: usize) -> usize {
+    line_offsets
+        .get(line.saturating_sub(1))
+        .copied()
+        .unwrap_or(source.len())
+        .saturating_add(column.saturating_sub(1))
+        .min(source.len())
 }
 
 fn skip_spaces(input: &str, cursor: &mut usize) {
@@ -505,6 +506,23 @@ mod tests {
             Value::String("https://example.test".into())
         );
         assert_eq!(plan.steps[0].checks[0].expression, "status == `200`");
+    }
+
+    #[test]
+    fn heading_context_is_updated_without_affecting_later_blocks() {
+        let source = "# API\n\n## Users\n\n```curl mdok name=list_users\ncurl https://example.test/users\n```\n\n### Details\n\n```curl mdok name=get_user\ncurl https://example.test/users/1\n```\n\n## Teams\n\n```curl mdok name=list_teams\ncurl https://example.test/teams\n```\n";
+        let document = parse_document(source, "test.md").unwrap();
+        let headings = document
+            .blocks
+            .iter()
+            .map(|block| match block {
+                ExecutableBlock::Request { heading_path, .. } => heading_path,
+                _ => panic!("expected request block"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(headings[0], &["API", "Users"]);
+        assert_eq!(headings[1], &["API", "Users", "Details"]);
+        assert_eq!(headings[2], &["API", "Teams"]);
     }
 
     #[test]
