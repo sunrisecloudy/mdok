@@ -421,6 +421,15 @@ static CURLcode configure_easy(mdok_curl_session *session, CURL *easy, const mdo
   return CURLE_OK;
 }
 
+static int multi_poll_timeout_ms(CURLM *multi) {
+  long timeout_ms = -1;
+  CURLMcode result = curl_multi_timeout(multi, &timeout_ms);
+  if (result != CURLM_OK || timeout_ms < 0) return 100;
+  if (timeout_ms == 0) return 1;
+  if (timeout_ms > 100) return 100;
+  return (int)timeout_ms;
+}
+
 static CURLMcode perform_multi(CURLM *multi, CURL *easy, CURLcode *out_transfer, int *out_added) {
   CURLMcode multi_result;
   int running = 0;
@@ -438,7 +447,9 @@ static CURLMcode perform_multi(CURLM *multi, CURL *easy, CURLcode *out_transfer,
       multi_result = curl_multi_perform(multi, &running);
     } while (multi_result == CURLM_CALL_MULTI_PERFORM);
     if (multi_result != CURLM_OK || !running) break;
-    multi_result = curl_multi_poll(multi, NULL, 0, 100, &numfds);
+    /* Keep the poll bounded for cancellation responsiveness, while honoring
+       libcurl's timer so transfers do not spin when no socket is readable. */
+    multi_result = curl_multi_poll(multi, NULL, 0, multi_poll_timeout_ms(multi), &numfds);
   } while (multi_result == CURLM_OK);
   if (multi_result != CURLM_OK) return multi_result;
   while ((message = curl_multi_info_read(multi, &messages)) != NULL) {
@@ -492,8 +503,12 @@ mdok_curl_status mdok_curl_execute_with_info(mdok_curl_session *session, const m
   } else if (result == CURLE_OK) {
     result = curl_easy_perform(easy);
   }
+  if (added_to_multi) {
+    CURLMcode remove_result = curl_multi_remove_handle(session->multi, easy);
+    added_to_multi = 0;
+    if (multi_result == CURLM_OK && remove_result != CURLM_OK) multi_result = remove_result;
+  }
   if (out_info != NULL && result != CURLE_FAILED_INIT) fill_transfer_info(easy, out_info);
-  if (added_to_multi) curl_multi_remove_handle(session->multi, easy);
   if (owns_easy) curl_easy_cleanup(easy);
   if (session_acquired) atomic_flag_clear(&session->in_use);
   if (multi_result != CURLM_OK) {

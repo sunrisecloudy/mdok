@@ -8,7 +8,7 @@ use std::{
     fs,
     io::{Read, Write},
     net::TcpListener,
-    ptr,
+    ptr, slice,
     sync::Once,
     thread,
     time::Duration,
@@ -161,8 +161,69 @@ fn start_redirect_server() -> (String, thread::JoinHandle<()>) {
     (format!("http://127.0.0.1:{}/start", address.port()), handle)
 }
 
+fn start_single_response_server(body: &'static [u8]) -> (String, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind single-response fixture");
+    let address = listener
+        .local_addr()
+        .expect("single-response fixture address");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept single-response request");
+        let _ = read_request(&mut stream);
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        stream
+            .write_all(header.as_bytes())
+            .expect("write single-response header");
+        stream.write_all(body).expect("write single-response body");
+    });
+    (format!("http://127.0.0.1:{}/", address.port()), handle)
+}
+
+fn start_reset_server() -> (String, thread::JoinHandle<bool>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind reset fixture");
+    let address = listener.local_addr().expect("reset fixture address");
+    let handle = thread::spawn(move || {
+        let mut requests = Vec::new();
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().expect("accept reset request");
+            requests.push(read_request(&mut stream));
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .expect("write reset response");
+        }
+        let first = requests.first().map(String::as_str).unwrap_or_default();
+        let second = requests.get(1).map(String::as_str).unwrap_or_default();
+        first.starts_with("POST ")
+            && first.to_ascii_lowercase().contains("x-mdok-stale: yes")
+            && second.starts_with("GET ")
+            && !second.to_ascii_lowercase().contains("x-mdok-stale: yes")
+    });
+    (format!("http://127.0.0.1:{}/", address.port()), handle)
+}
+
 unsafe extern "C" fn short_write(_data: *const u8, _len: usize, _userdata: *mut c_void) -> usize {
     0
+}
+
+unsafe extern "C" fn append_test_body(
+    data: *const u8,
+    length: usize,
+    userdata: *mut c_void,
+) -> usize {
+    if userdata.is_null() || (length != 0 && data.is_null()) {
+        return 0;
+    }
+    // SAFETY: the synchronous bridge call supplies a valid Vec pointer and a
+    // callback buffer that remains valid for the duration of this callback.
+    let target = unsafe { &mut *(userdata as *mut Vec<u8>) };
+    if length != 0 {
+        // SAFETY: libcurl guarantees that the callback buffer contains length
+        // readable bytes for the duration of this callback.
+        target.extend_from_slice(unsafe { slice::from_raw_parts(data, length) });
+    }
+    length
 }
 
 unsafe extern "C" fn cancel_immediately(_userdata: *mut c_void) -> c_int {
@@ -414,6 +475,127 @@ fn cancellation_callback_maps_to_cancelled_status() {
     // SAFETY: plan is no longer used after this point.
     unsafe { mdok_curl_sys::mdok_curl_plan_free(plan) };
     fs::remove_file(path).expect("remove file transfer fixture");
+}
+
+#[test]
+fn cancelled_session_can_be_reused_without_stale_multi_state() {
+    ensure_curl_init();
+    let (url, path) = write_file_fixture(&vec![b'x'; 1024 * 1024], "session-cancel");
+    let cancelled_plan = Plan::parse(&[b"curl".as_slice(), url.as_bytes()])
+        .expect("parse session cancellation plan");
+    let clean_plan = Plan::parse(&[b"curl".as_slice(), b"file:///dev/null".as_slice()])
+        .expect("parse clean session plan");
+    let mut session = Session::new().expect("allocate native session");
+    let always_cancel = || true;
+    let error = session
+        .execute_detailed(
+            &cancelled_plan,
+            2 * 1024 * 1024,
+            16 * 1024,
+            Some(&always_cancel),
+        )
+        .expect_err("cancelled transfer must fail");
+    assert_eq!(error.status, MDOK_CURL_CANCELLED);
+    session
+        .execute_detailed(&clean_plan, 1024, 16 * 1024, None)
+        .expect("session remains usable after cancellation");
+    fs::remove_file(path).expect("remove session cancellation fixture");
+}
+
+#[test]
+fn easy_reset_drops_previous_method_and_headers() {
+    ensure_curl_init();
+    let (url, server) = start_reset_server();
+    let first = Plan::parse(&[
+        b"curl".as_slice(),
+        b"--request".as_slice(),
+        b"POST".as_slice(),
+        b"--header".as_slice(),
+        b"X-Mdok-Stale: yes".as_slice(),
+        url.as_bytes(),
+    ])
+    .expect("parse stateful first plan");
+    let second =
+        Plan::parse(&[b"curl".as_slice(), url.as_bytes()]).expect("parse stateful second plan");
+    let mut session = Session::new().expect("allocate stateful session");
+    session
+        .execute_detailed(&first, 1024, 16 * 1024, None)
+        .expect("execute stateful first plan");
+    session
+        .execute_detailed(&second, 1024, 16 * 1024, None)
+        .expect("execute stateful second plan");
+    assert!(server.join().expect("join reset fixture"));
+}
+
+#[test]
+fn session_reuses_transfer_support_across_multiple_origins() {
+    ensure_curl_init();
+    let (first_url, first_server) = start_single_response_server(b"one");
+    let (second_url, second_server) = start_single_response_server(b"two");
+    let first =
+        Plan::parse(&[b"curl".as_slice(), first_url.as_bytes()]).expect("parse first origin");
+    let second =
+        Plan::parse(&[b"curl".as_slice(), second_url.as_bytes()]).expect("parse second origin");
+    let mut session = Session::new().expect("allocate multi-origin session");
+    let first_result = session
+        .execute_detailed(&first, 1024, 16 * 1024, None)
+        .expect("execute first origin");
+    let second_result = session
+        .execute_detailed(&second, 1024, 16 * 1024, None)
+        .expect("execute second origin");
+    assert_eq!(first_result.transfer.body, b"one");
+    assert_eq!(second_result.transfer.body, b"two");
+    assert_ne!(
+        first_result.metadata.primary_port,
+        second_result.metadata.primary_port
+    );
+    first_server.join().expect("join first-origin fixture");
+    second_server.join().expect("join second-origin fixture");
+}
+
+#[test]
+fn reusable_session_matches_legacy_null_session_body_path() {
+    ensure_curl_init();
+    let (legacy_url, legacy_server) = start_single_response_server(b"same");
+    let (session_url, session_server) = start_single_response_server(b"same");
+    let legacy_plan = Plan::parse(&[b"curl".as_slice(), legacy_url.as_bytes()])
+        .expect("parse legacy compatibility plan");
+    let session_plan = Plan::parse(&[b"curl".as_slice(), session_url.as_bytes()])
+        .expect("parse reusable compatibility plan");
+
+    let mut legacy_body = Vec::new();
+    let callbacks = mdok_curl_callbacks {
+        body: Some(append_test_body),
+        header: None,
+        cancelled: None,
+    };
+    let mut legacy_error = empty_error();
+    // SAFETY: the plan and callback state remain alive for this synchronous
+    // legacy ABI call, and the null session selects the compatibility path.
+    let legacy_status = unsafe {
+        mdok_curl_execute(
+            ptr::null_mut(),
+            legacy_plan.as_ptr(),
+            &callbacks,
+            &mut legacy_body as *mut Vec<u8> as *mut c_void,
+            &mut legacy_error,
+        )
+    };
+
+    let mut session = Session::new().expect("allocate compatibility session");
+    let session_body = session
+        .execute_detailed(&session_plan, 1024, 16 * 1024, None)
+        .expect("execute reusable compatibility path")
+        .transfer
+        .body;
+    assert_eq!(
+        legacy_status, MDOK_CURL_OK,
+        "legacy error {}",
+        legacy_error.code
+    );
+    assert_eq!(legacy_body, session_body);
+    legacy_server.join().expect("join legacy fixture");
+    session_server.join().expect("join session fixture");
 }
 
 #[test]
