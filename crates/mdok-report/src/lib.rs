@@ -6,7 +6,7 @@
 
 #![forbid(unsafe_code)]
 
-use serde::ser::SerializeStruct;
+use serde::ser::{SerializeSeq, SerializeStruct};
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
 use std::fmt::Write as _;
@@ -334,12 +334,11 @@ impl Serialize for Report {
     where
         S: Serializer,
     {
-        let event_records = self.event_records();
         let mut fields = 7;
         if !self.diagnostics.is_empty() {
             fields += 1;
         }
-        if !event_records.is_empty() {
+        if !self.events.is_empty() {
             fields += 1;
         }
         if !self.event_metadata.is_empty() {
@@ -356,8 +355,14 @@ impl Serialize for Report {
         if !self.diagnostics.is_empty() {
             report.serialize_field("diagnostics", &self.diagnostics)?;
         }
-        if !event_records.is_empty() {
-            report.serialize_field("events", &event_records)?;
+        if !self.events.is_empty() {
+            report.serialize_field(
+                "events",
+                &SerializedEventRecords {
+                    events: &self.events,
+                    metadata: &self.event_metadata,
+                },
+            )?;
         }
         // Keep the additive metadata table for consumers that already use it;
         // events themselves now carry the same context inline.
@@ -535,12 +540,87 @@ impl Report {
     }
 
     pub fn json_lines(&self) -> Result<String, ReportError> {
-        let mut output = String::new();
-        for event in self.event_records() {
-            output.push_str(&serde_json::to_string(&event).map_err(ReportError::Serialize)?);
-            output.push('\n');
+        let mut output = Vec::with_capacity(self.events.len().saturating_mul(128));
+        let empty = EventMetadata::default();
+        for event in &self.events {
+            let metadata = self
+                .event_metadata
+                .iter()
+                .find(|record| record.sequence == event.sequence)
+                .map(|record| &record.metadata)
+                .unwrap_or(&empty);
+            serde_json::to_writer(&mut output, &BorrowedEventRecord { event, metadata })
+                .map_err(ReportError::Serialize)?;
+            output.push(b'\n');
         }
-        Ok(output)
+        Ok(String::from_utf8(output).expect("serde_json always emits UTF-8"))
+    }
+}
+
+struct BorrowedEventRecord<'a> {
+    event: &'a Event,
+    metadata: &'a EventMetadata,
+}
+
+impl Serialize for BorrowedEventRecord<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut record = serializer.serialize_struct("EventRecord", 2)?;
+        record.serialize_field("sequence", &self.event.sequence)?;
+        record.serialize_field("kind", &self.event.kind)?;
+        record.serialize_field("document", &self.event.document)?;
+        record.serialize_field("step", &self.event.step)?;
+        record.serialize_field("status", &self.event.status)?;
+        record.serialize_field("message", &self.event.message)?;
+        if let Some(run_id) = &self.metadata.run_id {
+            record.serialize_field("run_id", run_id)?;
+        }
+        if let Some(document_ordinal) = self.metadata.document_ordinal {
+            record.serialize_field("document_ordinal", &document_ordinal)?;
+        }
+        if let Some(step_ordinal) = self.metadata.step_ordinal {
+            record.serialize_field("step_ordinal", &step_ordinal)?;
+        }
+        if let Some(check_ordinal) = self.metadata.check_ordinal {
+            record.serialize_field("check_ordinal", &check_ordinal)?;
+        }
+        if let Some(capture_ordinal) = self.metadata.capture_ordinal {
+            record.serialize_field("capture_ordinal", &capture_ordinal)?;
+        }
+        if let Some(timestamp) = &self.metadata.timestamp {
+            record.serialize_field("timestamp", timestamp)?;
+        }
+        if let Some(duration_ms) = self.metadata.duration_ms {
+            record.serialize_field("duration_ms", &duration_ms)?;
+        }
+        record.end()
+    }
+}
+
+struct SerializedEventRecords<'a> {
+    events: &'a [Event],
+    metadata: &'a [EventMetadataRecord],
+}
+
+impl Serialize for SerializedEventRecords<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let empty = EventMetadata::default();
+        let mut sequence = serializer.serialize_seq(Some(self.events.len()))?;
+        for event in self.events {
+            let metadata = self
+                .metadata
+                .iter()
+                .find(|record| record.sequence == event.sequence)
+                .map(|record| &record.metadata)
+                .unwrap_or(&empty);
+            sequence.serialize_element(&BorrowedEventRecord { event, metadata })?;
+        }
+        sequence.end()
     }
 }
 
