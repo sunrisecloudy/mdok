@@ -5,6 +5,7 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 version=$(awk -F '"' '/^version = / { print $2; exit }' "$root/crates/mdok-cli/Cargo.toml")
 target=${TARGET:-$(rustc -vV | awk '/host:/ { print $2 }')}
 dist="$root/dist"
+dist=${MDOK_DIST:-$dist}
 archive_base="mdok-$version-$target"
 mkdir -p "$dist"
 stage=$(mktemp -d "$dist/.mdok-stage.XXXXXX")

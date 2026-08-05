@@ -1,4 +1,4 @@
-.PHONY: fmt lint test corpus bench bench-perf profile-perf deps-audit sbom options
+.PHONY: fmt lint test corpus bench bench-perf profile-perf deps-audit sbom release-smoke tls-matrix options
 fmt:
 	cargo fmt --all --check
 lint:
@@ -19,3 +19,7 @@ deps-audit:
 	python3 scripts/audit_dependencies.py
 sbom:
 	python3 scripts/generate_sbom.py --output target/mdok.spdx.json
+release-smoke:
+	sh scripts/run_release_smoke.sh
+tls-matrix:
+	python3 scripts/run_tls_matrix.py
