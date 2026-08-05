@@ -1,5 +1,5 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 version=$(awk -F '"' '/^version = / { print $2; exit }' "$root/crates/mdok-cli/Cargo.toml")
@@ -10,12 +10,13 @@ archive_base="mdok-$version-$target"
 mkdir -p "$dist"
 stage=$(mktemp -d "$dist/.mdok-stage.XXXXXX")
 source_state=$(mktemp "$dist/.mdok-source-state.XXXXXX")
+source_tar=$(mktemp "$dist/.mdok-source-tar.XXXXXX")
 signing_key=${MDOK_SIGNING_KEY:-}
 public_key=${MDOK_SIGNING_PUBLIC_KEY:-$signing_key}
 require_signature=${MDOK_REQUIRE_SIGNATURE:-0}
 release_smoke=${MDOK_RELEASE_SMOKE:-0}
 allow_dirty=${MDOK_ALLOW_DIRTY_RELEASE:-0}
-cleanup() { rm -rf -- "$stage" "$source_state"; }
+cleanup() { rm -rf -- "$stage" "$source_state" "$source_tar"; }
 trap cleanup EXIT HUP INT TERM
 
 case "$require_signature:$release_smoke:$allow_dirty" in
@@ -63,7 +64,32 @@ cp "$root/vendor/patches/curl"/*.patch "$stage/patches/curl/"
 python3 "$root/scripts/generate_sbom.py" --output "$stage/mdok.spdx.json"
 
 source_archive="$dist/mdok-$version-source.tar.gz"
-git -C "$root" archive --format=tar --prefix="mdok-$version-source/" HEAD | gzip -n > "$source_archive"
+git -C "$root" archive \
+  --format=tar \
+  --prefix="mdok-$version-source/" \
+  HEAD > "$source_tar"
+gzip -n < "$source_tar" > "$source_archive"
+python3 - "$source_archive" "$version" <<'PY'
+import pathlib
+import sys
+import tarfile
+
+archive_path = pathlib.Path(sys.argv[1])
+version = sys.argv[2]
+prefix = f"mdok-{version}-source/"
+try:
+    with tarfile.open(archive_path, mode="r:gz") as archive:
+        members = archive.getmembers()
+except (OSError, tarfile.TarError) as error:
+    raise SystemExit(f"source archive validation failed: {error}")
+
+if not members:
+    raise SystemExit("source archive validation failed: archive is empty")
+for member in members:
+    name = pathlib.PurePosixPath(member.name)
+    if member.name.startswith("/") or ".." in name.parts or not member.name.startswith(prefix):
+        raise SystemExit(f"source archive validation failed: unsafe member {member.name!r}")
+PY
 
 python3 "$root/scripts/generate_provenance.py" \
   --binary "$binary" \

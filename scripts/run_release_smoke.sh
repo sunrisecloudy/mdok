@@ -21,6 +21,6 @@ MDOK_SIGNING_KEY="$key" \
 MDOK_SIGNING_PUBLIC_KEY="$public_key" \
 MDOK_REQUIRE_SIGNATURE=1 \
 MDOK_RELEASE_SMOKE=1 \
-    sh "$root/scripts/package.sh"
+    bash "$root/scripts/package.sh"
 
 printf 'Ephemeral-key signed release smoke passed; test key was removed\n'

@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{RecvTimeoutError, sync_channel};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -155,6 +156,9 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
     let max_output = policy.max_output_bytes;
     let stdout_thread = thread::spawn(move || read_limited(stdout, max_output, stdout_state));
     let stderr_thread = thread::spawn(move || read_limited(stderr, max_output, stderr_state));
+    let deadline = started
+        .checked_add(policy.timeout)
+        .unwrap_or_else(Instant::now);
 
     let mut timed_out = false;
     let mut output_limit_exceeded = false;
@@ -163,33 +167,19 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
             .try_wait()
             .map_err(|error| CommandError::new(E_START, format!("could not poll child: {error}")))?
         {
-            break status;
+            break reap_group_with_deadline(child, Some(status), deadline)?;
         }
         if output_state.truncated.load(Ordering::Acquire) {
             output_limit_exceeded = true;
-            let _ = child.kill();
-            break child.wait().map_err(|error| {
-                CommandError::new(
-                    E_START,
-                    format!("could not stop output-limited child: {error}"),
-                )
-            })?;
+            break reap_group_with_deadline(child, None, deadline)?;
         }
-        if started.elapsed() >= policy.timeout {
+        if Instant::now() >= deadline {
             timed_out = true;
-            let _ = child.kill();
-            break child.wait().map_err(|error| {
-                CommandError::new(E_START, format!("could not stop timed-out child: {error}"))
-            })?;
+            break reap_group_with_deadline(child, None, deadline)?;
         }
         thread::sleep(Duration::from_millis(2));
     };
-    let stdout = stdout_thread
-        .join()
-        .map_err(|_| CommandError::new(E_START, "stdout reader panicked"))?;
-    let stderr = stderr_thread
-        .join()
-        .map_err(|_| CommandError::new(E_START, "stderr reader panicked"))?;
+    let (stdout, stderr) = join_readers_with_deadline(stdout_thread, stderr_thread, deadline)?;
     output_limit_exceeded |= output_state.truncated.load(Ordering::Acquire);
     let output_truncated = output_limit_exceeded;
     let signal = exit_signal(&status);
@@ -210,6 +200,67 @@ pub fn run(argv: &[String], policy: &CommandPolicy) -> Result<ProcessOutput, Com
         stderr,
         duration: started.elapsed(),
     })
+}
+
+/// Kill the complete process group and reap it without allowing cleanup to
+/// extend the command's original wall-clock deadline. A separate reaper is
+/// used because a descendant can keep the group wait open after the leader has
+/// already exited.
+fn reap_group_with_deadline(
+    mut child: command_group::GroupChild,
+    leader_status: Option<ExitStatus>,
+    deadline: Instant,
+) -> Result<ExitStatus, CommandError> {
+    let _ = child.kill();
+    let (sender, receiver) = sync_channel(1);
+    thread::spawn(move || {
+        let _ = sender.send(child.wait());
+    });
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    match receiver.recv_timeout(remaining) {
+        Ok(Ok(status)) => Ok(status),
+        Ok(Err(error)) => Err(CommandError::new(
+            E_START,
+            format!("could not reap command group: {error}"),
+        )),
+        Err(RecvTimeoutError::Timeout) => Err(CommandError::new(
+            E_TIMEOUT,
+            "command group cleanup exceeded the command deadline",
+        )),
+        Err(RecvTimeoutError::Disconnected) => {
+            if let Some(status) = leader_status {
+                Ok(status)
+            } else {
+                Err(CommandError::new(
+                    E_START,
+                    "command group reaper exited unexpectedly",
+                ))
+            }
+        }
+    }
+}
+
+fn join_readers_with_deadline(
+    stdout_thread: thread::JoinHandle<Vec<u8>>,
+    stderr_thread: thread::JoinHandle<Vec<u8>>,
+    deadline: Instant,
+) -> Result<(Vec<u8>, Vec<u8>), CommandError> {
+    while !stdout_thread.is_finished() || !stderr_thread.is_finished() {
+        if Instant::now() >= deadline {
+            return Err(CommandError::new(
+                E_TIMEOUT,
+                "stdout/stderr cleanup exceeded the command deadline",
+            ));
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    let stdout = stdout_thread
+        .join()
+        .map_err(|_| CommandError::new(E_START, "stdout reader panicked"))?;
+    let stderr = stderr_thread
+        .join()
+        .map_err(|_| CommandError::new(E_START, "stderr reader panicked"))?;
+    Ok((stdout, stderr))
 }
 
 fn validate_argv<'a>(

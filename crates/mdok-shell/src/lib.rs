@@ -1,8 +1,15 @@
 #![forbid(unsafe_code)]
 
 use mdok_core::{SourceSpan, ValueMap};
-use mdok_template::{TemplateExpression, TemplatePart, parse as parse_template, render_expression};
+use mdok_template::{
+    MAX_TEMPLATE_SOURCE_BYTES, TemplateExpression, TemplatePart, parse as parse_template,
+    render_expression_with_limit,
+};
 use std::path::{Path, PathBuf};
+
+pub const MAX_ARGV_ARGUMENTS: usize = 64;
+pub const MAX_ARG_BYTES: usize = 64 * 1024;
+pub const MAX_ARGV_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WordSegment {
@@ -32,11 +39,14 @@ impl Argument {
         let mut output = String::new();
         for segment in &self.segments {
             match segment {
-                WordSegment::Literal(value) => output.push_str(value),
+                WordSegment::Literal(value) => append_argument_part(&mut output, value, self)?,
                 WordSegment::Template(expression) => {
-                    output.push_str(&render_expression(expression, values).map_err(|error| {
-                        ShellError::template(self.span.clone(), error.to_string())
-                    })?)
+                    let remaining = MAX_ARG_BYTES.saturating_sub(output.len());
+                    let rendered = render_expression_with_limit(expression, values, remaining)
+                        .map_err(|error| {
+                            ShellError::template(self.span.clone(), error.to_string())
+                        })?;
+                    append_argument_part(&mut output, &rendered, self)?;
                 }
             }
         }
@@ -53,11 +63,29 @@ pub struct ArgvPlan {
 
 impl ArgvPlan {
     pub fn evaluate(&self, values: &ValueMap) -> Result<Vec<String>, ShellError> {
-        let argv: Vec<String> = self
-            .arguments
-            .iter()
-            .map(|argument| argument.render(values))
-            .collect::<Result<_, _>>()?;
+        if self.arguments.len() > MAX_ARGV_ARGUMENTS {
+            return Err(ShellError::new(
+                "MDOK-E405",
+                format!("curl command has more than {MAX_ARGV_ARGUMENTS} arguments"),
+                None,
+            ));
+        }
+        let mut argv = Vec::with_capacity(self.arguments.len());
+        let mut argv_bytes = 0usize;
+        for argument in &self.arguments {
+            let rendered = argument.render(values)?;
+            argv_bytes = argv_bytes.checked_add(rendered.len()).ok_or_else(|| {
+                ShellError::new("MDOK-E405", "curl argv byte count overflowed", None)
+            })?;
+            if argv_bytes > MAX_ARGV_BYTES {
+                return Err(ShellError::new(
+                    "MDOK-E405",
+                    format!("curl argv exceeds {MAX_ARGV_BYTES} total bytes"),
+                    None,
+                ));
+            }
+            argv.push(rendered);
+        }
         if argv.first().is_none_or(|value| value != "curl") {
             return Err(ShellError::new(
                 "MDOK-E202",
@@ -123,6 +151,13 @@ pub fn evaluate_argv(plan: &ArgvPlan, values: &ValueMap) -> Result<Vec<String>, 
 
 pub fn parse_with_path(source: &str, path: impl Into<PathBuf>) -> Result<ArgvPlan, ShellError> {
     let path = path.into();
+    if source.len() > MAX_TEMPLATE_SOURCE_BYTES {
+        return Err(ShellError::new(
+            "MDOK-E405",
+            format!("curl command source exceeds {MAX_TEMPLATE_SOURCE_BYTES} bytes"),
+            None,
+        ));
+    }
     let mut arguments = Vec::new();
     let mut current = Vec::new();
     let mut quote = Quote::Unquoted;
@@ -174,6 +209,13 @@ pub fn parse_with_path(source: &str, path: impl Into<PathBuf>) -> Result<ArgvPla
                         index,
                         source,
                     );
+                    if arguments.len() > MAX_ARGV_ARGUMENTS {
+                        return Err(ShellError::new(
+                            "MDOK-E405",
+                            format!("curl command has more than {MAX_ARGV_ARGUMENTS} arguments"),
+                            None,
+                        ));
+                    }
                     index += 1;
                 }
                 b'\n' => {
@@ -327,6 +369,13 @@ pub fn parse_with_path(source: &str, path: impl Into<PathBuf>) -> Result<ArgvPla
         source.len(),
         source,
     );
+    if arguments.len() > MAX_ARGV_ARGUMENTS {
+        return Err(ShellError::new(
+            "MDOK-E405",
+            format!("curl command has more than {MAX_ARGV_ARGUMENTS} arguments"),
+            None,
+        ));
+    }
     if arguments.is_empty() {
         return Err(ShellError::new("MDOK-E202", "curl fence is empty", None));
     }
@@ -342,6 +391,29 @@ pub fn parse_with_path(source: &str, path: impl Into<PathBuf>) -> Result<ArgvPla
         path,
         arguments,
     })
+}
+
+fn append_argument_part(
+    output: &mut String,
+    value: &str,
+    argument: &Argument,
+) -> Result<(), ShellError> {
+    let total = output.len().checked_add(value.len()).ok_or_else(|| {
+        ShellError::new(
+            "MDOK-E405",
+            "curl argument byte count overflowed",
+            Some(argument.span.clone()),
+        )
+    })?;
+    if total > MAX_ARG_BYTES {
+        return Err(ShellError::new(
+            "MDOK-E405",
+            format!("curl argument exceeds {MAX_ARG_BYTES} bytes"),
+            Some(argument.span.clone()),
+        ));
+    }
+    output.push_str(value);
+    Ok(())
 }
 
 fn finish_word(
@@ -445,5 +517,13 @@ mod tests {
             plan.evaluate(&ValueMap::new()).unwrap()[2],
             "https://example.test/users"
         );
+    }
+
+    #[test]
+    fn bounds_argv_count_before_evaluation() {
+        let mut words = vec!["curl".to_owned()];
+        words.extend((0..MAX_ARGV_ARGUMENTS).map(|_| "x".to_owned()));
+        let error = parse(&words.join(" ")).unwrap_err();
+        assert_eq!(error.code, "MDOK-E405");
     }
 }
