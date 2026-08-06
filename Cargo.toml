@@ -14,6 +14,7 @@ members = [
   "crates/mdok-runtime",
   "crates/mdok-report",
   "crates/mdok-postman",
+  "crates/mdok-quickjs",
   "crates/mdok-test-server",
   "crates/mdok-benchmarks",
 ]
