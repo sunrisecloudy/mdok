@@ -40,6 +40,10 @@ API workflows, Postman import, bounded Postman JavaScript probes, and version
 information. Tool calls return JSON reports and preserve MDOK policy,
 redaction, and review-first import behavior. See [docs/MCP.md](docs/MCP.md).
 
+The reusable agent instructions are checked in at
+[`skills/mdok/SKILL.md`](skills/mdok/SKILL.md); they can also be installed into
+an agent's skill directory.
+
 ## Project files
 
 - `mdok.toml` controls language, execution limits, variables, and network/filesystem policy.
