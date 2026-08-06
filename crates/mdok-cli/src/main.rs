@@ -7,6 +7,7 @@
 
 #![forbid(unsafe_code)]
 
+mod mcp;
 mod transient;
 
 use base64::Engine as _;
@@ -197,6 +198,25 @@ struct PostmanImportArgs {
     manifest: Option<PathBuf>,
 }
 
+#[derive(Args, Clone, Debug)]
+struct ProbeArgs {
+    /// JSON probe case path, or `-` to read the case from stdin.
+    #[arg(long, value_name = "PATH")]
+    case: PathBuf,
+    /// Child-request mode: offline or fetch.
+    #[arg(long, default_value = "offline", value_name = "MODE")]
+    network: String,
+    /// Override the script timeout in milliseconds.
+    #[arg(long, value_name = "MILLISECONDS")]
+    timeout_ms: Option<u64>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+enum McpCommand {
+    /// Run an MCP server over stdin/stdout using newline-delimited JSON-RPC.
+    Serve,
+}
+
 #[derive(Subcommand, Clone, Debug)]
 enum ImportCommand {
     /// Import a Postman Collection v2.1 JSON file.
@@ -233,6 +253,13 @@ enum Command {
     Plan { paths: Vec<PathBuf> },
     /// List documents, steps, checks, and captures.
     List { paths: Vec<PathBuf> },
+    /// Run one Postman-compatible JavaScript probe case.
+    Probe(ProbeArgs),
+    /// Serve mdok capabilities through the Model Context Protocol.
+    Mcp {
+        #[command(subcommand)]
+        command: McpCommand,
+    },
     /// Print MDOK and compatibility versions.
     Version,
 }
@@ -514,6 +541,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.options.json;
     let json_lines = cli.options.json_lines;
+    let mcp_transport = matches!(cli.command, Some(Command::Mcp { .. }));
     let invocation_error_context = invocation_error_context(&cli.command);
     match run(cli) {
         Ok(code) => ExitCode::from(code),
@@ -540,7 +568,7 @@ fn main() -> ExitCode {
                         .to_string()
                     })
                 );
-            } else if json {
+            } else if json && !mcp_transport {
                 println!(
                     "{}",
                     serde_json::json!({
@@ -548,7 +576,7 @@ fn main() -> ExitCode {
                         "diagnostics": [&diagnostic]
                     })
                 );
-            } else if json_lines {
+            } else if json_lines && !mcp_transport {
                 println!(
                     "{}",
                     serde_json::json!({
@@ -589,6 +617,8 @@ fn invocation_error_context(
         | Command::Lint { .. }
         | Command::Plan { .. }
         | Command::List { .. }
+        | Command::Probe(_)
+        | Command::Mcp { .. }
         | Command::Import { .. }
         | Command::Version => None,
     }
@@ -604,6 +634,10 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
         Some(Command::Import {
             format: ImportCommand::Postman(args),
         }) => return run_postman_import(args, &cli.options),
+        Some(Command::Probe(args)) => return run_probe(args),
+        Some(Command::Mcp {
+            command: McpCommand::Serve,
+        }) => return run_mcp_server(),
         Some(Command::Test { paths }) => (Mode::Test, paths),
         Some(Command::Lint { paths }) => (Mode::Lint, paths),
         Some(Command::Plan { paths }) => (Mode::Plan, paths),
@@ -849,6 +883,102 @@ fn run_replay(args: ReplayArgs, options: &CommonOptions) -> Result<u8, Box<CliEr
         None,
         false,
     )
+}
+
+fn run_probe(args: ProbeArgs) -> Result<u8, Box<CliError>> {
+    if args.network != "offline" && args.network != "fetch" {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-PM-PROBE",
+                "Invalid probe network mode",
+                "--network must be offline or fetch",
+            ),
+        ));
+    }
+    let mut source = String::new();
+    if args.case == Path::new("-") {
+        io::stdin().read_to_string(&mut source).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error("MDOK-PM-PROBE", "Cannot read probe case", error.to_string()),
+            )
+        })?;
+    } else {
+        source = fs::read_to_string(&args.case).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error("MDOK-PM-PROBE", "Cannot read probe case", error.to_string())
+                    .at_file(&args.case),
+            )
+        })?;
+    }
+    let mut input: mdok_quickjs::ProbeInput = serde_json::from_str(&source).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-PM-PROBE",
+                "Invalid probe case JSON",
+                error.to_string(),
+            ),
+        )
+    })?;
+    if let Some(timeout_ms) = args.timeout_ms {
+        if timeout_ms == 0 {
+            return Err(cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-PM-PROBE",
+                    "Invalid probe timeout",
+                    "--timeout-ms must be at least 1",
+                ),
+            ));
+        }
+        input.profile.script_timeout_ms = timeout_ms;
+    }
+    let output = if args.network == "fetch" {
+        let timeout = Duration::from_millis(input.profile.script_timeout_ms.max(1));
+        let mut executor = mdok_quickjs::fetch_executor(timeout);
+        mdok_quickjs::run_script_with_executor(&input, &mut executor)
+    } else {
+        mdok_quickjs::run_script(&input)
+    };
+    if !output.ok {
+        let message = output
+            .transcript
+            .errors
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "probe run failed".to_owned());
+        return Err(cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-PM-PROBE", "Probe runtime failed", message),
+        ));
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error(
+                    "MDOK-PM-PROBE",
+                    "Cannot encode probe output",
+                    error.to_string(),
+                ),
+            )
+        })?
+    );
+    Ok(EXIT_OK)
+}
+
+fn run_mcp_server() -> Result<u8, Box<CliError>> {
+    mcp::serve().map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-MCP", "MCP server failed", error),
+        )
+    })?;
+    Ok(EXIT_OK)
 }
 
 fn run_postman_import(

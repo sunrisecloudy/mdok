@@ -25,6 +25,21 @@ fails closed on semantics that cannot be represented safely. See
 [docs/POSTMAN_IMPORT.md](docs/POSTMAN_IMPORT.md) for the supported subset and
 runtime boundary.
 
+## MCP server
+
+MDOK includes a stdio [Model Context Protocol](https://modelcontextprotocol.io/)
+server for agent workflows. Build the CLI, then register it with an MCP client:
+
+```sh
+cargo build --release -p mdok-cli
+mdok mcp serve
+```
+
+The server advertises tools for linting, planning, listing, and running Markdown
+API workflows, Postman import, bounded Postman JavaScript probes, and version
+information. Tool calls return JSON reports and preserve MDOK policy,
+redaction, and review-first import behavior. See [docs/MCP.md](docs/MCP.md).
+
 ## Project files
 
 - `mdok.toml` controls language, execution limits, variables, and network/filesystem policy.

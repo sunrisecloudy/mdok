@@ -19,7 +19,9 @@ pub mod sandbox;
 pub(crate) mod secrets;
 pub mod transcript;
 
-pub use effect::{ChildRequest, ChildRequestExecutor, ChildRequestResult, offline_executor};
+pub use effect::{
+    ChildRequest, ChildRequestExecutor, ChildRequestResult, fetch_executor, offline_executor,
+};
 pub use sandbox::{run_script, run_script_with_executor};
 pub use transcript::{
     ChildRequestRecord, ControlFlowRecord, Diagnostic, LogEntry, ScopeWrite, TestResult,

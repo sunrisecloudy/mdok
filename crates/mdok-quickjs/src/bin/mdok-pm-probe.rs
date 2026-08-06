@@ -11,10 +11,9 @@
 
 use std::io::Read;
 use std::process::ExitCode;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use mdok_quickjs::effect::{ChildRequest, ChildRequestResult};
-use mdok_quickjs::{ProbeInput, list_api, run_script, run_script_with_executor};
+use mdok_quickjs::{ProbeInput, fetch_executor, list_api, run_script, run_script_with_executor};
 
 const USAGE: &str = "usage: mdok-pm-probe --case PATH.json|--case - [--network offline|fetch] [--timeout-ms N] | --list-api";
 
@@ -101,90 +100,6 @@ fn read_case(path: &str) -> Result<ProbeInput, String> {
             .map_err(|e| format!("failed to read case file {path:?}: {e}"))?;
     }
     serde_json::from_str(&source).map_err(|e| format!("invalid case JSON: {e}"))
-}
-
-/// Fetch-mode executor: performs the child request with reqwest (timeout from
-/// the profile, follows redirects, 8MB body cap). Secret header/body content
-/// never reaches the transcript (the child request record only carries
-/// method/url/status/error, and the URL is redacted by the sandbox).
-fn fetch_executor(request_timeout: Duration) -> impl FnMut(&ChildRequest) -> ChildRequestResult {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(request_timeout)
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .build();
-    const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
-    move |req: &ChildRequest| {
-        let client = match &client {
-            Ok(c) => c,
-            Err(e) => return err_result(req, format!("http client setup failed: {e}")),
-        };
-        let method = req
-            .method
-            .parse::<reqwest::Method>()
-            .unwrap_or(reqwest::Method::GET);
-        let mut builder = client.request(method, &req.url);
-        for (name, value) in &req.headers {
-            builder = builder.header(name, value);
-        }
-        if let Some(body) = &req.body {
-            builder = builder.body(body.clone());
-        }
-        let started = Instant::now();
-        match builder.send() {
-            Ok(resp) => {
-                let status = resp.status().as_u16();
-                let status_text = resp.status().canonical_reason().map(str::to_string);
-                let headers: Vec<(String, String)> = resp
-                    .headers()
-                    .iter()
-                    .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
-                    .collect();
-                let body = match resp.bytes() {
-                    Ok(bytes) => {
-                        let truncated: Vec<u8> =
-                            bytes.iter().take(MAX_BODY_BYTES).cloned().collect();
-                        String::from_utf8_lossy(&truncated).into_owned()
-                    }
-                    Err(e) => {
-                        return ChildRequestResult {
-                            op: req.op,
-                            ok: false,
-                            status: None,
-                            status_text: None,
-                            headers,
-                            body: None,
-                            error: Some(format!("response read failed: {e}")),
-                            response_time_ms: Some(started.elapsed().as_millis() as u64),
-                        };
-                    }
-                };
-                ChildRequestResult {
-                    op: req.op,
-                    ok: true,
-                    status: Some(status),
-                    status_text,
-                    headers,
-                    body: Some(body),
-                    error: None,
-                    response_time_ms: Some(started.elapsed().as_millis() as u64),
-                }
-            }
-            Err(e) => err_result(req, format!("request failed: {e}")),
-        }
-    }
-}
-
-fn err_result(req: &ChildRequest, error: String) -> ChildRequestResult {
-    ChildRequestResult {
-        op: req.op,
-        ok: false,
-        status: None,
-        status_text: None,
-        headers: Vec::new(),
-        body: None,
-        error: Some(error),
-        response_time_ms: None,
-    }
 }
 
 fn run() -> Result<(), String> {

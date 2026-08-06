@@ -8,6 +8,8 @@
 //! when its generation still matches the run's generation — late completions
 //! from an older generation are ignored (Celld-style op/generation guard).
 
+use std::time::{Duration, Instant};
+
 /// One in-flight child request emitted by the sandbox.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChildRequest {
@@ -46,6 +48,99 @@ pub struct ChildRequestResult {
 /// (`reqwest` in fetch mode) or by embeddings/tests (loopback listeners).
 /// Must be cheap and synchronous: the sandbox pumps it inline.
 pub type ChildRequestExecutor = dyn FnMut(&ChildRequest) -> ChildRequestResult;
+
+/// Fetch-mode executor used by the standalone probe and embedding hosts.
+///
+/// The callback is deliberately synchronous because the sandbox pumps one
+/// typed effect at a time. Response bodies are capped so a script cannot make
+/// the probe retain an unbounded amount of network data. The sandbox controls
+/// transcript redaction for secret-bearing request metadata before output.
+pub fn fetch_executor(
+    request_timeout: Duration,
+) -> impl FnMut(&ChildRequest) -> ChildRequestResult {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(request_timeout)
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build();
+    const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
+    move |req: &ChildRequest| {
+        let client = match &client {
+            Ok(client) => client,
+            Err(error) => return request_error(req, format!("http client setup failed: {error}")),
+        };
+        let method = req
+            .method
+            .parse::<reqwest::Method>()
+            .unwrap_or(reqwest::Method::GET);
+        let mut builder = client.request(method, &req.url);
+        for (name, value) in &req.headers {
+            builder = builder.header(name, value);
+        }
+        if let Some(body) = &req.body {
+            builder = builder.body(body.clone());
+        }
+        let started = Instant::now();
+        match builder.send() {
+            Ok(response) => {
+                let status = response.status().as_u16();
+                let status_text = response.status().canonical_reason().map(str::to_string);
+                let headers: Vec<(String, String)> = response
+                    .headers()
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            key.as_str().to_string(),
+                            value.to_str().unwrap_or("").to_string(),
+                        )
+                    })
+                    .collect();
+                let body = match response.bytes() {
+                    Ok(bytes) => {
+                        let truncated: Vec<u8> =
+                            bytes.iter().take(MAX_BODY_BYTES).cloned().collect();
+                        String::from_utf8_lossy(&truncated).into_owned()
+                    }
+                    Err(error) => {
+                        return ChildRequestResult {
+                            op: req.op,
+                            ok: false,
+                            status: None,
+                            status_text: None,
+                            headers,
+                            body: None,
+                            error: Some(format!("response read failed: {error}")),
+                            response_time_ms: Some(started.elapsed().as_millis() as u64),
+                        };
+                    }
+                };
+                ChildRequestResult {
+                    op: req.op,
+                    ok: true,
+                    status: Some(status),
+                    status_text,
+                    headers,
+                    body: Some(body),
+                    error: None,
+                    response_time_ms: Some(started.elapsed().as_millis() as u64),
+                }
+            }
+            Err(error) => request_error(req, format!("request failed: {error}")),
+        }
+    }
+}
+
+fn request_error(req: &ChildRequest, error: String) -> ChildRequestResult {
+    ChildRequestResult {
+        op: req.op,
+        ok: false,
+        status: None,
+        status_text: None,
+        headers: Vec::new(),
+        body: None,
+        error: Some(error),
+        response_time_ms: None,
+    }
+}
 
 /// Offline-mode executor: every child request is refused with
 /// `MDOK-PM-NETWORK-OFFLINE` and never resolved.
