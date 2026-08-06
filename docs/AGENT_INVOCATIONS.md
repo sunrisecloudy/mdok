@@ -184,10 +184,10 @@ preflight. With `--strict`, only `exact` proceeds; `changed` and `unknown` fail
 with an input error before the adapter runs. A malformed or unsupported
 manifest is also an input error. The provenance check does not make a replay
 deterministic: remote responses, local files, command binaries, environment
-values, and external side effects can still differ. The current replay
-envelope does not attach the recording sidecar as a new `recording` object, so
-callers that need the preflight fields should retain the manifest and strict
-result alongside the replay output.
+values, and external side effects can still differ. A successful replay
+envelope includes the recording and manifest paths, the current source digest,
+and the preflight `drift` object so callers can make that decision from one
+structured result.
 
 ## Invocation envelope
 

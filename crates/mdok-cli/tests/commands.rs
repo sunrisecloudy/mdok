@@ -371,6 +371,15 @@ fn replay_strict_fails_closed_for_missing_invalid_and_tampered_manifests() {
     let non_strict_json = json_output(&non_strict);
     assert_eq!(non_strict_json["operation"], "replay");
     assert_eq!(non_strict_json["success"], true);
+    assert_eq!(
+        non_strict_json["recording"]["path"],
+        requested.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        non_strict_json["recording"]["manifest_path"],
+        manifest.to_string_lossy().as_ref()
+    );
+    assert_eq!(non_strict_json["recording"]["drift"]["status"], "unknown");
 
     fs::write(
         &manifest,

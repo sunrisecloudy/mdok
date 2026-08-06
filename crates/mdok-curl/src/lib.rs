@@ -2863,7 +2863,7 @@ fn native_timeout_ms(timeout: Option<Duration>) -> Option<u64> {
     })
 }
 fn native_timeout_supported(timeout: Option<Duration>) -> bool {
-    timeout.map_or(true, |duration| {
+    timeout.is_none_or(|duration| {
         native_timeout_ms(Some(duration))
             .is_some_and(|millis| millis <= mdok_curl_sys::MAX_NATIVE_TIMEOUT_MS)
     })

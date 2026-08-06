@@ -792,7 +792,7 @@ fn run_replay(args: ReplayArgs, options: &CommonOptions) -> Result<u8, Box<CliEr
         path: Some(path),
     })?;
     source.source_kind = "recording";
-    let config = load_config(&[source.config_anchor.clone()], options)?;
+    let config = load_config(std::slice::from_ref(&source.config_anchor), options)?;
     let drift = replay_drift(&source, options, &config)?;
     source.replay_drift = Some(drift.clone());
     if args.strict && drift.get("status").and_then(Value::as_str) != Some("exact") {
@@ -919,23 +919,30 @@ fn run_invocation(
     output: Option<PathBuf>,
     force: bool,
 ) -> Result<u8, Box<CliError>> {
-    let config = load_config(&[source.config_anchor.clone()], options)?;
+    let config = load_config(std::slice::from_ref(&source.config_anchor), options)?;
     let source_sha256 = sha256_hex(&source.source);
-    let recording = if operation == InvocationOperation::Record {
-        if let Some(argv) = &source.argv {
-            validate_recordable_argv(argv)?;
+    let recording = match operation {
+        InvocationOperation::Record => {
+            if let Some(argv) = &source.argv {
+                validate_recordable_argv(argv)?;
+            }
+            validate_recordable_source(&source.source, &config)?;
+            Some(write_recording(
+                &source,
+                output,
+                force,
+                options,
+                &source_sha256,
+                &config,
+            )?)
         }
-        validate_recordable_source(&source.source, &config)?;
-        Some(write_recording(
-            &source,
-            output,
-            force,
-            options,
-            &source_sha256,
-            &config,
-        )?)
-    } else {
-        None
+        InvocationOperation::Replay => Some(RecordingInfo {
+            path: source.label.clone(),
+            manifest_path: recording_manifest_path(&source.label),
+            source_sha256: source_sha256.clone(),
+            replay_command: format!("mdok replay {}", record_path_string(&source.label)),
+        }),
+        InvocationOperation::Run | InvocationOperation::Call => None,
     };
     let mut temporary = NamedTempFile::new().map_err(|error| {
         cli_error(
@@ -3973,6 +3980,7 @@ fn positional_args(tokens: &[String]) -> Vec<&String> {
     values
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_templates(
     input: &str,
     parsed_template: Option<&Template>,

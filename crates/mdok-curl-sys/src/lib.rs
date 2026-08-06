@@ -336,6 +336,7 @@ impl Session {
     /// Execute a transfer with effective Rust-side timeouts supplied to the
     /// native bridge. A zero value requests the bridge hard default; the
     /// bridge clamps direct callers to the same maximum.
+    #[allow(clippy::too_many_arguments)]
     pub fn execute_detailed_with_body_sink_and_timeouts(
         &mut self,
         plan: &Plan,
