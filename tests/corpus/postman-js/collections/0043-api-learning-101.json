@@ -1,0 +1,378 @@
+{
+  "info": {
+    "name": "API Learning 101",
+    "description": "Complete Postman collection for API Learning 101 - Learn RESTful APIs with hands-on examples. Use this collection with the production API at https://api-learning.nisalgunawardhana.com",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "12345678"
+  },
+  "item": [
+    {
+      "name": "Root - API Info",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has message\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('message');",
+              "});",
+              "",
+              "pm.test(\"Response time is less than 500ms\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(500);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://api-learning.nisalgunawardhana.com/",
+          "protocol": "https",
+          "host": ["api-learning", "nisalgunawardhana", "com"],
+          "path": [""]
+        },
+        "description": "Get API information including available endpoints and documentation"
+      },
+      "response": []
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success property\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Response has data array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('data');",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has count\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('count');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users"]
+            },
+            "description": "Retrieve all users from the system. Screenshot this showing status 200 and user array."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"User has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('name');",
+                  "    pm.expect(jsonData.data).to.have.property('email');",
+                  "});",
+                  "",
+                  "pm.test(\"Email format is valid\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.email).to.match(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users/1",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users", "1"]
+            },
+            "description": "Get a specific user by their ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID (Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test(\"Error message is present\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users/9999",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users", "9999"]
+            },
+            "description": "Test 404 error when user doesn't exist"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"User created successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('createdAt');",
+                  "});",
+                  "",
+                  "// Save user ID for later use",
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"created_user_id\", jsonData.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate random email to avoid conflicts",
+                  "const randomEmail = \"user\" + Math.floor(Math.random() * 10000) + \"@example.com\";",
+                  "pm.environment.set(\"random_email\", randomEmail);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"{{random_email}}\",\n  \"age\": 25\n}"
+            },
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users"]
+            },
+            "description": "Create a new user. Screenshot this showing status 201 and the created user with ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Create User (Validation Error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 or 422\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 422]);",
+                  "});",
+                  "",
+                  "pm.test(\"Error response has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.false;",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"invalid-email\",\n  \"age\": -5\n}"
+            },
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users"]
+            },
+            "description": "Test validation error with invalid data"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"User updated successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.include('updated');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has updatedAt field\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('updatedAt');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated User Name\",\n  \"email\": \"updated@example.com\",\n  \"age\": 30\n}"
+            },
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users/1",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users", "1"]
+            },
+            "description": "Update an existing user's information. Screenshot this showing status 200 and updated data."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"User deleted successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.include('deleted');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "https://api-learning.nisalgunawardhana.com/api/users/2",
+              "protocol": "https",
+              "host": ["api-learning", "nisalgunawardhana", "com"],
+              "path": ["api", "users", "2"]
+            },
+            "description": "Delete a user from the system. Screenshot this showing status 200 and deletion success message."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": []
+}

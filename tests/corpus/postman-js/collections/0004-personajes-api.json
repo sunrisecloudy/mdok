@@ -1,0 +1,430 @@
+{
+	"info": {
+		"_postman_id": "4602908f-6e57-4dda-9b89-0d3e3742c218",
+		"name": "Personajes API",
+		"description": "# Documentación de API ",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Character",
+			"item": [
+				{
+					"name": "Get all characters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"//Assertions\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://rickandmortyapi.com/api/character",
+							"protocol": "https",
+							"host": [
+								"rickandmortyapi",
+								"com"
+							],
+							"path": [
+								"api",
+								"character"
+							]
+						},
+						"description": "Esta petición devolvera todos los personajes"
+					},
+					"response": []
+				},
+				{
+					"name": "Get multiple characters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"//Assertions\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://rickandmortyapi.com/api/character/{{characterList}}",
+							"protocol": "https",
+							"host": [
+								"rickandmortyapi",
+								"com"
+							],
+							"path": [
+								"api",
+								"character",
+								"{{characterList}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Get multiple characters",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://rickandmortyapi.com/api/character/{{characterList}}",
+									"protocol": "https",
+									"host": [
+										"rickandmortyapi",
+										"com"
+									],
+									"path": [
+										"api",
+										"character",
+										"{{characterList}}"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Access-Control-Allow-Origin",
+									"value": "*"
+								},
+								{
+									"key": "Age",
+									"value": "93002"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "max-age=259200"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "public"
+								},
+								{
+									"key": "Content-Encoding",
+									"value": "br"
+								},
+								{
+									"key": "Content-Length",
+									"value": "309"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								},
+								{
+									"key": "Date",
+									"value": "Mon, 15 May 2023 14:45:32 GMT"
+								},
+								{
+									"key": "Etag",
+									"value": "W/\"a9f-I68Cx5oSPFclkl+Wy2Fr9jNsFS8\""
+								},
+								{
+									"key": "Expires",
+									"value": "Thu, 18 May 2023 14:45:32 GMT"
+								},
+								{
+									"key": "Server",
+									"value": "Netlify"
+								},
+								{
+									"key": "Strict-Transport-Security",
+									"value": "max-age=31536000"
+								},
+								{
+									"key": "Vary",
+									"value": "Accept-Encoding"
+								},
+								{
+									"key": "X-Nf-Request-Id",
+									"value": "01H0JPNHS2NK4V70A7G225VB24"
+								},
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": 1,\n    \"name\": \"Rick Sanchez\",\n    \"status\": \"Alive\",\n    \"species\": \"Human\",\n    \"type\": \"\",\n    \"gender\": \"Male\",\n    \"origin\": {\n        \"name\": \"Earth (C-137)\",\n        \"url\": \"https://rickandmortyapi.com/api/location/1\"\n    },\n    \"location\": {\n        \"name\": \"Citadel of Ricks\",\n        \"url\": \"https://rickandmortyapi.com/api/location/3\"\n    },\n    \"image\": \"https://rickandmortyapi.com/api/character/avatar/1.jpeg\",\n    \"episode\": [\n        \"https://rickandmortyapi.com/api/episode/1\",\n        \"https://rickandmortyapi.com/api/episode/2\",\n        \"https://rickandmortyapi.com/api/episode/3\",\n        \"https://rickandmortyapi.com/api/episode/4\",\n        \"https://rickandmortyapi.com/api/episode/5\",\n        \"https://rickandmortyapi.com/api/episode/6\",\n        \"https://rickandmortyapi.com/api/episode/7\",\n        \"https://rickandmortyapi.com/api/episode/8\",\n        \"https://rickandmortyapi.com/api/episode/9\",\n        \"https://rickandmortyapi.com/api/episode/10\",\n        \"https://rickandmortyapi.com/api/episode/11\",\n        \"https://rickandmortyapi.com/api/episode/12\",\n        \"https://rickandmortyapi.com/api/episode/13\",\n        \"https://rickandmortyapi.com/api/episode/14\",\n        \"https://rickandmortyapi.com/api/episode/15\",\n        \"https://rickandmortyapi.com/api/episode/16\",\n        \"https://rickandmortyapi.com/api/episode/17\",\n        \"https://rickandmortyapi.com/api/episode/18\",\n        \"https://rickandmortyapi.com/api/episode/19\",\n        \"https://rickandmortyapi.com/api/episode/20\",\n        \"https://rickandmortyapi.com/api/episode/21\",\n        \"https://rickandmortyapi.com/api/episode/22\",\n        \"https://rickandmortyapi.com/api/episode/23\",\n        \"https://rickandmortyapi.com/api/episode/24\",\n        \"https://rickandmortyapi.com/api/episode/25\",\n        \"https://rickandmortyapi.com/api/episode/26\",\n        \"https://rickandmortyapi.com/api/episode/27\",\n        \"https://rickandmortyapi.com/api/episode/28\",\n        \"https://rickandmortyapi.com/api/episode/29\",\n        \"https://rickandmortyapi.com/api/episode/30\",\n        \"https://rickandmortyapi.com/api/episode/31\",\n        \"https://rickandmortyapi.com/api/episode/32\",\n        \"https://rickandmortyapi.com/api/episode/33\",\n        \"https://rickandmortyapi.com/api/episode/34\",\n        \"https://rickandmortyapi.com/api/episode/35\",\n        \"https://rickandmortyapi.com/api/episode/36\",\n        \"https://rickandmortyapi.com/api/episode/37\",\n        \"https://rickandmortyapi.com/api/episode/38\",\n        \"https://rickandmortyapi.com/api/episode/39\",\n        \"https://rickandmortyapi.com/api/episode/40\",\n        \"https://rickandmortyapi.com/api/episode/41\",\n        \"https://rickandmortyapi.com/api/episode/42\",\n        \"https://rickandmortyapi.com/api/episode/43\",\n        \"https://rickandmortyapi.com/api/episode/44\",\n        \"https://rickandmortyapi.com/api/episode/45\",\n        \"https://rickandmortyapi.com/api/episode/46\",\n        \"https://rickandmortyapi.com/api/episode/47\",\n        \"https://rickandmortyapi.com/api/episode/48\",\n        \"https://rickandmortyapi.com/api/episode/49\",\n        \"https://rickandmortyapi.com/api/episode/50\",\n        \"https://rickandmortyapi.com/api/episode/51\"\n    ],\n    \"url\": \"https://rickandmortyapi.com/api/character/1\",\n    \"created\": \"2017-11-04T18:48:46.250Z\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get a single character",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"//Assertions\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"pm.test(\"Validar Nombre de Personaje\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.name).to.eql(pm.environment.get(\"expectedName\"));\r",
+									"\r",
+									"    \r",
+									"});\r",
+									"/*\r",
+									"pm.test(\"Validar Origen de Personaje\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.origin.name).to.eql(\"Earth (C-137)\");\r",
+									"});\r",
+									"**/\r",
+									"pm.test(\"Response time is less than 1000ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(1000);\r",
+									"});\r",
+									"\r",
+									"\r",
+									"/*\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.sendRequest('https://rickandmortyapi.com/api/character/2', \r",
+									"    \r",
+									"    function (err, res) {\r",
+									"        \r",
+									"     \r",
+									"        pm.expect(err).to.not.be.ok;\r",
+									"        pm.expect(res).to.have.property('code', 200);\r",
+									"        pm.expect(res).to.have.property('status', 'OK');\r",
+									"      \r",
+									"        pm.expect(res.text()).to.include(\"Morty Smith\");\r",
+									"        pm.expect(res.text()).to.include(\"unknown\");\r",
+									"\r",
+									"\r",
+									"    });\r",
+									"    \r",
+									"});\r",
+									"**/\r",
+									"\r",
+									"// Reused values\r",
+									"\r",
+									"var jsonData = pm.response.json();\r",
+									"pm.environment.set(\"name\", jsonData.name);\r",
+									"pm.environment.set(\"status\", jsonData.status);\r",
+									"pm.environment.set(\"species\", jsonData.species);\r",
+									"pm.environment.set(\"type\", jsonData.type);\r",
+									"pm.environment.set(\"gender\", jsonData.gender);\r",
+									"\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://rickandmortyapi.com/api/character/{{characterid}}",
+							"protocol": "https",
+							"host": [
+								"rickandmortyapi",
+								"com"
+							],
+							"path": [
+								"api",
+								"character",
+								"{{characterid}}"
+							]
+						},
+						"description": "Esta petición devolvera un único personaje por `id`\n\n```snipped code \nEjemplo1\nEjemplo2\n``` "
+					},
+					"response": []
+				},
+				{
+					"name": "Filter characters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"//Assertions\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://rickandmortyapi.com/api/character/?name={{name}}&status={{status}}&species={{species}}&type={{type}}&gender={{gender}}",
+							"protocol": "https",
+							"host": [
+								"rickandmortyapi",
+								"com"
+							],
+							"path": [
+								"api",
+								"character",
+								""
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "{{name}}"
+								},
+								{
+									"key": "status",
+									"value": "{{status}}"
+								},
+								{
+									"key": "species",
+									"value": "{{species}}"
+								},
+								{
+									"key": "type",
+									"value": "{{type}}"
+								},
+								{
+									"key": "gender",
+									"value": "{{gender}}"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Filter characters",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://rickandmortyapi.com/api/character/?name={{name}}&status={{status}}&species={{species}}&type={{type}}&gender={{gender}}",
+									"protocol": "https",
+									"host": [
+										"rickandmortyapi",
+										"com"
+									],
+									"path": [
+										"api",
+										"character",
+										""
+									],
+									"query": [
+										{
+											"key": "name",
+											"value": "{{name}}"
+										},
+										{
+											"key": "status",
+											"value": "{{status}}"
+										},
+										{
+											"key": "species",
+											"value": "{{species}}"
+										},
+										{
+											"key": "type",
+											"value": "{{type}}"
+										},
+										{
+											"key": "gender",
+											"value": "{{gender}}"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Access-Control-Allow-Origin",
+									"value": "*"
+								},
+								{
+									"key": "Age",
+									"value": "2"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "max-age=259200"
+								},
+								{
+									"key": "Cache-Control",
+									"value": "public"
+								},
+								{
+									"key": "Content-Encoding",
+									"value": "br"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 16 May 2023 16:35:48 GMT"
+								},
+								{
+									"key": "Etag",
+									"value": "W/\"cd1-SHL8XNOHWJ5UPssBk6vp5G5QR7Q\""
+								},
+								{
+									"key": "Expires",
+									"value": "Fri, 19 May 2023 16:35:48 GMT"
+								},
+								{
+									"key": "Server",
+									"value": "Netlify"
+								},
+								{
+									"key": "Strict-Transport-Security",
+									"value": "max-age=31536000"
+								},
+								{
+									"key": "Vary",
+									"value": "Accept-Encoding"
+								},
+								{
+									"key": "X-Nf-Request-Id",
+									"value": "01H0JPNXG47JQXVEH3Y6WSFYFX"
+								},
+								{
+									"key": "X-Powered-By",
+									"value": "Express"
+								},
+								{
+									"key": "Transfer-Encoding",
+									"value": "chunked"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"info\": {\n        \"count\": 2,\n        \"pages\": 1,\n        \"next\": null,\n        \"prev\": null\n    },\n    \"results\": [\n        {\n            \"id\": 1,\n            \"name\": \"Rick Sanchez\",\n            \"status\": \"Alive\",\n            \"species\": \"Human\",\n            \"type\": \"\",\n            \"gender\": \"Male\",\n            \"origin\": {\n                \"name\": \"Earth (C-137)\",\n                \"url\": \"https://rickandmortyapi.com/api/location/1\"\n            },\n            \"location\": {\n                \"name\": \"Citadel of Ricks\",\n                \"url\": \"https://rickandmortyapi.com/api/location/3\"\n            },\n            \"image\": \"https://rickandmortyapi.com/api/character/avatar/1.jpeg\",\n            \"episode\": [\n                \"https://rickandmortyapi.com/api/episode/1\",\n                \"https://rickandmortyapi.com/api/episode/2\",\n                \"https://rickandmortyapi.com/api/episode/3\",\n                \"https://rickandmortyapi.com/api/episode/4\",\n                \"https://rickandmortyapi.com/api/episode/5\",\n                \"https://rickandmortyapi.com/api/episode/6\",\n                \"https://rickandmortyapi.com/api/episode/7\",\n                \"https://rickandmortyapi.com/api/episode/8\",\n                \"https://rickandmortyapi.com/api/episode/9\",\n                \"https://rickandmortyapi.com/api/episode/10\",\n                \"https://rickandmortyapi.com/api/episode/11\",\n                \"https://rickandmortyapi.com/api/episode/12\",\n                \"https://rickandmortyapi.com/api/episode/13\",\n                \"https://rickandmortyapi.com/api/episode/14\",\n                \"https://rickandmortyapi.com/api/episode/15\",\n                \"https://rickandmortyapi.com/api/episode/16\",\n                \"https://rickandmortyapi.com/api/episode/17\",\n                \"https://rickandmortyapi.com/api/episode/18\",\n                \"https://rickandmortyapi.com/api/episode/19\",\n                \"https://rickandmortyapi.com/api/episode/20\",\n                \"https://rickandmortyapi.com/api/episode/21\",\n                \"https://rickandmortyapi.com/api/episode/22\",\n                \"https://rickandmortyapi.com/api/episode/23\",\n                \"https://rickandmortyapi.com/api/episode/24\",\n                \"https://rickandmortyapi.com/api/episode/25\",\n                \"https://rickandmortyapi.com/api/episode/26\",\n                \"https://rickandmortyapi.com/api/episode/27\",\n                \"https://rickandmortyapi.com/api/episode/28\",\n                \"https://rickandmortyapi.com/api/episode/29\",\n                \"https://rickandmortyapi.com/api/episode/30\",\n                \"https://rickandmortyapi.com/api/episode/31\",\n                \"https://rickandmortyapi.com/api/episode/32\",\n                \"https://rickandmortyapi.com/api/episode/33\",\n                \"https://rickandmortyapi.com/api/episode/34\",\n                \"https://rickandmortyapi.com/api/episode/35\",\n                \"https://rickandmortyapi.com/api/episode/36\",\n                \"https://rickandmortyapi.com/api/episode/37\",\n                \"https://rickandmortyapi.com/api/episode/38\",\n                \"https://rickandmortyapi.com/api/episode/39\",\n                \"https://rickandmortyapi.com/api/episode/40\",\n                \"https://rickandmortyapi.com/api/episode/41\",\n                \"https://rickandmortyapi.com/api/episode/42\",\n                \"https://rickandmortyapi.com/api/episode/43\",\n                \"https://rickandmortyapi.com/api/episode/44\",\n                \"https://rickandmortyapi.com/api/episode/45\",\n                \"https://rickandmortyapi.com/api/episode/46\",\n                \"https://rickandmortyapi.com/api/episode/47\",\n                \"https://rickandmortyapi.com/api/episode/48\",\n                \"https://rickandmortyapi.com/api/episode/49\",\n                \"https://rickandmortyapi.com/api/episode/50\",\n                \"https://rickandmortyapi.com/api/episode/51\"\n            ],\n            \"url\": \"https://rickandmortyapi.com/api/character/1\",\n            \"created\": \"2017-11-04T18:48:46.250Z\"\n        },\n        {\n            \"id\": 631,\n            \"name\": \"Rick Sanchez\",\n            \"status\": \"Alive\",\n            \"species\": \"Human\",\n            \"type\": \"Soulless Puppet\",\n            \"gender\": \"Male\",\n            \"origin\": {\n                \"name\": \"Story Train\",\n                \"url\": \"https://rickandmortyapi.com/api/location/96\"\n            },\n            \"location\": {\n                \"name\": \"Story Train\",\n                \"url\": \"https://rickandmortyapi.com/api/location/96\"\n            },\n            \"image\": \"https://rickandmortyapi.com/api/character/avatar/631.jpeg\",\n            \"episode\": [\n                \"https://rickandmortyapi.com/api/episode/37\"\n            ],\n            \"url\": \"https://rickandmortyapi.com/api/character/631\",\n            \"created\": \"2020-08-06T16:39:08.485Z\"\n        }\n    ]\n}"
+						}
+					]
+				}
+			],
+			"description": "# Documentación de Personajes\nDescripción no oficial para describir colleción de R y M"
+		}
+	]
+}

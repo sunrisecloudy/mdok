@@ -1,0 +1,293 @@
+{
+	"info": {
+		"_postman_id": "ef2de3f7-42b2-498c-b7dd-30161e3f70ff",
+		"name": "Postman Mini Project",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "51238513",
+		"_collection_link": "https://gp3012016-9657542.postman.co/workspace/f9bb300f-62e9-4d86-8045-7b113f159098/collection/51238513-ef2de3f7-42b2-498c-b7dd-30161e3f70ff?action=share&source=collection_link&creator=51238513"
+	},
+	"item": [
+		{
+			"name": "Get All Records",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							"pm.test(\"Response time is less than 400ms\", function () {\r",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);\r",
+							"});\r",
+							"//pm.test(\"Successful POST request\",function(){\r",
+							" //   pm.expect(pm.response.code).to.be.oneOf([201,202]);\r",
+							"//});\r",
+							"pm.test(\"Content-Type is present\",function (){\r",
+							"    pm.response.to.have.header(\"Content-Type\");\r",
+							"});\r",
+							"let BaseUrl = pm.environment.get(\"baseUrl\");\r",
+							"console.log(\"Environment variable of baseurl is....\" + BaseUrl);\r",
+							"let UserId = pm.environment.get(\"userId\");\r",
+							"console.log(\"Environment variable of UserId is....\" + UserId);\r",
+							"let Title = pm.environment.get(\"title\");\r",
+							"console.log(\"Environment variable of Title is....\" + Title);\r",
+							"let Body = pm.environment.get(\"body\");\r",
+							"console.log(\"Environment variable of Body...\" + Body );\r",
+							"let Name = pm.globals.get(\"name\");\r",
+							"console.log(\"Global variable of name is....\" + Name);\r",
+							"let Environment = pm.globals.get(\"envi\");\r",
+							"console.log(\"Global variable of environment is....\" + Environment);"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "reqres_19cc0d359e2e4ed69c96d4219f3134fe",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}{{endPoint}}",
+					"host": [
+						"{{baseUrl}}{{endPoint}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Single Record",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Successful POST request\",function(){\r",
+							"   pm.response.to.have.status(200);\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}{{endPoint}}/1",
+					"host": [
+						"{{baseUrl}}{{endPoint}}"
+					],
+					"path": [
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST Request",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"console.log(\"hello world\");\r",
+							"let baseURl = pm.variables.get(\"baseURL\");\r",
+							"console.log(baseURl);\r",
+							"let isTitle = pm.variables.get(\"title\");\r",
+							"console.log(isTitle);\r",
+							"let isBody = pm.variables.get(\"body\");\r",
+							"console.log(isBody);\r",
+							"pm.test(\"Status code is 201\", ()=>{\r",
+							"    pm.response.to.have.status(201);\r",
+							"});\r",
+							"pm.test(\"Response time is less than 400ms\", ()=>{\r",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);\r",
+							"});\r",
+							"pm.test(\"Successful PUT request\", ()=>{\r",
+							"    pm.expect(pm.response.code).to.be.oneOf([201,202]);\r",
+							"});\r",
+							"pm.test(\"Content-Type is present\",()=>{\r",
+							"    pm.response.to.have.header(\"Content-Type\");\r",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "reqres_19cc0d359e2e4ed69c96d4219f3134fe",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n        \"userId\": {{userId}},\r\n        \"id\": 9,\r\n        \"title\": \"{{title}}\",\r\n        \"body\": \"{{body}}\"\r\n    }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}{{endPoint}}",
+					"host": [
+						"{{baseUrl}}{{endPoint}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "New Request",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "reqres_19cc0d359e2e4ed69c96d4219f3134fe",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n        \"userId\": {{userId}},\r\n        \"id\": 9,\r\n        \"title\": \"{{title}}\",\r\n        \"body\": \"{{body}}\"\r\n    }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}{{endPoint}}/1",
+					"host": [
+						"{{baseUrl}}{{endPoint}}"
+					],
+					"path": [
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "New Request",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "reqres_19cc0d359e2e4ed69c96d4219f3134fe",
+							"type": "string"
+						}
+					]
+				},
+				"method": "DELETE",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": " {\r\n        \"userId\": 1,\r\n        \"id\": 7,\r\n        \"title\": \"magnam facilis autem\",\r\n        \"body\": \"dolore placeat quibusdam ea quo vitae\\nmagni quis enim qui quis quo nemo aut saepe\\nquidem repellat excepturi ut quia\\nsunt ut sequi eos ea sed quas\"\r\n    }"
+				},
+				"url": {
+					"raw": "{{baseUrl}}{{endPoint}}/6",
+					"host": [
+						"{{baseUrl}}{{endPoint}}"
+					],
+					"path": [
+						"6"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": ""
+		},
+		{
+			"key": "title",
+			"value": ""
+		},
+		{
+			"key": "body",
+			"value": ""
+		},
+		{
+			"key": "userId",
+			"value": ""
+		},
+		{
+			"key": "endPoint",
+			"value": ""
+		}
+	]
+}

@@ -1,0 +1,151 @@
+{
+	"info": {
+		"_postman_id": "d35e273a-d050-440e-948a-c1cff45134cb",
+		"name": "Collection1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "27050246"
+	},
+	"item": [
+		{
+			"name": "MyFolder",
+			"item": [
+				{
+					"name": "PUT REQUEST",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"sritamkumar\",\r\n    \"job\": \"QA lead\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{QAvar1}}/api/users/188",
+							"host": [
+								"{{QAvar1}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"188"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE REQUEST",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "https://reqres.in/api/users/188",
+							"protocol": "https",
+							"host": [
+								"reqres",
+								"in"
+							],
+							"path": [
+								"api",
+								"users",
+								"188"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "GET REQUEST",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"//pm.globals.set(\"globalvar4\", \"https://reqres.in/api/users\");\r",
+							"\r",
+							"pm.test(\"check status is 200\",function(){\r",
+							"    pm.response.to.have.status(201);\r",
+							"}\r",
+							"\r",
+							");\r",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "{{globalvar4}}?page=2",
+					"host": [
+						"{{globalvar4}}"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "2"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST REQUEST",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {\r",
+							"    pm.response.to.have.status(201);\r",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"name\": \"sritamkumar\",\r\n    \"job\": \"QA\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://reqres.in/api/users",
+					"protocol": "https",
+					"host": [
+						"reqres",
+						"in"
+					],
+					"path": [
+						"api",
+						"users"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

@@ -1,0 +1,332 @@
+{
+	"info": {
+		"_postman_id": "94d74aa7-e056-4398-b587-c8f83e511114",
+		"name": "Regres",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "GET",
+			"item": [
+				{
+					"name": "ListUsers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Body matches string\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"Lawson\");",
+									"}); "
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/users?page={{page}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "{{page}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GETAllusers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"body =JSON.parse(responseBody)",
+									"var page = body.page;",
+									"var value_name =body.data[1].first_name;",
+									"var value_lname = body.data[1].last_name;",
+									"",
+									"pm.environment.set(\"name\", value_name);",
+									"console.log(value_name);",
+									"pm.environment.set(\"Username\", value_name);",
+									"pm.environment.set(\"Userlastname\",value_lname)",
+									"",
+									"pm.test(\"Check id \",()=>{",
+									"    pm.expect(body.data[0].id).to.eq(7);",
+									"})",
+									"pm.test(\"Content-Type is present\", function () {",
+									"    pm.response.to.have.header(\"Content-Type\");",
+									"});",
+									"",
+									"",
+									"",
+									"",
+									"",
+									"var total = body.total;",
+									"console.log(page);",
+									"console.log(total)",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/users?page=2",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "POST",
+			"item": [
+				{
+					"name": "SingleUser",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"eve.holt@reqres.in\",\n    \"password\": \"pistol\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/api/register",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Postusers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"payload = JSON.parse(responseBody);",
+									"",
+									"var statusCode =pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"console.log(statusCode);",
+									"",
+									"",
+									"var name_value =payload.name;",
+									"",
+									"console.log(name_value);",
+									"",
+									" var_id = payload.id;",
+									"",
+									"pm.environment.set(\"id\", var_id);",
+									"",
+									" console.log(var_id);",
+									"",
+									" var job_value =payload.job;",
+									"",
+									" console.log(job_value);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Canker\",\n    \"job\": \"leader\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/api/users",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "singleuser",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"morpheus\",\n    \"job\": \"leader\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/api/users",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PUT",
+			"item": [
+				{
+					"name": "UpdateUser",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status tes\",()=>{",
+									"    pm.response.to.have.status(200)",
+									"})",
+									"",
+									"pm.test(\"response must be valid and have a body\", function () {                                                                                                 ",
+									"    ",
+									"     pm.response.to.be.ok;",
+									"     pm.response.to.be.withBody;",
+									"     pm.response.to.be.json;",
+									"});",
+									"",
+									"var url =pm.environment.get(\"url\");",
+									"",
+									"console.log(url)",
+									"",
+									"",
+									"var name = pm.environment.get(\"name\");",
+									"pm.environment.set(\"name\", \"krasin\")",
+									"",
+									"pm.test(\"Body matches string\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"George\");",
+									"});",
+									"",
+									"console.log(name)"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"{{Username}}\",\n    \"job\": \"zion resident\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/api/users/2",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"2"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "page",
+			"value": "4"
+		},
+		{
+			"key": "url",
+			"value": "https://reqres.in"
+		}
+	]
+}

@@ -1,0 +1,852 @@
+{
+	"info": {
+		"_postman_id": "57d4e8dc-4b09-4ef7-8897-577469054dcf",
+		"name": "GitHub_API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16685834"
+	},
+	"item": [
+		{
+			"name": "Issues",
+			"item": [
+				{
+					"name": "GET",
+					"item": [
+						{
+							"name": "Get_single_issue",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check status code\", function(){\r",
+											"    pm.response.to.have.status(200);\r",
+											"})\r",
+											"\r",
+											"pm.test(\"Check name of issue contains 'issue'\", function(){\r",
+											"    var issue = pm.response.json();\r",
+											"    console.log(issue.title);\r",
+											"    pm.expect(issue.title).to.include(\"issue\");\r",
+											"})\r",
+											"\r",
+											"pm.test(\"Check issue number\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.number).equals(2);\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/2",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"2"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get_issues_Label_Bug",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check issue has labels\", function () {\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.length).is.greaterThan(0);\r",
+											"});\r",
+											"\r",
+											"pm.test(\"Check label is 'bug'\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    for (let item of json) {\r",
+											"            pm.expect(item.name).equals(\"bug\");\r",
+											"            console.log(item.name);\r",
+											"    }\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/1/labels",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"1",
+										"labels"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get_all_issues",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"HTTP returns an array of objects with ids\", function() {\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(Array.isArray(json)).equals(true);\r",
+											"    for(let item of json) {\r",
+											"        console.log(item, item.id);\r",
+											"        pm.expect(typeof(item)).equals(\"object\");\r",
+											"        pm.expect(typeof(item.id)).equals(\"number\");\r",
+											"    }\r",
+											"})\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "POST",
+					"item": [
+						{
+							"name": "Create_Issue",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check issue with title is created\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.title).equals(\"Third issue\");\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"title\": \"Third issue\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create_single_issue_with_comment",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check status code\", function(){\r",
+											"    pm.response.to.have.status(201);\r",
+											"})\r",
+											"\r",
+											"\r",
+											"\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"body\": \"First comment\"\r\n}\r\n\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/2/comments",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"2",
+										"comments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create_Issue_With_Labels",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Issue with labels is created\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.labels.length).is.greaterThan(0);\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"title\": \"Issue with labels2\",\r\n    \"labels\": [\r\n        \"bug\",\r\n        \"question\"\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "PATCH",
+					"item": [
+						{
+							"name": "Update_single_issue_title",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check status code\", function(){\r",
+											"    pm.response.to.have.status(200);\r",
+											"})\r",
+											"\r",
+											"pm.test(\"Check name is updated\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.title).equals(\"Sixt issue\");\r",
+											"})\r",
+											"\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"title\": \"Sixt issue\"\r\n}\r\n\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/6",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"6"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update_single_issue_with_comment",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check status code\", function(){\r",
+											"    pm.response.to.have.status(200);\r",
+											"})\r",
+											"\r",
+											"\r",
+											"\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"comments\": \"Some comment here\"\r\n}\r\n\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/4",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"4"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update_single_issue_state",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check if state is updated\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.state).equals(\"closed\");\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"state\" : \"closed\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/1",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update_single_issue_assignees",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Check if assignee is updated\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.user.login).equals(\"Irida0\");\r",
+											"})\r",
+											"\r",
+											"pm.test(\"Check if there is assignee\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.assignees.length).greaterThan(0);\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"assignees\" : [\"Irida0\"]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/1",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "DELETE",
+					"item": [
+						{
+							"name": "Delete_issue_comment",
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": ""
+								},
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman/issues/comments/1416167421",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman",
+										"issues",
+										"comments",
+										"1416167421"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Repos",
+			"item": [
+				{
+					"name": "GET",
+					"item": [
+						{
+							"name": "GET_All_Repos",
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://api.github.com/users/Irida0/repos",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"users",
+										"Irida0",
+										"repos"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GET_Single_Repo",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 200\", function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											"\r",
+											"pm.test(\"Check repo name\", function(){\r",
+											"    const json = pm.response.json();\r",
+											"    pm.expect(json.name).equals(\"Postman\");\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/Postman",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"Postman"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GET_All_Commits_",
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "ghp_REDACTED",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "Irida0",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "https://api.github.com/repos/Irida0/NUnit-Summator/commits",
+									"protocol": "https",
+									"host": [
+										"api",
+										"github",
+										"com"
+									],
+									"path": [
+										"repos",
+										"Irida0",
+										"NUnit-Summator",
+										"commits"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	]
+}

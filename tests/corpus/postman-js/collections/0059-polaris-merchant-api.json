@@ -1,0 +1,5861 @@
+{
+	"info": {
+		"_postman_id": "1b32945a-dd39-404c-bb6c-7b198e3a81e0",
+		"name": "Polaris Merchant Api",
+		"description": "Polaris Merchant Api",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "349554",
+		"_collection_link": "https://polarismerchant.postman.co/workspace/Polaris-Merchant~8d24d4ac-0f20-4fbc-ae32-502055d04bcd/collection/349554-1b32945a-dd39-404c-bb6c-7b198e3a81e0?action=share&source=collection_link&creator=349554"
+	},
+	"item": [
+		{
+			"name": "business-option",
+			"item": [
+				{
+					"name": "/business-option/NewMerchantRequiresApproval",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"data\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "https://t-etokenintsvr/business-option/NewMerchantRequiresApproval",
+							"protocol": "https",
+							"host": [
+								"t-etokenintsvr"
+							],
+							"path": [
+								"business-option",
+								"NewMerchantRequiresApproval"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/business-option/NewMerchantRequiresApproval",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"business-option",
+										"NewMerchantRequiresApproval"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/business-option/EditedMerchantRequiresApproval",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"data\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}business-option/EditedMerchantRequiresApproval",
+							"host": [
+								"{{baseUrl}}business-option"
+							],
+							"path": [
+								"EditedMerchantRequiresApproval"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/business-option/EditedMerchantRequiresApproval",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"business-option",
+										"EditedMerchantRequiresApproval"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/business-option/NewMerchantFormRequiresApproval",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"data\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/business-option/NewMerchantFormRequiresApproval",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"business-option",
+								"NewMerchantFormRequiresApproval"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/business-option/NewMerchantFormRequiresApproval",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"business-option",
+										"NewMerchantFormRequiresApproval"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/business-option/EditedMerchantFormRequiresApproval",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"data\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/business-option/EditedMerchantFormRequiresApproval",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"business-option",
+								"EditedMerchantFormRequiresApproval"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/business-option/EditedMerchantFormRequiresApproval",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"business-option",
+										"EditedMerchantFormRequiresApproval"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "form-lookup-list",
+			"item": [
+				{
+					"name": "/form-lookup-list/Create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"data\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data.id).is.not(null);\r",
+									"    pm.expect(jsonData.data.merchantid).is.not(null)\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"merchantId\":\"{{id}}\",\n  \"description\": \"form lookup create\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://t-etokenintsvr:10443/form-lookup-list/Create",
+							"protocol": "https",
+							"host": [
+								"t-etokenintsvr"
+							],
+							"port": "10443",
+							"path": [
+								"form-lookup-list",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"merchantId\": \"4d6e2072-bb7a-d8fb-68fd-907891b8f877\",\n  \"description\": \"eiusmod incididunt est ut\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/Activate/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"data\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data.id).not.eql(null);\r",
+									"    pm.expect(jsonData.data.merchantid).not.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}form-lookup-list/Activate/{{id}}",
+							"host": [
+								"{{baseUrl}}form-lookup-list"
+							],
+							"path": [
+								"Activate",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Activate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Activate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/Deactivate/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/Deactivate/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"Deactivate",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Deactivate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Deactivate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/Archive/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/Archive/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"Archive",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Archive/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Archive",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/Restore/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/Restore/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"Restore",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Restore/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Restore",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/GetItem/{{id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"GetItem",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"eiusmod irure anim\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"description\": \"eiusmod irure anim\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "form-lookup-list-item",
+			"item": [
+				{
+					"name": "/form-lookup-list-item/Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"formLookupListId\": \"urn:uuid:cd33cbef-4fa3-1090-2962-b4f9a0c3435a\",\n  \"idValue\": \"reprehenderit dolor aliquip pariatur anim\",\n  \"description\": \"nisi\",\n  \"data\": \"deserunt nostrud\",\n  \"narration\": \"ut qui Excepteur amet\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"formLookupListId\": \"urn:uuid:cd33cbef-4fa3-1090-2962-b4f9a0c3435a\",\n  \"idValue\": \"reprehenderit dolor aliquip pariatur anim\",\n  \"description\": \"nisi\",\n  \"data\": \"deserunt nostrud\",\n  \"narration\": \"ut qui Excepteur amet\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/Activate/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Activate/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Activate",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Activate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Activate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/Deactivate/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Deactivate/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Deactivate",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Deactivate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Deactivate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/Archive/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Archive/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Archive",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Archive/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Archive",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/Restore/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Restore/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Restore",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Restore/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Restore",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/form-lookup-list-item/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"enim culpa aliqua\",\n  \"data\": \"proident\",\n  \"narration\": \"velit sit reprehenderit\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/form-lookup-list-item/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"form-lookup-list-item",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"description\": \"enim culpa aliqua\",\n  \"data\": \"proident\",\n  \"narration\": \"velit sit reprehenderit\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/form-lookup-list-item/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"form-lookup-list-item",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant",
+			"item": [
+				{
+					"name": "/merchant/Create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"bodyData=JSON.parse(responseBody)\r",
+									"value=bodyData.data.id\r",
+									"console.log(value);\r",
+									"\r",
+									"pm.environment.set(\"id\", value);\r",
+									"\r",
+									"pm.test(\"Status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"Status test passed\");\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(150);\r",
+									"    console.log(\"Response time passed\")\r",
+									"});\r",
+									"pm.test(\"Second body Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.text()).to.include(\"null\");\r",
+									"    pm.expect(pm.response.text()).to.include(\"true\");\r",
+									"    console.log(\"second test passed\");\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Adebayo\",\n  \"shortName\": \"Dadaoto\",\n  \"accountNumber\": \"102028906\",\n  \"address1\": \"Test\",\n  \"address2\": \"Tester\",\n  \"countryId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"countryStateId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"lgaId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"cityId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"postalCode\": \"23401\",\n  \"phone\": \"08023970023\",\n  \"phone2\": \"08023970023\",\n  \"phone3\": \"08023970023\",\n  \"email\": \"string\",\n  \"alternateEmail\": \"string\",\n  \"webAddress\": \"string\",\n  \"rcNumber\": \"string\",\n  \"tin\": \"1234567890\",\n  \"tinRegisteredName\": \"Tester\",\n  \"logo\": \"string\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseurl}}merchant/Create",
+							"host": [
+								"{{baseurl}}merchant"
+							],
+							"path": [
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"sit sunt enim id\",\n  \"shortName\": \"consequat ipsum\",\n  \"accountNumber\": \"veniam enim\",\n  \"address1\": \"cillum fugiat sed esse\",\n  \"address2\": \"deserunt aliquip quis fugiat\",\n  \"countryId\": \"urn:uuid:c8698922-d8a1-f581-e34d-7b7d8270b9a9\",\n  \"countryStateId\": \"urn:uuid:98783ed1-3a1e-6fd4-9cec-06e521a70794\",\n  \"lgaId\": \"urn:uuid:c5cb42f1-c3ad-970a-ad1b-c0344523c0e6\",\n  \"cityId\": \"27dfe9e9-933a-5041-4ee4-3520e6a36d61\",\n  \"postalCode\": \"labore eiusmod ad\",\n  \"phone\": \"Excep\",\n  \"phone2\": \"ipsum sed dolore\",\n  \"phone3\": \"deserunt mollit ad nulla\",\n  \"email\": \"irure aliqua et deserunt\",\n  \"alternateEmail\": \"dolore eiusmod Ut ut\",\n  \"webAddress\": \"non enim irure culpa\",\n  \"rcNumber\": \"dolore ad est\",\n  \"tin\": \"adipisicing\",\n  \"tinRegisteredName\": \"officia consectetur esse occaecat\",\n  \"logo\": \"incididunt\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Activate/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"First status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"first test passed\");\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(150);\r",
+									"    console.log(\"Response time passed\")\r",
+									"});\r",
+									"pm.test(\"Second body Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.text()).to.include(\"null\");\r",
+									"    pm.expect(pm.response.text()).to.include(\"true\");\r",
+									"    console.log(\"second test passed\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}merchant/Activate/{{id}}",
+							"host": [
+								"{{baseUrl}}merchant"
+							],
+							"path": [
+								"Activate",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Activate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Activate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Deactivate/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"First status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"first test passed\");\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(150);\r",
+									"    console.log(\"Response time passed\")\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}merchant/Deactivate/{{id}}",
+							"host": [
+								"{{baseUrl}}merchant"
+							],
+							"path": [
+								"Deactivate",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Deactivate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Deactivate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Archive/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    console.log(jsonData)\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}merchant/Archive/{{id}}",
+							"host": [
+								"{{baseUrl}}merchant"
+							],
+							"path": [
+								"Archive",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Archive/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Archive",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Restore/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"First status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"first test passed\");\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(150);\r",
+									"    console.log(\"Response time passed\")\r",
+									"});\r",
+									"pm.test(\"Second body Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.text()).to.include(\"null\");\r",
+									"    pm.expect(pm.response.text()).to.include(\"true\");\r",
+									"    console.log(\"second test passed\")\r",
+									"});\r",
+									"pm.test(\"Address1\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data.address1).to.eql(\"Test\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant/Restore/{{id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant",
+								"Restore",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Restore/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Restore",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Delete/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"First status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"first test passed\");\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(150);\r",
+									"    console.log(\"Response time passed\")\r",
+									"});\r",
+									"pm.test(\"Second body Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.text()).to.include(\"null\");\r",
+									"    pm.expect(pm.response.text()).to.include(\"true\");\r",
+									"    console.log(\"second test passed\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}merchant/Delete/418c0388-86d6-4a51-8523-161299b8b971",
+							"host": [
+								"{{baseUrl}}merchant"
+							],
+							"path": [
+								"Delete",
+								"418c0388-86d6-4a51-8523-161299b8b971"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/GetItem/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"First status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"first test passed\");\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(150);\r",
+									"    console.log(\"Response time passed\")\r",
+									"});\r",
+									"pm.test(\"validate response test\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(\"Validated fields are \")\r",
+									"    console.log (jsonData);\r",
+									"})"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant/GetItem/{{id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant",
+								"GetItem",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/GetAll/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"First status Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(\"test passed\");\r",
+									"\r",
+									"pm.test(\"Second body Test\", function () {\r",
+									"    //make assertion\r",
+									"    pm.expect(pm.response.text()).to.include(\"null\");\r",
+									"    pm.expect(pm.response.text()).to.include(\"true\");\r",
+									"    console.log(\"get all endpoint test passed\")\r",
+									"});\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}merchant/GetAll/",
+							"host": [
+								"{{baseUrl}}merchant"
+							],
+							"path": [
+								"GetAll",
+								""
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/GetAll/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"GetAll",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "et aute eiusmod veniam",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Search/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status Test\", function () {\r",
+									"    //make assertion\r",
+									"   pm.response.to.have.status(200);\r",
+									"    console.log(\"test passed\");\r",
+									"\r",
+									"});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.contain(\"null\");\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant/Search/{{id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant",
+								"Search",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Search/:id?Filter=et aute eiusmod veniam&Keyword=et aute eiusmod veniam&PageIndex=-93112187&PageSize=-93112187",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Search",
+										":id"
+									],
+									"query": [
+										{
+											"key": "Filter",
+											"value": "et aute eiusmod veniam"
+										},
+										{
+											"key": "Keyword",
+											"value": "et aute eiusmod veniam"
+										},
+										{
+											"key": "PageIndex",
+											"value": "-93112187"
+										},
+										{
+											"key": "PageSize",
+											"value": "-93112187"
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "et aute eiusmod veniam",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/GetItems/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"//pm.test(\"Status Test\", function () {\r",
+									"    //make assertion\r",
+									"   // pm.response.to.have.status(200);\r",
+									"    //console.log(\"test passed\");\r",
+									"\r",
+									"//});\r",
+									"pm.test(\"Success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(\"null\");\r",
+									"    console.log(jsonData)\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"756da5a6-7f11-40ee-b378-e6f9d5d6b434\",\n  \"address1\": \"Test\",\n  \"address2\": \"Tester\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant/GetItems/{{id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant",
+								"GetItems",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"pageIndex\": 75409483,\n  \"pageSize\": -12405443,\n  \"filter\": \"ut mollit velit\",\n  \"keyword\": \"minim dolore anim ut\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant/GetItems/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"GetItems",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "et aute eiusmod veniam",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant/Update/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(400);\r",
+									"    console.log(status);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Updated Entries\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.data.address1).to.eql(\"Fola agoro YABA\");\r",
+									"    pm.expect(jsonData.data.name).to.eql('Olatunbosun');\r",
+									"    pm.expect(jsonData.data.address2).to.eql('LAGOS');\r",
+									"    console.log(\"Updated fields are \")\r",
+									"    console.log(jsonData);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Dorime Store Guy\",\n    \"shortName\": \"DorStore\",\n    \"accountNumber\": \"4567889022\",\n    \"address1\": \"230 Admiralty way VI Lagos\",\n    \"address2\": \"\",\n    \"countryId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"countryStateId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"lgaId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"cityId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"postalCode\": \"100985\",\n    \"phone\": \"07085696541\",\n    \"phone2\": \"09105869321\",\n    \"phone3\": \"\",\n    \"email\": \"info@dorstores.com\",\n    \"alternateEmail\": \"dorstore@gmail.com\",\n    \"webAddress\": \"www.dorstores.com\",\n    \"rcNumber\": \"RC797876\",\n    \"tin\": \"234343555-1004\",\n    \"tinRegisteredName\": \"Dorime Store LTD\",\n    \"logo\": \"dorstore logo\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}merchant/Update/?id=418c0388-86d6-4a51-8523-161299b8b971",
+							"host": [
+								"{{baseUrl}}merchant"
+							],
+							"path": [
+								"Update",
+								""
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "418c0388-86d6-4a51-8523-161299b8b971"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"sit sunt enim id\",\n  \"shortName\": \"consequat ipsum\",\n  \"accountNumber\": \"veniam enim\",\n  \"address1\": \"cillum fugiat sed esse\",\n  \"address2\": \"deserunt aliquip quis fugiat\",\n  \"countryId\": \"urn:uuid:c8698922-d8a1-f581-e34d-7b7d8270b9a9\",\n  \"countryStateId\": \"urn:uuid:98783ed1-3a1e-6fd4-9cec-06e521a70794\",\n  \"lgaId\": \"urn:uuid:c5cb42f1-c3ad-970a-ad1b-c0344523c0e6\",\n  \"cityId\": \"27dfe9e9-933a-5041-4ee4-3520e6a36d61\",\n  \"postalCode\": \"labore eiusmod ad\",\n  \"phone\": \"Excep\",\n  \"phone2\": \"ipsum sed dolore\",\n  \"phone3\": \"deserunt mollit ad nulla\",\n  \"email\": \"irure aliqua et deserunt\",\n  \"alternateEmail\": \"dolore eiusmod Ut ut\",\n  \"webAddress\": \"non enim irure culpa\",\n  \"rcNumber\": \"dolore ad est\",\n  \"tin\": \"adipisicing\",\n  \"tinRegisteredName\": \"officia consectetur esse occaecat\",\n  \"logo\": \"incididunt\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant-contact",
+			"item": [
+				{
+					"name": "/merchant-contact/Create",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"\r",
+									"pm.test(\"phone1\", function (phone1= Number) {\r",
+									"    var jsonData = pm.payload.json();\r",
+									"    pm.expect(jsonData.phone1).to.eql(Number);\r",
+									"     console.log(jsonData);\r",
+									"})\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"surname\": \"Obaseki\",\n  \"firstName\": \"Tawa\",\n  \"email\": \"tawa@gmail.com\",\n  \"alternateEmail\": \"tawa@gmail.com\",\n  \"phone1\": \"08134324567\",\n  \"phone2\": \"08134324567\",\n  \"photoUrl\": \"https://attachments.office.net/owa/AAdeleye1%40Polarisbanklimited.com/service.svc/s/GetAttachmentThumbnail?id=AAMkADZmODk2ZDkxLTgwY2ItNDUzZS04ZTUzLTM1ZDU0MTJhYTYxYgBGAAAAAABGcCTHrS54SKCENAzdLSlABwAsD1SxmgmkTYqF7yqrL7ATAAAAAAEMAACis08lNkzDT6IKr6HxfEtKAAAvbb57AAABEgAQAA19%2F6H3MlBMnhI3KhzFTbg%3D&thumbnailType=2&token=eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ4OThGN0RDMjk2ODQ1MDk1RUUwREZGQ0MzODBBOTM5NjUwNDNFNjQiLCJ0eXAiOiJKV1QiLCJ4NXQiOiIySmozM0Nsb1JRbGU0Tl84dzRDcE9XVUVQbVEifQ.eyJvcmlnaW4iOiJodHRwczovL291dGxvb2sub2ZmaWNlLmNvbSIsInVjIjoiODE5ZTkwZDE3Yzk0NDM3ZGJiZWQwN2FhYzFjYzE4ZGQiLCJzaWduaW5fc3RhdGUiOiJbXCJrbXNpXCJdIiwidmVyIjoiRXhjaGFuZ2UuQ2FsbGJhY2suVjEiLCJhcHBjdHhzZW5kZXIiOiJPd2FEb3dubG9hZEA0NzhmYWMzYy1jOGExLTQyNzgtOTkwYy1jMGQ5NzQ3MGQwMzMiLCJpc3NyaW5nIjoiV1ciLCJhcHBjdHgiOiJ7XCJtc2V4Y2hwcm90XCI6XCJvd2FcIixcInB1aWRcIjpcIjExNTM4MDExMjI2ODk1NjUzMTZcIixcInNjb3BlXCI6XCJPd2FEb3dubG9hZFwiLFwib2lkXCI6XCI4ZGZlMWMzOC1hZDBkLTQwYzMtODUzZC1iYjNjNTQ1MjhkMWFcIixcInByaW1hcnlzaWRcIjpcIlMtMS01LTIxLTMyMzkwNTk0NDMtMTYzOTE2MzI4OS0yNzIwOTE1NjAwLTM0MjAzNDk0XCJ9IiwibmJmIjoxNjYzMTYzMjgzLCJleHAiOjE2NjMxNjM4ODMsImlzcyI6IjAwMDAwMDAyLTAwMDAtMGZmMS1jZTAwLTAwMDAwMDAwMDAwMEA0NzhmYWMzYy1jOGExLTQyNzgtOTkwYy1jMGQ5NzQ3MGQwMzMiLCJhdWQiOiIwMDAwMDAwMi0wMDAwLTBmZjEtY2UwMC0wMDAwMDAwMDAwMDAvYXR0YWNobWVudHMub2ZmaWNlLm5ldEA0NzhmYWMzYy1jOGExLTQyNzgtOTkwYy1jMGQ5NzQ3MGQwMzMiLCJoYXBwIjoib3dhIn0.VD6MUveWs-LM51cXrfRAHJH8OkL-V7teI1ZdAI4MAUl9pRC_2Y2DKXdiqM_eQNmmrOXnAht2m1lqwd6wJe-Vy0LDzLsCrGXM8cvhlmQD1S_gBmKzySpfjobUYaFxujUUo5TxO0cLNxVX9sFyZe8J1g14H0EmC5m7oLa3GcTgRlNsBactw0V4q46EhczKsx7cYPS4jbm0LFwr0MVz8-ivRhtJscWA5GVVTuVvKexTTJWohs5BATnJMRUocPC0KjqkPjqlelCFKF67SLe5hvII5tKgy0oF_rZ_-rprWNZi4gx7PinKDH7HIvGl1SXBKy790vmJVL2EgBJ2cMdendUPFg&X-OWA-CANARY=ozRdE49TMkOFiKKAqu3nn_Bzg0dYltoYtS7wJINb1kIt8MC_9Vn8SWO4S-R_USayXzCBtMnfaLY.&owa=outlook.office.com&scriptVer=20220826004.06&animation=true\",\n  \"isPrimary\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-contact/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-contact",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"surname\": \"dolore veniam id aliqua consequat\",\n  \"firstName\": \"elit tempor mollit occaecat irure\",\n  \"email\": \"eu nisi\",\n  \"alternateEmail\": \"est irure\",\n  \"phone1\": \"laborum et\",\n  \"phone2\": \"quis culpa pariatur exercitation\",\n  \"photoUrl\": \"veniam\",\n  \"isPrimary\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-contact/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-contact",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-contact/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseurl}}/merchant-contact/Delete/{{id}}",
+							"host": [
+								"{{baseurl}}"
+							],
+							"path": [
+								"merchant-contact",
+								"Delete",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-contact/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-contact",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-contact/GetItem/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Body matches string\", function () {\r",
+									"    pm.expect(pm.response.text()).to.include(\"You must provide valid information\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-contact/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-contact",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-contact/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-contact",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-contact/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://t-etokenintsvr:10443/merchant-contact/GetAll/:FormLookupListId",
+							"protocol": "https",
+							"host": [
+								"t-etokenintsvr"
+							],
+							"port": "10443",
+							"path": [
+								"merchant-contact",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "351952da-8364-436a-9056-8f9cf0597380",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-contact/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-contact",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-contact/Update/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"    console.log(status);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.contain(\"null\");\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"\r",
+									"pm.test(\"success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.contain(\"false\");\r",
+									"    console.log(jsonData)\r",
+									"});\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"surname\": \"dolore veniam id aliqua consequat\",\n  \"firstName\": \"elit tempor mollit occaecat irure\",\n  \"email\": \"eu nisi\",\n  \"alternateEmail\": \"est irure\",\n  \"phone1\": \"laborum et\",\n  \"phone2\": \"quis culpa pariatur exercitation\",\n  \"photoUrl\": \"veniam\",\n  \"isPrimary\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-contact/Update/{{id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-contact",
+								"Update",
+								"{{id}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"surname\": \"dolore veniam id aliqua consequat\",\n  \"firstName\": \"elit tempor mollit occaecat irure\",\n  \"email\": \"eu nisi\",\n  \"alternateEmail\": \"est irure\",\n  \"phone1\": \"laborum et\",\n  \"phone2\": \"quis culpa pariatur exercitation\",\n  \"photoUrl\": \"veniam\",\n  \"isPrimary\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-contact/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-contact",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant-form",
+			"item": [
+				{
+					"name": "/merchant-form/Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"merchantId\": \"95a06aa7-3544-e26d-267d-5a6df3ae9323\",\n  \"title\": \"eu laborum\",\n  \"description\": \"ea culpa\",\n  \"accountNumber\": \"tempor do\",\n  \"narration\": \"anim voluptate Du\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://t-etokenintsvr:10443/merchant-form/Create",
+							"protocol": "https",
+							"host": [
+								"t-etokenintsvr"
+							],
+							"port": "10443",
+							"path": [
+								"merchant-form",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"merchantId\": \"95a06aa7-3544-e26d-267d-5a6df3ae9329\",\n  \"title\": \"eu laborum\",\n  \"description\": \"ea culpa\",\n  \"accountNumber\": \"tempor do\",\n  \"narration\": \"anim voluptate Du\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/Activate/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/Activate/03ad7f94-8d17-4c90-8666-9b3dd9a11112",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"Activate",
+								"03ad7f94-8d17-4c90-8666-9b3dd9a11112"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Activate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Activate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/Deactivate/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/Deactivate/d77cf7ad-6cc7-4829-b9a1-f1dfc530c193",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"Deactivate",
+								"d77cf7ad-6cc7-4829-b9a1-f1dfc530c193"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Deactivate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Deactivate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/Archive/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"pm.test(\"success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/Archive/d77cf7ad-6cc7-4829-b9a1-f1dfc530c193",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"Archive",
+								"d77cf7ad-6cc7-4829-b9a1-f1dfc530c193"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Archive/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Archive",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/Restore/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"success\", function () {\r",
+									"    pm.expect(pm.response.text()).to.include(\"true\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/Restore/d77cf7ad-6cc7-4829-b9a1-f1dfc530c193",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"Restore",
+								"d77cf7ad-6cc7-4829-b9a1-f1dfc530c193"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Restore/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Restore",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/Delete/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/Delete/d77cf7ad-6cc7-4829-b9a1-f1dfc530c193",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"Delete",
+								"d77cf7ad-6cc7-4829-b9a1-f1dfc530c193"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/GetItem/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"pm.test(\"success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/GetItem/d77cf7ad-6cc7-4829-b9a1-f1dfc530c193",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"GetItem",
+								"d77cf7ad-6cc7-4829-b9a1-f1dfc530c193"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/GetAll/:FormLookupListId",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"pm.test(\"success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form/Update/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"pm.test(\"messages\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.messages).to.eql(null);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"r\",\n  \"description\": \"dolore anim do ut\",\n  \"accountNumber\": \"eiusmod\",\n  \"narration\": \"dolore sed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form/Update/d77cf7ad-6cc7-4829-b9a1-f1dfc530c193",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form",
+								"Update",
+								"d77cf7ad-6cc7-4829-b9a1-f1dfc530c193"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"r\",\n  \"description\": \"dolore anim do ut\",\n  \"accountNumber\": \"eiusmod\",\n  \"narration\": \"dolore sed\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant-form-field",
+			"item": [
+				{
+					"name": "/merchant-form-field/Create",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+									"});\r",
+									"pm.test(\"success\", function () {\r",
+									"    var jsonData = pm.response.json();\r",
+									"    pm.expect(jsonData.success).to.eql(true);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"merchantFormId\": \"dd20b483-f156-f2c3-c52e-f3b42241305c\",\n  \"name\": \"nisi minim\",\n  \"caption\": \"enim cupidatat occaecat ut veniam\",\n  \"fieldLength\": 25005514,\n  \"fieldMinimumLength\": -44451232,\n  \"fieldMaximumLength\": -43432396,\n  \"fieldTypeId\": \"urn:uuid:adbb152e-6b09-cc5f-68ed-4ffa3f8a6e91\",\n  \"fieldDataTypeId\": \"urn:uuid:4e917b3a-6eae-4500-dec0-473d497ec9ee\",\n  \"formLookupListId\": \"urn:uuid:4ea4f52a-0b72-d502-cc49-a4d07803ecf0\",\n  \"dataFormat\": \"dolor pariatur\",\n  \"isRequired\": false,\n  \"useInRemark\": false,\n  \"sequence\": 63082177,\n  \"defaultValue\": \"ullamco nisi\",\n  \"isReadOnly\": false,\n  \"showOnReceipt\": true,\n  \"isAmount\": true,\n  \"amountReference\": 20590109,\n  \"retrieveData\": -54201391,\n  \"dataSource\": -75213700,\n  \"show\": false,\n  \"showAtBranch\": false,\n  \"showTooltip\": true,\n  \"tooltipText\": \"ut\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"merchantFormId\": \"dd20b483-f156-f2c3-c52e-f3b42241305c\",\n  \"name\": \"nisi minim\",\n  \"caption\": \"enim cupidatat occaecat ut veniam\",\n  \"fieldLength\": 25005514,\n  \"fieldMinimumLength\": -44451232,\n  \"fieldMaximumLength\": -43432396,\n  \"fieldTypeId\": \"urn:uuid:adbb152e-6b09-cc5f-68ed-4ffa3f8a6e91\",\n  \"fieldDataTypeId\": \"urn:uuid:4e917b3a-6eae-4500-dec0-473d497ec9ee\",\n  \"formLookupListId\": \"urn:uuid:4ea4f52a-0b72-d502-cc49-a4d07803ecf0\",\n  \"dataFormat\": \"dolor pariatur\",\n  \"isRequired\": false,\n  \"useInRemark\": false,\n  \"sequence\": 63082177,\n  \"defaultValue\": \"ullamco nisi\",\n  \"isReadOnly\": false,\n  \"showOnReceipt\": true,\n  \"isAmount\": true,\n  \"amountReference\": 20590109,\n  \"retrieveData\": -54201391,\n  \"dataSource\": -75213700,\n  \"show\": false,\n  \"showAtBranch\": false,\n  \"showTooltip\": true,\n  \"tooltipText\": \"ut\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/Activate/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Activate/dd20b483-f156-f2c3-c52e-f3b42241305c",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Activate",
+								"dd20b483-f156-f2c3-c52e-f3b42241305c"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Activate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Activate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/Deactivate/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Deactivate/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Deactivate",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Deactivate/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Deactivate",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/Archive/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Archive/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Archive",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Archive/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Archive",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/Restore/:id",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Restore/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Restore",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Restore/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Restore",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/GetAll/:MerchantFormFieldId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/GetAll/:MerchantFormFieldId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"GetAll",
+								":MerchantFormFieldId"
+							],
+							"variable": [
+								{
+									"key": "MerchantFormFieldId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/GetAll/:MerchantFormFieldId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"GetAll",
+										":MerchantFormFieldId"
+									],
+									"variable": [
+										{
+											"key": "MerchantFormFieldId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-field/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"est reprehenderit officia\",\n  \"caption\": \"velit Ut\",\n  \"fieldLength\": -8009057,\n  \"fieldMinimumLength\": -42143829,\n  \"fieldMaximumLength\": 77806920,\n  \"fieldTypeId\": \"08e75c89-8ba9-58ca-868a-71c8f02d4c10\",\n  \"fieldDataTypeId\": \"urn:uuid:4d1bec0e-2260-4558-977a-1be3c7923db0\",\n  \"formLookupListId\": \"533f21b8-a770-c447-7d9c-1df48751295f\",\n  \"dataFormat\": \"veniam esse\",\n  \"isRequired\": false,\n  \"useInRemark\": false,\n  \"sequence\": -55421490,\n  \"defaultValue\": \"cupidatat sunt tempor anim Lorem\",\n  \"isReadOnly\": true,\n  \"showOnReceipt\": true,\n  \"isAmount\": false,\n  \"amountReference\": -457329,\n  \"retrieveData\": 54363912,\n  \"dataSource\": 73794978,\n  \"show\": false,\n  \"showAtBranch\": false,\n  \"showTooltip\": true,\n  \"tooltipText\": \"in sed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-field/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-field",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"est reprehenderit officia\",\n  \"caption\": \"velit Ut\",\n  \"fieldLength\": -8009057,\n  \"fieldMinimumLength\": -42143829,\n  \"fieldMaximumLength\": 77806920,\n  \"fieldTypeId\": \"08e75c89-8ba9-58ca-868a-71c8f02d4c10\",\n  \"fieldDataTypeId\": \"urn:uuid:4d1bec0e-2260-4558-977a-1be3c7923db0\",\n  \"formLookupListId\": \"533f21b8-a770-c447-7d9c-1df48751295f\",\n  \"dataFormat\": \"veniam esse\",\n  \"isRequired\": false,\n  \"useInRemark\": false,\n  \"sequence\": -55421490,\n  \"defaultValue\": \"cupidatat sunt tempor anim Lorem\",\n  \"isReadOnly\": true,\n  \"showOnReceipt\": true,\n  \"isAmount\": false,\n  \"amountReference\": -457329,\n  \"retrieveData\": 54363912,\n  \"dataSource\": 73794978,\n  \"show\": false,\n  \"showAtBranch\": false,\n  \"showTooltip\": true,\n  \"tooltipText\": \"in sed\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-field/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-field",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant-form-setting",
+			"item": [
+				{
+					"name": "/merchant-form-setting/Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"merchantFormId\": \"urn:uuid:2f6209fc-5a08-0228-6e92-42400564560d\",\n  \"printReceipt\": false,\n  \"receiptNumberLength\": -48233219,\n  \"receiptNumberMode\": \"ea sed cupidatat\",\n  \"receiptNumberType\": \"exercitation Lorem nostrud\",\n  \"receiptFooter\": \"dolor dolore est exercitation\",\n  \"receiptNumberPrefix\": \"mollit deserunt proident\",\n  \"receiptNumberSufix\": \"ut minim labore ex\",\n  \"vendWithAmount\": false,\n  \"useThirdParty\": true,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"sit ex\",\n  \"notificationCcEmails\": \"Excepteur\",\n  \"notificationBcEmails\": \"nulla amet commodo proi\",\n  \"show\": true,\n  \"startDate\": \"1978-03-26T07:31:48.099Z\",\n  \"endDate\": \"1961-06-01T00:15:42.087Z\",\n  \"startTime\": \"1948-03-08T05:51:47.174Z\",\n  \"endTime\": \"1981-05-02T13:49:36.769Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"commodo magna\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"occaecat laborum deserunt in\",\n  \"paymentCategoryId\": \"urn:uuid:144f291c-0e84-d3d1-4f85-264a9e312229\",\n  \"collectionInfo\": \"laboris nostrud\",\n  \"showOnBranch\": true,\n  \"useCustomPage\": true,\n  \"customPageUrl\": \"nulla irure sit ut\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"minim culpa labore non aliquip\",\n  \"integrationClassId\": \"785363db-17ee-763b-97bf-b9751a1f5dfa\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": false,\n  \"useLogo\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-setting/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-setting",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"merchantFormId\": \"urn:uuid:2f6209fc-5a08-0228-6e92-42400564560d\",\n  \"printReceipt\": false,\n  \"receiptNumberLength\": -48233219,\n  \"receiptNumberMode\": \"ea sed cupidatat\",\n  \"receiptNumberType\": \"exercitation Lorem nostrud\",\n  \"receiptFooter\": \"dolor dolore est exercitation\",\n  \"receiptNumberPrefix\": \"mollit deserunt proident\",\n  \"receiptNumberSufix\": \"ut minim labore ex\",\n  \"vendWithAmount\": false,\n  \"useThirdParty\": true,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"sit ex\",\n  \"notificationCcEmails\": \"Excepteur\",\n  \"notificationBcEmails\": \"nulla amet commodo proi\",\n  \"show\": true,\n  \"startDate\": \"1978-03-26T07:31:48.099Z\",\n  \"endDate\": \"1961-06-01T00:15:42.087Z\",\n  \"startTime\": \"1948-03-08T05:51:47.174Z\",\n  \"endTime\": \"1981-05-02T13:49:36.769Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"commodo magna\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"occaecat laborum deserunt in\",\n  \"paymentCategoryId\": \"urn:uuid:144f291c-0e84-d3d1-4f85-264a9e312229\",\n  \"collectionInfo\": \"laboris nostrud\",\n  \"showOnBranch\": true,\n  \"useCustomPage\": true,\n  \"customPageUrl\": \"nulla irure sit ut\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"minim culpa labore non aliquip\",\n  \"integrationClassId\": \"785363db-17ee-763b-97bf-b9751a1f5dfa\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": false,\n  \"useLogo\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-setting/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-setting",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-setting/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-setting/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-setting",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-setting/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-setting",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-setting/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-setting/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-setting",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-setting/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-setting",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-setting/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-setting/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-setting",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-setting/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-setting",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-setting/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"printReceipt\": true,\n  \"receiptNumberLength\": 39224319,\n  \"receiptNumberMode\": \"dolor culpa elit\",\n  \"receiptNumberType\": \"in tempor velit anim\",\n  \"receiptFooter\": \"et consequat minim\",\n  \"receiptNumberPrefix\": \"pariatur minim cillum dolore\",\n  \"receiptNumberSufix\": \"proident reprehenderit sed\",\n  \"vendWithAmount\": true,\n  \"useThirdParty\": false,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"ipsum non\",\n  \"notificationCcEmails\": \"exercitation ut deserunt cupidatat aliqua\",\n  \"notificationBcEmails\": \"aliquip\",\n  \"show\": false,\n  \"startDate\": \"2001-12-31T15:58:01.614Z\",\n  \"endDate\": \"1955-01-23T16:20:29.530Z\",\n  \"startTime\": \"1986-12-31T14:09:32.826Z\",\n  \"endTime\": \"1956-03-01T11:27:38.510Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"cupidatat\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"Ut dolore ullamco\",\n  \"paymentCategoryId\": \"urn:uuid:625cd465-8f83-7894-b0e9-f4b06a85de50\",\n  \"collectionInfo\": \"Duis ut cupidatat\",\n  \"showOnBranch\": false,\n  \"useCustomPage\": false,\n  \"customPageUrl\": \"sunt mollit\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"Lorem pariatur ex sed\",\n  \"integrationClassId\": \"a169c141-8ce0-ae50-46d8-a420a5f41982\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": true,\n  \"useLogo\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-setting/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-setting",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"printReceipt\": true,\n  \"receiptNumberLength\": 39224319,\n  \"receiptNumberMode\": \"dolor culpa elit\",\n  \"receiptNumberType\": \"in tempor velit anim\",\n  \"receiptFooter\": \"et consequat minim\",\n  \"receiptNumberPrefix\": \"pariatur minim cillum dolore\",\n  \"receiptNumberSufix\": \"proident reprehenderit sed\",\n  \"vendWithAmount\": true,\n  \"useThirdParty\": false,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"ipsum non\",\n  \"notificationCcEmails\": \"exercitation ut deserunt cupidatat aliqua\",\n  \"notificationBcEmails\": \"aliquip\",\n  \"show\": false,\n  \"startDate\": \"2001-12-31T15:58:01.614Z\",\n  \"endDate\": \"1955-01-23T16:20:29.530Z\",\n  \"startTime\": \"1986-12-31T14:09:32.826Z\",\n  \"endTime\": \"1956-03-01T11:27:38.510Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"cupidatat\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"Ut dolore ullamco\",\n  \"paymentCategoryId\": \"urn:uuid:625cd465-8f83-7894-b0e9-f4b06a85de50\",\n  \"collectionInfo\": \"Duis ut cupidatat\",\n  \"showOnBranch\": false,\n  \"useCustomPage\": false,\n  \"customPageUrl\": \"sunt mollit\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"Lorem pariatur ex sed\",\n  \"integrationClassId\": \"a169c141-8ce0-ae50-46d8-a420a5f41982\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": true,\n  \"useLogo\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-setting/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-setting",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant-form-validation",
+			"item": [
+				{
+					"name": "/merchant-form-validation/Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"merchantFormId\": \"urn:uuid:2f6209fc-5a08-0228-6e92-42400564560d\",\n  \"printReceipt\": false,\n  \"receiptNumberLength\": -48233219,\n  \"receiptNumberMode\": \"ea sed cupidatat\",\n  \"receiptNumberType\": \"exercitation Lorem nostrud\",\n  \"receiptFooter\": \"dolor dolore est exercitation\",\n  \"receiptNumberPrefix\": \"mollit deserunt proident\",\n  \"receiptNumberSufix\": \"ut minim labore ex\",\n  \"vendWithAmount\": false,\n  \"useThirdParty\": true,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"sit ex\",\n  \"notificationCcEmails\": \"Excepteur\",\n  \"notificationBcEmails\": \"nulla amet commodo proi\",\n  \"show\": true,\n  \"startDate\": \"1978-03-26T07:31:48.099Z\",\n  \"endDate\": \"1961-06-01T00:15:42.087Z\",\n  \"startTime\": \"1948-03-08T05:51:47.174Z\",\n  \"endTime\": \"1981-05-02T13:49:36.769Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"commodo magna\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"occaecat laborum deserunt in\",\n  \"paymentCategoryId\": \"urn:uuid:144f291c-0e84-d3d1-4f85-264a9e312229\",\n  \"collectionInfo\": \"laboris nostrud\",\n  \"showOnBranch\": true,\n  \"useCustomPage\": true,\n  \"customPageUrl\": \"nulla irure sit ut\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"minim culpa labore non aliquip\",\n  \"integrationClassId\": \"785363db-17ee-763b-97bf-b9751a1f5dfa\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": false,\n  \"useLogo\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-validation/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-validation",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"merchantFormId\": \"urn:uuid:2f6209fc-5a08-0228-6e92-42400564560d\",\n  \"printReceipt\": false,\n  \"receiptNumberLength\": -48233219,\n  \"receiptNumberMode\": \"ea sed cupidatat\",\n  \"receiptNumberType\": \"exercitation Lorem nostrud\",\n  \"receiptFooter\": \"dolor dolore est exercitation\",\n  \"receiptNumberPrefix\": \"mollit deserunt proident\",\n  \"receiptNumberSufix\": \"ut minim labore ex\",\n  \"vendWithAmount\": false,\n  \"useThirdParty\": true,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"sit ex\",\n  \"notificationCcEmails\": \"Excepteur\",\n  \"notificationBcEmails\": \"nulla amet commodo proi\",\n  \"show\": true,\n  \"startDate\": \"1978-03-26T07:31:48.099Z\",\n  \"endDate\": \"1961-06-01T00:15:42.087Z\",\n  \"startTime\": \"1948-03-08T05:51:47.174Z\",\n  \"endTime\": \"1981-05-02T13:49:36.769Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"commodo magna\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"occaecat laborum deserunt in\",\n  \"paymentCategoryId\": \"urn:uuid:144f291c-0e84-d3d1-4f85-264a9e312229\",\n  \"collectionInfo\": \"laboris nostrud\",\n  \"showOnBranch\": true,\n  \"useCustomPage\": true,\n  \"customPageUrl\": \"nulla irure sit ut\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"minim culpa labore non aliquip\",\n  \"integrationClassId\": \"785363db-17ee-763b-97bf-b9751a1f5dfa\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": false,\n  \"useLogo\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-validation/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-validation",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-validation/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-validation/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-validation",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-validation/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-validation",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-validation/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-validation/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-validation",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-validation/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-validation",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-validation/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-validation/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-validation",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-validation/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-validation",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-form-validation/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"printReceipt\": true,\n  \"receiptNumberLength\": 39224319,\n  \"receiptNumberMode\": \"dolor culpa elit\",\n  \"receiptNumberType\": \"in tempor velit anim\",\n  \"receiptFooter\": \"et consequat minim\",\n  \"receiptNumberPrefix\": \"pariatur minim cillum dolore\",\n  \"receiptNumberSufix\": \"proident reprehenderit sed\",\n  \"vendWithAmount\": true,\n  \"useThirdParty\": false,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"ipsum non\",\n  \"notificationCcEmails\": \"exercitation ut deserunt cupidatat aliqua\",\n  \"notificationBcEmails\": \"aliquip\",\n  \"show\": false,\n  \"startDate\": \"2001-12-31T15:58:01.614Z\",\n  \"endDate\": \"1955-01-23T16:20:29.530Z\",\n  \"startTime\": \"1986-12-31T14:09:32.826Z\",\n  \"endTime\": \"1956-03-01T11:27:38.510Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"cupidatat\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"Ut dolore ullamco\",\n  \"paymentCategoryId\": \"urn:uuid:625cd465-8f83-7894-b0e9-f4b06a85de50\",\n  \"collectionInfo\": \"Duis ut cupidatat\",\n  \"showOnBranch\": false,\n  \"useCustomPage\": false,\n  \"customPageUrl\": \"sunt mollit\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"Lorem pariatur ex sed\",\n  \"integrationClassId\": \"a169c141-8ce0-ae50-46d8-a420a5f41982\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": true,\n  \"useLogo\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-form-validation/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-form-validation",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"printReceipt\": true,\n  \"receiptNumberLength\": 39224319,\n  \"receiptNumberMode\": \"dolor culpa elit\",\n  \"receiptNumberType\": \"in tempor velit anim\",\n  \"receiptFooter\": \"et consequat minim\",\n  \"receiptNumberPrefix\": \"pariatur minim cillum dolore\",\n  \"receiptNumberSufix\": \"proident reprehenderit sed\",\n  \"vendWithAmount\": true,\n  \"useThirdParty\": false,\n  \"updateThirdParty\": true,\n  \"sendEmailNotification\": true,\n  \"notificationEmails\": \"ipsum non\",\n  \"notificationCcEmails\": \"exercitation ut deserunt cupidatat aliqua\",\n  \"notificationBcEmails\": \"aliquip\",\n  \"show\": false,\n  \"startDate\": \"2001-12-31T15:58:01.614Z\",\n  \"endDate\": \"1955-01-23T16:20:29.530Z\",\n  \"startTime\": \"1986-12-31T14:09:32.826Z\",\n  \"endTime\": \"1956-03-01T11:27:38.510Z\",\n  \"useRemarkSeparator\": false,\n  \"remarkSeparator\": \"cupidatat\",\n  \"sendSMSNotification\": false,\n  \"smsNotificationPhones\": \"Ut dolore ullamco\",\n  \"paymentCategoryId\": \"urn:uuid:625cd465-8f83-7894-b0e9-f4b06a85de50\",\n  \"collectionInfo\": \"Duis ut cupidatat\",\n  \"showOnBranch\": false,\n  \"useCustomPage\": false,\n  \"customPageUrl\": \"sunt mollit\",\n  \"useCustomReceipt\": true,\n  \"customReceiptUrl\": \"Lorem pariatur ex sed\",\n  \"integrationClassId\": \"a169c141-8ce0-ae50-46d8-a420a5f41982\",\n  \"useBarCode\": true,\n  \"useCash\": true,\n  \"useExternalAccount\": true,\n  \"useLogo\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-form-validation/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-form-validation",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "merchant-setting",
+			"item": [
+				{
+					"name": "/merchant-setting/Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"merchantId\": \"urn:uuid:e6ffcd64-b19e-b707-8a84-1eb6aeb11867\",\n  \"isCashlessExempted\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-setting/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-setting",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"merchantId\": \"urn:uuid:e6ffcd64-b19e-b707-8a84-1eb6aeb11867\",\n  \"isCashlessExempted\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-setting/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-setting",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-setting/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-setting/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-setting",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-setting/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-setting",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-setting/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-setting/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-setting",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-setting/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-setting",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-setting/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/merchant-setting/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-setting",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/merchant-setting/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-setting",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/merchant-setting/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isCashlessExempted\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/merchant-setting/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"merchant-setting",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"isCashlessExempted\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/merchant-setting/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"merchant-setting",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "payment-category",
+			"item": [
+				{
+					"name": "/payment-category/Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"do nostrud magna non ipsum\",\n  \"description\": \"labore culpa nulla\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/payment-category/Create",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment-category",
+								"Create"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"code\": \"do nostrud magna non ipsum\",\n  \"description\": \"labore culpa nulla\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/payment-category/Create",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"payment-category",
+										"Create"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/payment-category/Delete/:id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/payment-category/Delete/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment-category",
+								"Delete",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/payment-category/Delete/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"payment-category",
+										"Delete",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/payment-category/GetItem/:id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/payment-category/GetItem/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment-category",
+								"GetItem",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/payment-category/GetItem/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"payment-category",
+										"GetItem",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/payment-category/GetAll/:FormLookupListId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/payment-category/GetAll/:FormLookupListId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment-category",
+								"GetAll",
+								":FormLookupListId"
+							],
+							"variable": [
+								{
+									"key": "FormLookupListId",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/payment-category/GetAll/:FormLookupListId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"payment-category",
+										"GetAll",
+										":FormLookupListId"
+									],
+									"variable": [
+										{
+											"key": "FormLookupListId",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "/payment-category/Update/:id",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"eiusmod irure anim\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/payment-category/Update/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment-category",
+								"Update",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+									"description": "(Required) "
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"description\": \"eiusmod irure anim\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/payment-category/Update/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"payment-category",
+										"Update",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "urn:uuid:f6b5e4fb-b488-eb9d-c8ed-af18d62111fb",
+											"description": "(Required) "
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "text",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/plain"
+								}
+							],
+							"cookie": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "/field-data-type/GetAll",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/field-data-type/GetAll",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"field-data-type",
+						"GetAll"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/field-data-type/GetAll",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"field-data-type",
+								"GetAll"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "text",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain"
+						}
+					],
+					"cookie": [],
+					"body": ""
+				}
+			]
+		},
+		{
+			"name": "/field-type/GetAll",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/field-type/GetAll",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"field-type",
+						"GetAll"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/field-type/GetAll",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"field-type",
+								"GetAll"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "text",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain"
+						}
+					],
+					"cookie": [],
+					"body": ""
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://t-etokenintsvr/",
+			"type": "string"
+		},
+		{
+			"key": "id",
+			"value": "da3ee69c-3cb1-4dd6-8c2f-1624153872e0"
+		}
+	]
+}

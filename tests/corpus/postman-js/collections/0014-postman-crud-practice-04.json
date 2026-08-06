@@ -1,0 +1,290 @@
+{
+  "info": {
+    "_postman_id": "890725be-4921-430a-b60d-f017c026e119",
+    "name": "Postman crud Practice-04",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "54104306",
+    "_collection_link": "https://go.postman.co/collection/54104306-890725be-4921-430a-b60d-f017c026e119?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "POST Request",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "var random = Math.random().toString(36).substring(2);\r",
+              "var email = \"email\"+random+\"@gamil.com\";\r",
+              "pm.environment.set(\"env_email\",email);\r",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var JsonData = pm.response.json();\r",
+              "pm.environment.set(\"env_id\",JsonData.id);\r",
+              "pm.test(\"check status code201\",()=>\r",
+              "{\r",
+              "    pm.response.to.have.status(201);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"Check response time below 2 second\",()=>\r",
+              "{\r",
+              "    pm.expect(pm.response.responseTime).to.be.below(2000);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"check data validation \",()=>\r",
+              "{\r",
+              "    pm.expect(JsonData.id).to.be.a(\"number\");\r",
+              "    pm.expect(JsonData.name).to.be.a(\"string\");\r",
+              "}\r",
+              ");"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "38b2ea59a1cfc4060a3f98af68a77adc188c6fc11977917bde8540af862e9782",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"name\": \"Ajinkya Mohod\",\r\n  \"email\": \"{{env_email}}\",\r\n  \"gender\": \"male\",\r\n  \"status\": \"active\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://gorest.co.in/public/v2/users",
+          "protocol": "https",
+          "host": [
+            "gorest",
+            "co",
+            "in"
+          ],
+          "path": [
+            "public",
+            "v2",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "GET Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();\r",
+              "pm.test(\"check status code 200\",()=>\r",
+              "{\r",
+              "    pm.response.to.have.status(200);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"check response time below 2 selcon\",()=>\r",
+              "{\r",
+              "    pm.expect(pm.response.responseTime).to.be.below(2000);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"check data validation\",()=>\r",
+              "{\r",
+              "    pm.expect(jsonData.id).to.be.a(\"number\");\r",
+              "    pm.expect(jsonData.name).to.be.a(\"string\");\r",
+              "}\r",
+              ");"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "38b2ea59a1cfc4060a3f98af68a77adc188c6fc11977917bde8540af862e9782",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "https://gorest.co.in/public/v2/users/{{env_id}}",
+          "protocol": "https",
+          "host": [
+            "gorest",
+            "co",
+            "in"
+          ],
+          "path": [
+            "public",
+            "v2",
+            "users",
+            "{{env_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "PUT Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();\r",
+              "pm.test(\"check status code 200\",()=>\r",
+              "{\r",
+              "    pm.response.to.have.status(200);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"check responseTime below 2 selcon\",()=>\r",
+              "{\r",
+              "    pm.expect(pm.response.responseTime).to.be.below(2000);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"check data validation\",()=>\r",
+              "{\r",
+              "pm.expect(jsonData.id).to.be.a(\"number\");\r",
+              "pm.expect(jsonData.name).to.be.a(\"string\");\r",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "38b2ea59a1cfc4060a3f98af68a77adc188c6fc11977917bde8540af862e9782",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"name\": \"Ajinkya Updated\",\r\n  \"status\": \"inactive\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://gorest.co.in/public/v2/users/{{env_id}}",
+          "protocol": "https",
+          "host": [
+            "gorest",
+            "co",
+            "in"
+          ],
+          "path": [
+            "public",
+            "v2",
+            "users",
+            "{{env_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "DELETE Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"check status code 204\",()=>\r",
+              "{\r",
+              "pm.response.to.have.status(204);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"check responseTime below 2 second\",()=>\r",
+              "{\r",
+              "    pm.expect(pm.response.responseTime).to.be.below(2000);\r",
+              "}\r",
+              ");"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "38b2ea59a1cfc4060a3f98af68a77adc188c6fc11977917bde8540af862e9782",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "https://gorest.co.in/public/v2/users/{{env_id}}",
+          "protocol": "https",
+          "host": [
+            "gorest",
+            "co",
+            "in"
+          ],
+          "path": [
+            "public",
+            "v2",
+            "users",
+            "{{env_id}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

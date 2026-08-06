@@ -1,0 +1,750 @@
+{
+	"info": {
+		"name": "CoinMarketCap_Price_Comparison",
+		"_postman_id": "7e836507-bc41-4966-afde-1a23e763048a",
+		"description": "This collection compares the price of each coin on the Cryptocomare API to the price on Coinmarketcap.com.\n\nIf there is a percentage difference of 10% or more tests will fail and data will need to be reviewed.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Coinmarketcap price comparison",
+			"description": "",
+			"item": [
+				{
+					"name": "CMC BTC Price",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13940593-b743-4572-b9e1-1f91d41538b5",
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"",
+									"console.log(jsonData[0].price_usd);",
+									"",
+									"pm.environment.set(\"BTC_price\", jsonData[0].price_usd);",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://api.coinmarketcap.com/v1/ticker/bitcoin",
+							"protocol": "https",
+							"host": [
+								"api",
+								"coinmarketcap",
+								"com"
+							],
+							"path": [
+								"v1",
+								"ticker",
+								"bitcoin"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Compare BTC-USD",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e8948086-8e50-475e-b294-cef24e3d49ab",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "d89a94d1-d7a2-4a74-87d6-b5a294633eea",
+								"type": "text/javascript",
+								"exec": [
+									"//call coinmarket before executing to update BTC_price global var",
+									"var CMC_price = pm.environment.get(\"BTC_price\");",
+									"console.log(CMC_price);",
+									"",
+									"var jsonData = JSON.parse(responseBody);",
+									"console.log(jsonData.USD);",
+									"",
+									"",
+									"var a = jsonData.USD;",
+									"var b = pm.environment.get(\"BTC_price\");",
+									"",
+									"percentageDiff = (a - b) /  a * 100;",
+									"console.log(percentageDiff);",
+									"",
+									"tests[\"Coin market cap BTC price should not be + 10% from Cryptocompare BTC price\"] = percentageDiff < 10;",
+									"",
+									"tests[\"Coin market cap BTC price should not be - 10% from Cryptocompare BTC price\"] = percentageDiff > -10;",
+									"",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD",
+							"protocol": "https",
+							"host": [
+								"min-api",
+								"cryptocompare",
+								"com"
+							],
+							"path": [
+								"data",
+								"price"
+							],
+							"query": [
+								{
+									"key": "fsym",
+									"value": "BTC",
+									"equals": true
+								},
+								{
+									"key": "tsyms",
+									"value": "USD",
+									"equals": true
+								}
+							]
+						},
+						"description": "Check that the following coins are within 10% of the price on Coinmarketcap.com"
+					},
+					"response": []
+				},
+				{
+					"name": "CMC ETH Price ",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "b9d58837-91c7-4431-9659-2e4359bea3f8",
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"",
+									"console.log(jsonData[0].price_usd);",
+									"",
+									"pm.environment.set(\"ETH_price\", jsonData[0].price_usd);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://api.coinmarketcap.com/v1/ticker/ethereum",
+							"protocol": "https",
+							"host": [
+								"api",
+								"coinmarketcap",
+								"com"
+							],
+							"path": [
+								"v1",
+								"ticker",
+								"ethereum"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Compare ETH-USD",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e8948086-8e50-475e-b294-cef24e3d49ab",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "33dad769-0c3a-4a63-81ca-78a2ee5fe6be",
+								"type": "text/javascript",
+								"exec": [
+									"//call coinmarket before executing to update BTC_price global var",
+									"var CMC_price = pm.environment.get(\"ETH_price\");",
+									"console.log(CMC_price);",
+									"",
+									"var jsonData = JSON.parse(responseBody);",
+									"console.log(jsonData.USD);",
+									"",
+									"",
+									"var a = jsonData.USD;",
+									"var b = pm.environment.get(\"ETH_price\");",
+									"",
+									"percentageDiff = (a - b) /  a * 100;",
+									"console.log(percentageDiff);",
+									"",
+									"tests[\"Coin market cap ETH price should not be + 10% from Cryptocompare ETH price\"] = percentageDiff < 10;",
+									"",
+									"tests[\"Coin market cap ETH price should not be - 10% from Cryptocompare ETH price\"] = percentageDiff > -10;",
+									"",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD",
+							"protocol": "https",
+							"host": [
+								"min-api",
+								"cryptocompare",
+								"com"
+							],
+							"path": [
+								"data",
+								"price"
+							],
+							"query": [
+								{
+									"key": "fsym",
+									"value": "ETH",
+									"equals": true
+								},
+								{
+									"key": "tsyms",
+									"value": "USD",
+									"equals": true
+								}
+							]
+						},
+						"description": "Check that the following coins are within 10% of the price on Coinmarketcap.com"
+					},
+					"response": []
+				},
+				{
+					"name": "CMC ZEC Price ",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "a7c6b5b6-6b16-44a8-8511-2e4f27f6bb82",
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"",
+									"console.log(jsonData[0].price_usd);",
+									"",
+									"pm.environment.set(\"ZEC_price\", jsonData[0].price_usd);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://api.coinmarketcap.com/v1/ticker/zcash",
+							"protocol": "https",
+							"host": [
+								"api",
+								"coinmarketcap",
+								"com"
+							],
+							"path": [
+								"v1",
+								"ticker",
+								"zcash"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Compare ZEC-USD ",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e8948086-8e50-475e-b294-cef24e3d49ab",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "ba73cf33-620c-4d97-8fae-85cb60990349",
+								"type": "text/javascript",
+								"exec": [
+									"//call coinmarket before executing to update BTC_price global var",
+									"var CMC_price = pm.environment.get(\"ZEC_price\");",
+									"console.log(CMC_price);",
+									"",
+									"var jsonData = JSON.parse(responseBody);",
+									"console.log(jsonData.USD);",
+									"",
+									"",
+									"var a = jsonData.USD;",
+									"var b = pm.environment.get(\"ZEC_price\");",
+									"",
+									"percentageDiff = (a - b) /  a * 100;",
+									"console.log(percentageDiff);",
+									"",
+									"tests[\"Coin market cap ZEC price should not be + 10% from Cryptocompare ZEC price\"] = percentageDiff < 10;",
+									"",
+									"tests[\"Coin market cap ZEC price should not be - 10% from Cryptocompare ZEC price\"] = percentageDiff > -10;",
+									"",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://min-api.cryptocompare.com/data/price?fsym=ZEC&tsyms=USD",
+							"protocol": "https",
+							"host": [
+								"min-api",
+								"cryptocompare",
+								"com"
+							],
+							"path": [
+								"data",
+								"price"
+							],
+							"query": [
+								{
+									"key": "fsym",
+									"value": "ZEC",
+									"equals": true
+								},
+								{
+									"key": "tsyms",
+									"value": "USD",
+									"equals": true
+								}
+							]
+						},
+						"description": "Check that the following coins are within 10% of the price on Coinmarketcap.com"
+					},
+					"response": []
+				},
+				{
+					"name": "CMC DASH Price  ",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "dc2c9d52-2302-40b8-98ed-47851d2ddbc9",
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"",
+									"console.log(jsonData[0].price_usd);",
+									"",
+									"pm.environment.set(\"DASH_price\", jsonData[0].price_usd);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://api.coinmarketcap.com/v1/ticker/dash",
+							"protocol": "https",
+							"host": [
+								"api",
+								"coinmarketcap",
+								"com"
+							],
+							"path": [
+								"v1",
+								"ticker",
+								"dash"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Compare DASH-USD",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e8948086-8e50-475e-b294-cef24e3d49ab",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "2a09fd18-e49a-493f-833f-900f18b16d71",
+								"type": "text/javascript",
+								"exec": [
+									"//call coinmarket before executing to update BTC_price global var",
+									"var CMC_price = pm.environment.get(\"DASH_price\");",
+									"console.log(CMC_price);",
+									"",
+									"var jsonData = JSON.parse(responseBody);",
+									"console.log(jsonData.USD);",
+									"",
+									"",
+									"var a = jsonData.USD;",
+									"var b = pm.environment.get(\"DASH_price\");",
+									"",
+									"percentageDiff = (a - b) /  a * 100;",
+									"console.log(percentageDiff);",
+									"",
+									"tests[\"Coin market cap DASH price should not be + 10% from Cryptocompare DASH price\"] = percentageDiff < 10;",
+									"",
+									"tests[\"Coin market cap DASH price should not be - 10% from Cryptocompare DASH price\"] = percentageDiff > -10;",
+									"",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://min-api.cryptocompare.com/data/price?fsym=DASH&tsyms=USD",
+							"protocol": "https",
+							"host": [
+								"min-api",
+								"cryptocompare",
+								"com"
+							],
+							"path": [
+								"data",
+								"price"
+							],
+							"query": [
+								{
+									"key": "fsym",
+									"value": "DASH",
+									"equals": true
+								},
+								{
+									"key": "tsyms",
+									"value": "USD",
+									"equals": true
+								}
+							]
+						},
+						"description": "Check that the following coins are within 10% of the price on Coinmarketcap.com"
+					},
+					"response": []
+				},
+				{
+					"name": "CMC XMR Price",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "79397c42-bfd6-4249-96fc-06a3012cf5ab",
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"",
+									"console.log(jsonData[0].price_usd);",
+									"",
+									"pm.environment.set(\"XMR_price\", jsonData[0].price_usd);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://api.coinmarketcap.com/v1/ticker/monero",
+							"protocol": "https",
+							"host": [
+								"api",
+								"coinmarketcap",
+								"com"
+							],
+							"path": [
+								"v1",
+								"ticker",
+								"monero"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Compare XMR-USD ",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e8948086-8e50-475e-b294-cef24e3d49ab",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "8349d00f-6916-4876-8c0f-8a62c1e172b0",
+								"type": "text/javascript",
+								"exec": [
+									"//call coinmarket before executing to update BTC_price global var",
+									"var CMC_price = pm.environment.get(\"XMR_price\");",
+									"console.log(CMC_price);",
+									"",
+									"var jsonData = JSON.parse(responseBody);",
+									"console.log(jsonData.USD);",
+									"",
+									"",
+									"var a = jsonData.USD;",
+									"var b = pm.environment.get(\"XMR_price\");",
+									"",
+									"percentageDiff = (a - b) /  a * 100;",
+									"console.log(percentageDiff);",
+									"",
+									"tests[\"Coin market cap XMR price should not be + 10% from Cryptocompare XMR price\"] = percentageDiff < 10;",
+									"",
+									"tests[\"Coin market cap XMR price should not be - 10% from Cryptocompare XMR price\"] = percentageDiff > -10;",
+									"",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://min-api.cryptocompare.com/data/price?fsym=XMR&tsyms=USD",
+							"protocol": "https",
+							"host": [
+								"min-api",
+								"cryptocompare",
+								"com"
+							],
+							"path": [
+								"data",
+								"price"
+							],
+							"query": [
+								{
+									"key": "fsym",
+									"value": "XMR",
+									"equals": true
+								},
+								{
+									"key": "tsyms",
+									"value": "USD",
+									"equals": true
+								}
+							]
+						},
+						"description": "Check that the following coins are within 10% of the price on Coinmarketcap.com"
+					},
+					"response": []
+				},
+				{
+					"name": "CMC LTC Price ",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ec661aec-9398-40dc-b18c-64e549bae94d",
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"",
+									"console.log(jsonData[0].price_usd);",
+									"",
+									"pm.environment.set(\"LTC_price\", jsonData[0].price_usd);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://api.coinmarketcap.com/v1/ticker/litecoin",
+							"protocol": "https",
+							"host": [
+								"api",
+								"coinmarketcap",
+								"com"
+							],
+							"path": [
+								"v1",
+								"ticker",
+								"litecoin"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Compare LTC-USD ",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e8948086-8e50-475e-b294-cef24e3d49ab",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "ace42ebd-637f-4a73-afb5-707d37d46a4b",
+								"type": "text/javascript",
+								"exec": [
+									"//call coinmarket before executing to update BTC_price global var",
+									"var CMC_price = pm.environment.get(\"LTC_price\");",
+									"console.log(CMC_price);",
+									"",
+									"var jsonData = JSON.parse(responseBody);",
+									"console.log(jsonData.USD);",
+									"",
+									"",
+									"var a = jsonData.USD;",
+									"var b = pm.environment.get(\"LTC_price\");",
+									"",
+									"percentageDiff = (a - b) /  a * 100;",
+									"console.log(percentageDiff);",
+									"",
+									"tests[\"Coin market cap LTC price should not be + 10% from Cryptocompare LTC price\"] = percentageDiff < 10;",
+									"",
+									"tests[\"Coin market cap LTC price should not be - 10% from Cryptocompare LTC price\"] = percentageDiff > -10;",
+									"",
+									"",
+									"",
+									"",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://min-api.cryptocompare.com/data/price?fsym=LTC&tsyms=USD",
+							"protocol": "https",
+							"host": [
+								"min-api",
+								"cryptocompare",
+								"com"
+							],
+							"path": [
+								"data",
+								"price"
+							],
+							"query": [
+								{
+									"key": "fsym",
+									"value": "LTC",
+									"equals": true
+								},
+								{
+									"key": "tsyms",
+									"value": "USD",
+									"equals": true
+								}
+							]
+						},
+						"description": "Check that the following coins are within 10% of the price on Coinmarketcap.com"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "733422df-741b-4159-b805-c8a94616917c",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "4234100c-4a16-489a-877c-7ac27eb56fe4",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

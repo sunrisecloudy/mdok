@@ -1,0 +1,1472 @@
+{
+	"info": {
+		"_postman_id": "369db97c-d41f-48b6-8a64-217be4c2fca1",
+		"name": "Polaris.Ecashier",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "349554",
+		"_collection_link": "https://polarismerchant.postman.co/workspace/Polaris-Merchant~8d24d4ac-0f20-4fbc-ae32-502055d04bcd/collection/349554-369db97c-d41f-48b6-8a64-217be4c2fca1?action=share&source=collection_link&creator=349554"
+	},
+	"item": [
+		{
+			"name": "api",
+			"item": [
+				{
+					"name": "XpressPay",
+					"item": [
+						{
+							"name": "GetAvailableMerchants",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetAvailableMerchants",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"",
+													"var template = `",
+													" ",
+													"`;",
+													"",
+													"// Set visualizer",
+													"pm.visualizer.set(template, {",
+													"    // Pass the response body parsed as JSON as `data`",
+													"    response: pm.response.json()",
+													"});",
+													"",
+													"",
+													"bodyData=JSON.parse(responseBody)",
+													"value=bodyData",
+													"console.log(value);",
+													"pm.test(\"Status code is 200\", function () {",
+													"    pm.response.to.have.status(200);",
+													"});",
+													"pm.test('Response has required fields', function () {",
+													"    const responseData = pm.response.json();",
+													"    pm.expect(responseData).to.be.an('object');",
+													"    pm.expect(responseData.responseCode).to.exist.and.to.be.a('string');",
+													"    pm.expect(responseData.responseMessage).to.exist.and.to.be.a('string');",
+													"    pm.expect(responseData.data).to.exist;",
+													"})",
+													"pm.test(\"Check that decryption is successful\", function () {",
+													"    //make assertion",
+													"    var jsonData = pm.response.json();",
+													"    pm.expect(jsonData.responseCode).to.eql(\"00\");",
+													"    pm.expect(jsonData.responseMessage).to.eql(\"Decryption Successful\");",
+													"    pm.expect(jsonData.data).to.not.eql(null);",
+													"    console.log(\"Decryption status returned  \" + jsonData.responseMessage);",
+													"    console.log(\"Get Merchant returned \" + jsonData.data);",
+													"});",
+													"var template = `",
+													"<style type=\"text/css\">",
+													"    .tftable {font-size:14px;color:#333333;width:100%;border-width: 1px;border-color: #87ceeb;border-collapse: collapse;}",
+													"    .tftable th {font-size:18px;background-color:#87ceeb;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;text-align:left;}",
+													"    .tftable tr {background-color:#ffffff;}",
+													"    .tftable td {font-size:14px;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;}",
+													"    .tftable tr:hover {background-color:#e0ffff;}",
+													"</style>",
+													"",
+													"<table class=\"tftable\" border=\"1\">",
+													"    <tr>",
+													"        <th>Response Code</th>",
+													"        <th>Response Message</th>",
+													"        <th>Data</th>",
+													"    </tr>",
+													"    ",
+													"    <tr>",
+													"        <td>{{responseCode}}</td>",
+													"        <td>{{responseMessage}}</td>",
+													"        <td>{{data}}</td>",
+													"    </tr>",
+													"</table>",
+													"`;",
+													"",
+													"function constructVisualizerPayload() {",
+													"    return pm.response.json();",
+													"}",
+													"",
+													"pm.visualizer.set(template, constructVisualizerPayload());",
+													"pm.test(\"Data length must be greater than zero\", function () {",
+													"    const responseData = pm.response.json();",
+													"    const data = responseData.data;",
+													"   ",
+													"    pm.expect(data.length).to.be.greaterThan(0, \"Data should not be empty\");",
+													"});"
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetAvailableMerchants?branchCode=123",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetAvailableMerchants"
+											],
+											"query": [
+												{
+													"key": "branchCode",
+													"value": "123"
+												},
+												{
+													"key": "",
+													"value": "",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "GET",
+												"header": [
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetAvailableMerchants?branchCode=<string>",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetAvailableMerchants"
+													],
+													"query": [
+														{
+															"key": "branchCode",
+															"value": "<string>"
+														}
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "GetPaymentOptions",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetPaymentOptions",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"var template = `\r",
+													" \r",
+													"`;\r",
+													"\r",
+													"// Set visualizer\r",
+													"pm.visualizer.set(template, {\r",
+													"    // Pass the response body parsed as JSON as `data`\r",
+													"    response: pm.response.json()\r",
+													"});\r",
+													"pm.test('Response status code is 200', function () {\r",
+													"    pm.expect(pm.response.code).to.equal(200);\r",
+													"})\r",
+													"pm.test('Response has required fields', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseCode).to.exist.and.to.be.a('string');\r",
+													"    pm.expect(responseData.responseMessage).to.exist.and.to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.exist;\r",
+													"})\r",
+													"pm.test('responseCode is a non-empty string', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseCode).to.eql('00').and.to.have.lengthOf(2, 'Value should not be empty');\r",
+													"})\r",
+													"pm.test('Response message is a non-empty string', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseMessage).to.eql('Decryption Successful');\r",
+													"})\r",
+													"pm.test('Data is an object', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.data).to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.contain(\"PaymentOptionId\");\r",
+													"})\r",
+													"\r",
+													"\r",
+													"// var jsonData = pm.response.json();\r",
+													"// var branchCode = jsonData.branchCode;\r",
+													"// var paymentOptionId = jsonData.paymentOptionId;\r",
+													"// pm.variables.set(\"branchCode\", branchCode);\r",
+													"// pm.variables.set(\"paymentOptionId\", paymentOptionId);\r",
+													"// pm.variable.set(\"PaymentOptionId\")\r",
+													"// pm.variable.set(\"PaymentOptionId\")\r",
+													"\r",
+													""
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetPaymentOptions?branchCode=123",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetPaymentOptions"
+											],
+											"query": [
+												{
+													"key": "branchCode",
+													"value": "123"
+												}
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "GET",
+												"header": [
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetPaymentOptions?branchCode=<string>",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetPaymentOptions"
+													],
+													"query": [
+														{
+															"key": "branchCode",
+															"value": "<string>"
+														}
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "GetPaymentOptionItems",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetPaymentOptionItems",
+									"event": [
+										{
+											"listen": "prerequest",
+											"script": {
+												"exec": [
+													"// Get the value of the 'paymentOptionId' variable\r",
+													"var paymentOptionIdString = pm.variables.get('paymentOptionId');\r",
+													"\r",
+													"// Convert the value to an integer\r",
+													"var paymentOptionIdInteger = parseInt(paymentOptionIdString, 10);\r",
+													"\r",
+													"// Store the integer value in a new variable\r",
+													"pm.variables.set('paymentOptionIdInteger', paymentOptionIdInteger);\r",
+													""
+												],
+												"type": "text/javascript"
+											}
+										},
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"var template = ` \r",
+													"\r",
+													"\r",
+													"`;\r",
+													"// Set visualizer\r",
+													"pm.visualizer.set(template, {\r",
+													"    // Pass the response body parsed as JSON as `data`\r",
+													"    response: pm.response.json()\r",
+													"});\r",
+													"\r",
+													"pm.test('Response status code is 200', function () {\r",
+													"    pm.expect(pm.response.code).to.equal(200);\r",
+													"})\r",
+													"pm.test('Response has required fields', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseCode).to.exist.and.to.be.a('string');\r",
+													"    pm.expect(responseData.responseMessage).to.exist.and.to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.exist;\r",
+													"})\r",
+													"pm.test('responseCode is a non-empty string', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseCode).to.eql('00').and.to.have.lengthOf(2, 'Value should not be empty');\r",
+													"})\r",
+													"pm.test('Response message is a non-empty string', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseMessage).to.eql('Decryption Successful');\r",
+													"})\r",
+													"pm.test('Data is an object', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.data).to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.contain(\"PaymentOptionItem\");\r",
+													"})"
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											},
+											{
+												"key": "branchCode",
+												"value": "{{branchCode}}",
+												"type": "text"
+											},
+											{
+												"key": "paymentOptionId",
+												"value": "{{paymentOptionId}}",
+												"type": "text"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"branchCode\": \"123\",\n  \"paymentOptionId\":300\n}\n",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetPaymentOptionItems",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetPaymentOptionItems"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"branchCode\": \"<string>\",\n  \"paymentOptionId\": \"<integer>\"\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetPaymentOptionItems",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetPaymentOptionItems"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "GetMerchantPaymentItems",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetMerchantPaymentItems",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"var template = `\r",
+													" \r",
+													"`;\r",
+													"\r",
+													"// Set visualizer\r",
+													"pm.visualizer.set(template, {\r",
+													"    // Pass the response body parsed as JSON as `data`\r",
+													"    response: pm.response.json()\r",
+													"});\r",
+													"\r",
+													"\r",
+													"pm.test('Response has required fields', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData).to.be.an('object');\r",
+													"    pm.expect(responseData.responseCode).to.exist.and.to.be.a('string');\r",
+													"    pm.expect(responseData.responseMessage).to.exist.and.to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.exist;\r",
+													"})\r",
+													"pm.test('ResponseCode Lenght', function(){\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.responseCode).to.have.lengthOf(2);\r",
+													"    pm.expect(responseData.responseCode).to.eql(\"00\");\r",
+													"})\r",
+													"pm.test(\"Verify 'data' field in the response\", function () {\r",
+													"    // Parse the response JSON\r",
+													"    const responseData = pm.response.json();\r",
+													"    \r",
+													"    // Check if 'data' field exists in the response\r",
+													"    pm.expect(responseData).to.have.property('data');\r",
+													"    pm.expect(responseData.data).to.be.a(\"string\");\r",
+													"});\r",
+													""
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"branchCode\": \"123\",\n  \"merchantId\": 5\n  }",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetMerchantPaymentItems",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetMerchantPaymentItems"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"branchCode\": \"<string>\",\n  \"merchantId\": \"<integer>\"\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetMerchantPaymentItems",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetMerchantPaymentItems"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "PaymentNotification",
+							"item": [
+								{
+									"name": "/api/XpressPay/PaymentNotification",
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"bankBranchCode\": \"<string>\",\n  \"transactionReference\": \"<string>\",\n  \"bankPaymentReference\": \"<string>\",\n  \"transactionStatusId\": \"<integer>\",\n  \"paymentMethodId\": \"<integer>\",\n  \"paymentChannelId\": \"<integer>\",\n  \"isChequeTransaction\": \"<boolean>\",\n  \"isThirdPartyCheque\": \"<boolean>\",\n  \"chequeIssuingBankCode\": \"<string>\",\n  \"chequeNo\": \"<string>\",\n  \"chequeDate\": \"<string>\",\n  \"debitAccName\": \"<string>\",\n  \"debitAccNo\": \"<string>\",\n  \"depositorName\": \"<string>\",\n  \"depositorSlipNo\": \"<string>\",\n  \"postedBy\": \"<string>\",\n  \"terminalId\": \"<string>\",\n  \"taxOfficeId\": \"<integer>\",\n  \"totalAmountPaid\": \"<integer>\",\n  \"narration\": \"<string>\",\n  \"paymentItemsPaid\": [\n    {\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<integer>\"\n    },\n    {\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<integer>\"\n    }\n  ]\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/PaymentNotification",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"PaymentNotification"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"bankBranchCode\": \"<string>\",\n  \"transactionReference\": \"<string>\",\n  \"bankPaymentReference\": \"<string>\",\n  \"transactionStatusId\": \"<integer>\",\n  \"paymentMethodId\": \"<integer>\",\n  \"paymentChannelId\": \"<integer>\",\n  \"isChequeTransaction\": \"<boolean>\",\n  \"isThirdPartyCheque\": \"<boolean>\",\n  \"chequeIssuingBankCode\": \"<string>\",\n  \"chequeNo\": \"<string>\",\n  \"chequeDate\": \"<string>\",\n  \"debitAccName\": \"<string>\",\n  \"debitAccNo\": \"<string>\",\n  \"depositorName\": \"<string>\",\n  \"depositorSlipNo\": \"<string>\",\n  \"postedBy\": \"<string>\",\n  \"terminalId\": \"<string>\",\n  \"taxOfficeId\": \"<integer>\",\n  \"totalAmountPaid\": \"<integer>\",\n  \"narration\": \"<string>\",\n  \"paymentItemsPaid\": [\n    {\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<integer>\"\n    },\n    {\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<integer>\"\n    }\n  ]\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/PaymentNotification",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"PaymentNotification"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "GetPaymentMethods",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetPaymentMethods",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"pm.test('responseCode is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseCode).to.exist;\r",
+													"     pm.expect(responseData.responseCode).to.have.lengthOf(2);\r",
+													"    pm.expect(responseData.responseCode).to.be.eql(\"00\")\r",
+													"})\r",
+													"pm.test('resposeMessage is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseMessage).to.exist;\r",
+													"     pm.expect(responseData.responseMessage).to.be.eql(\"Decryption Successful\")\r",
+													"})\r",
+													"pm.test('Data is an object', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.data).to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.exist;\r",
+													"    pm.expect(responseData.data).to.contain('ChannelId');\r",
+													"    pm.expect(responseData.data).to.contain('ChannelName');\r",
+													"    pm.expect(responseData.data).to.contain('eCashierApi');\r",
+													"});"
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"branchCode\": \"123\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetPaymentMethods",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetPaymentMethods"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"branchCode\": \"<string>\"\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetPaymentMethods",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetPaymentMethods"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "GetPaymentChannels",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetPaymentChannels",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"pm.test('responseCode is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseCode).to.exist;\r",
+													"     pm.expect(responseData.responseCode).to.have.lengthOf(2);\r",
+													"    pm.expect(responseData.responseCode).to.be.eql(\"00\")\r",
+													"})\r",
+													"pm.test('resposeMessage is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseMessage).to.exist;\r",
+													"     pm.expect(responseData.responseMessage).to.be.eql(\"Decryption Successful\")\r",
+													"})\r",
+													"pm.test('Data is an object', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.data).to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.exist;\r",
+													"    pm.expect(responseData.data).to.contain('PaymentMethodId');\r",
+													"    pm.expect(responseData.data).to.contain('PaymentMethod');\r",
+													"    pm.expect(responseData.data).to.contain('Cash');\r",
+													"    pm.expect(responseData.data).to.contain('DateCreated');\r",
+													"});"
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"branchCode\": \"123\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetPaymentChannels",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetPaymentChannels"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"branchCode\": \"<string>\"\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetPaymentChannels",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetPaymentChannels"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "GetTaxOffices",
+							"item": [
+								{
+									"name": "/api/XpressPay/GetTaxOffices",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"pm.test('responseCode is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseCode).to.exist;\r",
+													"     pm.expect(responseData.responseCode).to.have.lengthOf(2);\r",
+													"    pm.expect(responseData.responseCode).to.be.eql(\"00\")\r",
+													"})\r",
+													"pm.test('resposeMessage is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseMessage).to.exist;\r",
+													"     pm.expect(responseData.responseMessage).to.be.eql(\"Decryption Successful\")\r",
+													"})\r",
+													"pm.test('Data is an object', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.data).to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.contain('OfficeId');\r",
+													"    pm.expect(responseData.data).to.contain('OfficeName');\r",
+													"    pm.expect(responseData.data).to.contain('OfficeLocation');\r",
+													"    pm.expect(responseData.data).to.contain('MerchantID');\r",
+													"});"
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"branchCode\": \"123\",\n  \"merchantId\": \"5\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/GetTaxOffices",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"GetTaxOffices"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"branchCode\": \"<string>\",\n  \"merchantId\": \"<integer>\"\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/GetTaxOffices",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"GetTaxOffices"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "PrintReceipt",
+							"item": [
+								{
+									"name": "/api/XpressPay/PrintReceipt",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"pm.test('responseCode is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseCode).to.exist;\r",
+													"     pm.expect(responseData.responseCode).to.have.lengthOf(2);\r",
+													"    pm.expect(responseData.responseCode).to.be.eql(\"00\")\r",
+													"})\r",
+													"pm.test('resposeMessage is a string' , function (){\r",
+													"    const responseData = pm.response.json();\r",
+													"     pm.expect(responseData.responseMessage).to.exist;\r",
+													"     pm.expect(responseData.responseMessage).to.be.eql(\"Decryption Successful\")\r",
+													"})\r",
+													"pm.test('Data is an object', function () {\r",
+													"    const responseData = pm.response.json();\r",
+													"    pm.expect(responseData.data).to.be.a('string');\r",
+													"    pm.expect(responseData.data).to.contain('ChannelId');\r",
+													"    pm.expect(responseData.data).to.contain('ChannelName');\r",
+													"    pm.expect(responseData.data).to.contain('eCashierApi');\r",
+													"  \r",
+													"});"
+												],
+												"type": "text/javascript"
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"branchCode\": \"123\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/PrintReceipt",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"PrintReceipt"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"branchCode\": \"<string>\"\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/PrintReceipt",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"PrintReceipt"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "PostTransaction",
+							"item": [
+								{
+									"name": "/api/XpressPay/PostTransaction",
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"merchantId\": \"<integer>\",\n  \"bankBranchCode\": \"<string>\",\n  \"paymentOptionId\": \"<integer>\",\n  \"createdBy\": \"<string>\",\n  \"paymentItems\": [\n    {\n      \"paymentItemId\": \"<integer>\"\n    },\n    {\n      \"paymentItemId\": \"<integer>\"\n    }\n  ],\n  \"payerDetails\": {\n    \"payerName\": \"<string>\",\n    \"payerAddress\": \"<string>\",\n    \"payerPhone\": \"<string>\",\n    \"payerEmail\": \"<string>\"\n  },\n  \"paymentOptionItems\": {\n    \"assessmentReference\": \"<string>\",\n    \"customerReference\": \"<string>\",\n    \"billReference\": \"<string>\"\n  }\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/PostTransaction",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"PostTransaction"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"merchantId\": \"<integer>\",\n  \"bankBranchCode\": \"<string>\",\n  \"paymentOptionId\": \"<integer>\",\n  \"createdBy\": \"<string>\",\n  \"paymentItems\": [\n    {\n      \"paymentItemId\": \"<integer>\"\n    },\n    {\n      \"paymentItemId\": \"<integer>\"\n    }\n  ],\n  \"payerDetails\": {\n    \"payerName\": \"<string>\",\n    \"payerAddress\": \"<string>\",\n    \"payerPhone\": \"<string>\",\n    \"payerEmail\": \"<string>\"\n  },\n  \"paymentOptionItems\": {\n    \"assessmentReference\": \"<string>\",\n    \"customerReference\": \"<string>\",\n    \"billReference\": \"<string>\"\n  }\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/PostTransaction",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"PostTransaction"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"responseCode\": \"<string>\",\n  \"responseMessage\": \"<string>\",\n  \"data\": \"<string>\"\n}"
+										}
+									]
+								}
+							]
+						},
+						{
+							"name": "ValidateAccount",
+							"item": [
+								{
+									"name": "/api/XpressPay/ValidateAccount",
+									"request": {
+										"method": "POST",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPay/ValidateAccount?accountNumberData=<string>",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPay",
+												"ValidateAccount"
+											],
+											"query": [
+												{
+													"key": "accountNumberData",
+													"value": "<string>"
+												}
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [],
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPay/ValidateAccount?accountNumberData=<string>",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPay",
+														"ValidateAccount"
+													],
+													"query": [
+														{
+															"key": "accountNumberData",
+															"value": "<string>"
+														}
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "text",
+											"header": [],
+											"cookie": [],
+											"body": ""
+										}
+									]
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "XpressPosting",
+					"item": [
+						{
+							"name": "XpressTransactionPosting",
+							"item": [
+								{
+									"name": "/api/XpressPosting/XpressTransactionPosting",
+									"request": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"merchant_id\": \"<string>\",\n  \"user_id\": \"<string>\",\n  \"transactionReference\": \"<string>\",\n  \"bankPaymentReference\": \"<string>\",\n  \"branchCode\": \"<string>\",\n  \"transactionStatusId\": \"<string>\",\n  \"paymentMethodId\": \"<integer>\",\n  \"paymentChannelId\": \"<integer>\",\n  \"isChequeTransaction\": \"<boolean>\",\n  \"isThirdPartyCheque\": \"<boolean>\",\n  \"chequeIssuingBankCode\": \"<string>\",\n  \"chequeNumber\": \"<string>\",\n  \"chequeDate\": \"<dateTime>\",\n  \"debitAccName\": \"<string>\",\n  \"debitAccount\": \"<string>\",\n  \"depositorName\": \"<string>\",\n  \"depositorSlipNo\": \"<string>\",\n  \"postedBy\": \"<string>\",\n  \"terminalId\": \"<integer>\",\n  \"taxOfficeId\": \"<integer>\",\n  \"totalAmountPaid\": \"<double>\",\n  \"narration\": \"<string>\",\n  \"transmitted\": \"<integer>\",\n  \"coll_acct\": \"<string>\",\n  \"payment_mode\": \"<integer>\",\n  \"transmit_status\": \"<string>\",\n  \"cancel_by\": \"<string>\",\n  \"cancel_date\": \"<dateTime>\",\n  \"cancel_reason\": \"<string>\",\n  \"response_date\": \"<dateTime>\",\n  \"third_party_reference\": \"<string>\",\n  \"channel\": \"<string>\",\n  \"paymentCount\": \"<string>\",\n  \"paidDate\": \"<dateTime>\",\n  \"opshdApprovedBy\": \"<string>\",\n  \"date_OPSHDApproved\": \"<dateTime>\",\n  \"cba_ref\": \"<string>\",\n  \"fcubs_verified\": \"<integer>\",\n  \"transmit_attempt\": \"<integer>\",\n  \"chequeStatus\": \"<string>\",\n  \"paymentType\": \"<string>\",\n  \"flexCubePayMode\": \"<integer>\",\n  \"authorizerId\": \"<string>\",\n  \"branchCommissionGL\": \"<string>\",\n  \"merchantAmount\": \"<double>\",\n  \"netAmount\": \"<double>\",\n  \"paymentItemPaids\": [\n    {\n      \"paymentItemPaidId\": \"<integer>\",\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<double>\",\n      \"transactionId\": \"<integer>\",\n      \"xpressTransaction\": {\n        \"transactionId\": \"<integer>\",\n        \"merchant_id\": \"<integer>\",\n        \"trans_date\": \"<dateTime>\",\n        \"user_id\": \"<string>\",\n        \"transactionReference\": \"<string>\",\n        \"bankPaymentReference\": \"<string>\",\n        \"branchCode\": \"<string>\",\n        \"transactionStatusId\": \"<string>\",\n        \"paymentMethodId\": \"<integer>\",\n        \"paymentChannelId\": \"<integer>\",\n        \"isChequeTransaction\": \"<boolean>\",\n        \"isThirdPartyCheque\": \"<boolean>\",\n        \"chequeIssuingBankCode\": \"<string>\",\n        \"chequeNumber\": \"<string>\",\n        \"chequeDate\": \"<dateTime>\",\n        \"debitAccName\": \"<string>\",\n        \"debitAccount\": \"<string>\",\n        \"depositorName\": \"<string>\",\n        \"depositorSlipNo\": \"<string>\",\n        \"postedBy\": \"<string>\",\n        \"terminalId\": \"<integer>\",\n        \"taxOfficeId\": \"<integer>\",\n        \"totalAmountPaid\": \"<double>\",\n        \"narration\": \"<string>\",\n        \"transmitted\": \"<integer>\",\n        \"debit_acct\": \"<string>\",\n        \"coll_acct\": \"<string>\",\n        \"payment_mode\": \"<integer>\",\n        \"transmit_status\": \"<string>\",\n        \"cancel_by\": \"<string>\",\n        \"cancel_date\": \"<dateTime>\",\n        \"cancel_reason\": \"<string>\",\n        \"response_date\": \"<dateTime>\",\n        \"third_party_reference\": \"<string>\",\n        \"channel\": \"<string>\",\n        \"paymentCount\": \"<string>\",\n        \"paidDate\": \"<dateTime>\",\n        \"opshdApprovedBy\": \"<string>\",\n        \"date_OPSHDApproved\": \"<dateTime>\",\n        \"cba_ref\": \"<string>\",\n        \"fcubs_verified\": \"<integer>\",\n        \"transmit_attempt\": \"<integer>\",\n        \"chequeStatus\": \"<string>\",\n        \"paymentType\": \"<string>\",\n        \"flexCubePayMode\": \"<integer>\",\n        \"authorizerId\": \"<string>\",\n        \"branchCommissionGL\": \"<string>\",\n        \"merchantAmount\": \"<double>\",\n        \"netAmount\": \"<double>\",\n        \"paymentItemPaids\": [\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          },\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          }\n        ]\n      }\n    },\n    {\n      \"paymentItemPaidId\": \"<integer>\",\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<double>\",\n      \"transactionId\": \"<integer>\",\n      \"xpressTransaction\": {\n        \"transactionId\": \"<integer>\",\n        \"merchant_id\": \"<integer>\",\n        \"trans_date\": \"<dateTime>\",\n        \"user_id\": \"<string>\",\n        \"transactionReference\": \"<string>\",\n        \"bankPaymentReference\": \"<string>\",\n        \"branchCode\": \"<string>\",\n        \"transactionStatusId\": \"<string>\",\n        \"paymentMethodId\": \"<integer>\",\n        \"paymentChannelId\": \"<integer>\",\n        \"isChequeTransaction\": \"<boolean>\",\n        \"isThirdPartyCheque\": \"<boolean>\",\n        \"chequeIssuingBankCode\": \"<string>\",\n        \"chequeNumber\": \"<string>\",\n        \"chequeDate\": \"<dateTime>\",\n        \"debitAccName\": \"<string>\",\n        \"debitAccount\": \"<string>\",\n        \"depositorName\": \"<string>\",\n        \"depositorSlipNo\": \"<string>\",\n        \"postedBy\": \"<string>\",\n        \"terminalId\": \"<integer>\",\n        \"taxOfficeId\": \"<integer>\",\n        \"totalAmountPaid\": \"<double>\",\n        \"narration\": \"<string>\",\n        \"transmitted\": \"<integer>\",\n        \"debit_acct\": \"<string>\",\n        \"coll_acct\": \"<string>\",\n        \"payment_mode\": \"<integer>\",\n        \"transmit_status\": \"<string>\",\n        \"cancel_by\": \"<string>\",\n        \"cancel_date\": \"<dateTime>\",\n        \"cancel_reason\": \"<string>\",\n        \"response_date\": \"<dateTime>\",\n        \"third_party_reference\": \"<string>\",\n        \"channel\": \"<string>\",\n        \"paymentCount\": \"<string>\",\n        \"paidDate\": \"<dateTime>\",\n        \"opshdApprovedBy\": \"<string>\",\n        \"date_OPSHDApproved\": \"<dateTime>\",\n        \"cba_ref\": \"<string>\",\n        \"fcubs_verified\": \"<integer>\",\n        \"transmit_attempt\": \"<integer>\",\n        \"chequeStatus\": \"<string>\",\n        \"paymentType\": \"<string>\",\n        \"flexCubePayMode\": \"<integer>\",\n        \"authorizerId\": \"<string>\",\n        \"branchCommissionGL\": \"<string>\",\n        \"merchantAmount\": \"<double>\",\n        \"netAmount\": \"<double>\",\n        \"paymentItemPaids\": [\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          },\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/XpressPosting/XpressTransactionPosting",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"XpressPosting",
+												"XpressTransactionPosting"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Success",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Content-Type",
+														"value": "application/json"
+													},
+													{
+														"key": "Accept",
+														"value": "text/plain"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "{\n  \"merchant_id\": \"<string>\",\n  \"user_id\": \"<string>\",\n  \"transactionReference\": \"<string>\",\n  \"bankPaymentReference\": \"<string>\",\n  \"branchCode\": \"<string>\",\n  \"transactionStatusId\": \"<string>\",\n  \"paymentMethodId\": \"<integer>\",\n  \"paymentChannelId\": \"<integer>\",\n  \"isChequeTransaction\": \"<boolean>\",\n  \"isThirdPartyCheque\": \"<boolean>\",\n  \"chequeIssuingBankCode\": \"<string>\",\n  \"chequeNumber\": \"<string>\",\n  \"chequeDate\": \"<dateTime>\",\n  \"debitAccName\": \"<string>\",\n  \"debitAccount\": \"<string>\",\n  \"depositorName\": \"<string>\",\n  \"depositorSlipNo\": \"<string>\",\n  \"postedBy\": \"<string>\",\n  \"terminalId\": \"<integer>\",\n  \"taxOfficeId\": \"<integer>\",\n  \"totalAmountPaid\": \"<double>\",\n  \"narration\": \"<string>\",\n  \"transmitted\": \"<integer>\",\n  \"coll_acct\": \"<string>\",\n  \"payment_mode\": \"<integer>\",\n  \"transmit_status\": \"<string>\",\n  \"cancel_by\": \"<string>\",\n  \"cancel_date\": \"<dateTime>\",\n  \"cancel_reason\": \"<string>\",\n  \"response_date\": \"<dateTime>\",\n  \"third_party_reference\": \"<string>\",\n  \"channel\": \"<string>\",\n  \"paymentCount\": \"<string>\",\n  \"paidDate\": \"<dateTime>\",\n  \"opshdApprovedBy\": \"<string>\",\n  \"date_OPSHDApproved\": \"<dateTime>\",\n  \"cba_ref\": \"<string>\",\n  \"fcubs_verified\": \"<integer>\",\n  \"transmit_attempt\": \"<integer>\",\n  \"chequeStatus\": \"<string>\",\n  \"paymentType\": \"<string>\",\n  \"flexCubePayMode\": \"<integer>\",\n  \"authorizerId\": \"<string>\",\n  \"branchCommissionGL\": \"<string>\",\n  \"merchantAmount\": \"<double>\",\n  \"netAmount\": \"<double>\",\n  \"paymentItemPaids\": [\n    {\n      \"paymentItemPaidId\": \"<integer>\",\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<double>\",\n      \"transactionId\": \"<integer>\",\n      \"xpressTransaction\": {\n        \"transactionId\": \"<integer>\",\n        \"merchant_id\": \"<integer>\",\n        \"trans_date\": \"<dateTime>\",\n        \"user_id\": \"<string>\",\n        \"transactionReference\": \"<string>\",\n        \"bankPaymentReference\": \"<string>\",\n        \"branchCode\": \"<string>\",\n        \"transactionStatusId\": \"<string>\",\n        \"paymentMethodId\": \"<integer>\",\n        \"paymentChannelId\": \"<integer>\",\n        \"isChequeTransaction\": \"<boolean>\",\n        \"isThirdPartyCheque\": \"<boolean>\",\n        \"chequeIssuingBankCode\": \"<string>\",\n        \"chequeNumber\": \"<string>\",\n        \"chequeDate\": \"<dateTime>\",\n        \"debitAccName\": \"<string>\",\n        \"debitAccount\": \"<string>\",\n        \"depositorName\": \"<string>\",\n        \"depositorSlipNo\": \"<string>\",\n        \"postedBy\": \"<string>\",\n        \"terminalId\": \"<integer>\",\n        \"taxOfficeId\": \"<integer>\",\n        \"totalAmountPaid\": \"<double>\",\n        \"narration\": \"<string>\",\n        \"transmitted\": \"<integer>\",\n        \"debit_acct\": \"<string>\",\n        \"coll_acct\": \"<string>\",\n        \"payment_mode\": \"<integer>\",\n        \"transmit_status\": \"<string>\",\n        \"cancel_by\": \"<string>\",\n        \"cancel_date\": \"<dateTime>\",\n        \"cancel_reason\": \"<string>\",\n        \"response_date\": \"<dateTime>\",\n        \"third_party_reference\": \"<string>\",\n        \"channel\": \"<string>\",\n        \"paymentCount\": \"<string>\",\n        \"paidDate\": \"<dateTime>\",\n        \"opshdApprovedBy\": \"<string>\",\n        \"date_OPSHDApproved\": \"<dateTime>\",\n        \"cba_ref\": \"<string>\",\n        \"fcubs_verified\": \"<integer>\",\n        \"transmit_attempt\": \"<integer>\",\n        \"chequeStatus\": \"<string>\",\n        \"paymentType\": \"<string>\",\n        \"flexCubePayMode\": \"<integer>\",\n        \"authorizerId\": \"<string>\",\n        \"branchCommissionGL\": \"<string>\",\n        \"merchantAmount\": \"<double>\",\n        \"netAmount\": \"<double>\",\n        \"paymentItemPaids\": [\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          },\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          }\n        ]\n      }\n    },\n    {\n      \"paymentItemPaidId\": \"<integer>\",\n      \"paymentItemCode\": \"<string>\",\n      \"amount\": \"<double>\",\n      \"transactionId\": \"<integer>\",\n      \"xpressTransaction\": {\n        \"transactionId\": \"<integer>\",\n        \"merchant_id\": \"<integer>\",\n        \"trans_date\": \"<dateTime>\",\n        \"user_id\": \"<string>\",\n        \"transactionReference\": \"<string>\",\n        \"bankPaymentReference\": \"<string>\",\n        \"branchCode\": \"<string>\",\n        \"transactionStatusId\": \"<string>\",\n        \"paymentMethodId\": \"<integer>\",\n        \"paymentChannelId\": \"<integer>\",\n        \"isChequeTransaction\": \"<boolean>\",\n        \"isThirdPartyCheque\": \"<boolean>\",\n        \"chequeIssuingBankCode\": \"<string>\",\n        \"chequeNumber\": \"<string>\",\n        \"chequeDate\": \"<dateTime>\",\n        \"debitAccName\": \"<string>\",\n        \"debitAccount\": \"<string>\",\n        \"depositorName\": \"<string>\",\n        \"depositorSlipNo\": \"<string>\",\n        \"postedBy\": \"<string>\",\n        \"terminalId\": \"<integer>\",\n        \"taxOfficeId\": \"<integer>\",\n        \"totalAmountPaid\": \"<double>\",\n        \"narration\": \"<string>\",\n        \"transmitted\": \"<integer>\",\n        \"debit_acct\": \"<string>\",\n        \"coll_acct\": \"<string>\",\n        \"payment_mode\": \"<integer>\",\n        \"transmit_status\": \"<string>\",\n        \"cancel_by\": \"<string>\",\n        \"cancel_date\": \"<dateTime>\",\n        \"cancel_reason\": \"<string>\",\n        \"response_date\": \"<dateTime>\",\n        \"third_party_reference\": \"<string>\",\n        \"channel\": \"<string>\",\n        \"paymentCount\": \"<string>\",\n        \"paidDate\": \"<dateTime>\",\n        \"opshdApprovedBy\": \"<string>\",\n        \"date_OPSHDApproved\": \"<dateTime>\",\n        \"cba_ref\": \"<string>\",\n        \"fcubs_verified\": \"<integer>\",\n        \"transmit_attempt\": \"<integer>\",\n        \"chequeStatus\": \"<string>\",\n        \"paymentType\": \"<string>\",\n        \"flexCubePayMode\": \"<integer>\",\n        \"authorizerId\": \"<string>\",\n        \"branchCommissionGL\": \"<string>\",\n        \"merchantAmount\": \"<double>\",\n        \"netAmount\": \"<double>\",\n        \"paymentItemPaids\": [\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          },\n          {\n            \"value\": \"<Circular reference to #/components/schemas/PaymentItemPaid detected>\"\n          }\n        ]\n      }\n    }\n  ]\n}",
+													"options": {
+														"raw": {
+															"headerFamily": "json",
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/XpressPosting/XpressTransactionPosting",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"XpressPosting",
+														"XpressTransactionPosting"
+													]
+												}
+											},
+											"status": "OK",
+											"code": 200,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "<boolean>"
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"var template = `",
+					" ",
+					"`;",
+					"",
+					"// Set visualizer",
+					"pm.visualizer.set(template, {",
+					"    // Pass the response body parsed as JSON as `data`",
+					"    response: pm.response.json()",
+					"});",
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "172.24.114.16:8050"
+		}
+	]
+}

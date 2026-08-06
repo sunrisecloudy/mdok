@@ -1,0 +1,700 @@
+{
+	"info": {
+		"_postman_id": "acf22b89-07e2-4524-9291-a6c2ddc366c3",
+		"name": "Polaris.BVNVerification",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "349554",
+		"_collection_link": "https://polarismerchant.postman.co/workspace/8d24d4ac-0f20-4fbc-ae32-502055d04bcd/collection/349554-acf22b89-07e2-4524-9291-a6c2ddc366c3?action=share&source=collection_link&creator=349554"
+	},
+	"item": [
+		{
+			"name": "BVNVerification",
+			"item": [
+				{
+					"name": "VerifySingleBVN",
+					"item": [
+						{
+							"name": "/BVNVerification/VerifySingleBVN",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test('Response status code is 200', function () {\r",
+											"    pm.response.to.have.status(200);\r",
+											"})\r",
+											"pm.test('Response fields', function(){\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.bvn).to.exist;\r",
+											"    pm.expect(responseData.fistName).to.exist;\r",
+											"    pm.expect(responseData.middleName).to.exist;\r",
+											"    pm.expect(responseData.lastName).to.exist;\r",
+											"    pm.expect(responseData.dateOfBirth).to.exist;\r",
+											"    pm.expect(responseData.phoneNumber).to.exist;\r",
+											"    pm.expect(responseData.registrationDate).to.exist;\r",
+											"    pm.expect(responseData.enrolmentBank).to.exist;\r",
+											"    pm.expect(responseData.enrolmentBranch).to.exist;\r",
+											"    pm.expect(responseData.watchListed).to.exist;\r",
+											"    pm.expect(responseData.isSuccessful).to.exist;\r",
+											"    pm.expect(responseData.responseCode).to.exist;\r",
+											"    pm.expect(responseData.responseMessage).to.exist;\r",
+											"})\r",
+											"pm.test('BVN must be a non-empty string', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.bvn).to.be.a('string').and.to.have.lengthOf.at.least(1, 'Value should not be empty');\r",
+											"})\r",
+											"pm.test('dateOfBirth is in a valid date format', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.dateOfBirth).is.not.eql(null);\r",
+											"})\r",
+											"pm.test('phoneNumber is either null or a valid phone number format', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData).to.be.an('object');\r",
+											"    pm.expect(responseData.phoneNumber).to.satisfy(function (phoneNumber) {\r",
+											"        return phoneNumber === null || /^\\+\\d{1,3}\\s?\\d{3}\\s?\\d{3}\\s?\\d{4}$/.test(phoneNumber);\r",
+											"    }, 'phoneNumber should be null or a valid phone number format');\r",
+											"})\r",
+											"pm.test('Watchlisted should be NO', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"     pm.expect(responseData.watchListed).to.have.lengthOf(2);\r",
+											"    pm.expect(responseData.watchListed).to.be.eql(\"NO\");\r",
+											" \r",
+											"})\r",
+											"\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "text/plain"
+									},
+									{
+										"key": "ClientId",
+										"value": "00212",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "7770fdf8daf1e17e7ac3526d22abebf80c8a514df368ebe219844a08ee296dc6",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"bvn\": \"22222222227\"\n}",
+									"options": {
+										"raw": {
+											"headerFamily": "json",
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/VerifySingleBVN",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"VerifySingleBVN"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"bvn\": \"<string>\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/BVNVerification/VerifySingleBVN",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"BVNVerification",
+												"VerifySingleBVN"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n  \"isSuccessful\": \"<boolean>\",\n  \"responseCode\": \"<string>\",\n  \"reasonPhrase\": \"<string>\",\n  \"responseData\": \"<string>\"\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "VerifyMultipleBVN",
+					"item": [
+						{
+							"name": "/BVNVerification/VerifyMultipleBVN",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test('Response status code is 200', function () {\r",
+											"    pm.expect(pm.response.code).to.equal(200);\r",
+											"})\r",
+											"pm.test('Validate isSuccessful field is true', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.isSuccessful).to.be.true;\r",
+											"})\r",
+											"pm.test('The responseCode field should not be empty', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.responseCode).to.exist.and.to.not.be.empty;\r",
+											"})\r",
+											"pm.test('Response message is not empty', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.responseMessage).to.exist.and.to.have.lengthOf.at.least(1, 'Value should not be empty');\r",
+											"})\r",
+											"pm.test('Validation Responses array is present in the response', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData).to.be.an('object');\r",
+											"    pm.expect(responseData.validationResponses).to.exist.and.to.be.an('array');\r",
+											"   console.log(\"Validation Responses array is present in the response  \"  + responseData.validationResponses);\r",
+											"})\r",
+											"pm.test('Validation Responses array contains the expected number of elements', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.validationResponses).to.have.lengthOf(3);\r",
+											"    console.log(\"Validation Responses array contains the expected number of elements \" + responseData.validationResponse);\r",
+											"})\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "text/plain"
+									},
+									{
+										"key": "Clientid",
+										"value": "00212",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "7770fdf8daf1e17e7ac3526d22abebf80c8a514df368ebe219844a08ee296dc6",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{ \n    \"BVNS\":\"22222222227, 22222222226,22222222235\"\n}",
+									"options": {
+										"raw": {
+											"headerFamily": "json",
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/VerifyMultipleBVN",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"VerifyMultipleBVN"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"bvns\": \"<string>\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/BVNVerification/VerifyMultipleBVN",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"BVNVerification",
+												"VerifyMultipleBVN"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n  \"isSuccessful\": \"<boolean>\",\n  \"responseCode\": \"<string>\",\n  \"reasonPhrase\": \"<string>\",\n  \"responseData\": \"<string>\"\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "GetSingleBVN",
+					"item": [
+						{
+							"name": "/BVNVerification/GetSingleBVN",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test('Response status code is 200', function () {\r",
+											"    pm.expect(pm.response.code).to.equal(200);\r",
+											"})\r",
+											"pm.test('phoneNumber1 should be in a valid format', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"     pm.expect(responseData.phoneNumber1).to.have.lengthOf(11);\r",
+											" \r",
+											"})\r",
+											"pm.test('Watchlisted should be NO', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"     pm.expect(responseData.watchListed).to.have.lengthOf(2);\r",
+											"    pm.expect(responseData.watchListed).to.be.eql(\"NO\");\r",
+											" \r",
+											"})\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "text/plain"
+									},
+									{
+										"key": "Clientid",
+										"value": "00212",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "7770fdf8daf1e17e7ac3526d22abebf80c8a514df368ebe219844a08ee296dc6",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{ \"BVN\":\"22222222227\"}",
+									"options": {
+										"raw": {
+											"headerFamily": "json",
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/GetSingleBVN",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"GetSingleBVN"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"bvn\": \"<string>\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/BVNVerification/GetSingleBVN",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"BVNVerification",
+												"GetSingleBVN"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n  \"isSuccessful\": \"<boolean>\",\n  \"responseCode\": \"<string>\",\n  \"reasonPhrase\": \"<string>\",\n  \"responseData\": \"<string>\"\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "GetMultipleBVN",
+					"item": [
+						{
+							"name": "/BVNVerification/GetMultipleBVN",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"\r",
+											"pm.test('Response status code is 200', function () {\r",
+											"    pm.expect(pm.response.code).to.equal(200);\r",
+											"})\r",
+											"pm.test('The isSuccessful field should be true', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.isSuccessful).to.be.true;\r",
+											"})\r",
+											"pm.test('Validation responses array is present and contains at least one element', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.validationResponses).to.exist.and.to.be.an('array');\r",
+											"    pm.expect(responseData.validationResponses).to.have.lengthOf.at.least(1, 'Array should contain at least one element');\r",
+											"})\r",
+											"pm.test('Response code and message should not be empty strings', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.responseCode).to.be.a('string').and.to.have.lengthOf.at.least(1, 'Value should not be empty');\r",
+											"    pm.expect(responseData.responseMessage).to.be.a('string').and.to.have.lengthOf.at.least(1, 'Value should not be empty');\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "text/plain"
+									},
+									{
+										"key": "Clientid",
+										"value": "00212",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "7770fdf8daf1e17e7ac3526d22abebf80c8a514df368ebe219844a08ee296dc6",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "\n{ \n    \"BVNS\":\"22222222227,22222222226\"\n}",
+									"options": {
+										"raw": {
+											"headerFamily": "json",
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/GetMultipleBVN",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"GetMultipleBVN"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"bvns\": \"<string>\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/BVNVerification/GetMultipleBVN",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"BVNVerification",
+												"GetMultipleBVN"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n  \"isSuccessful\": \"<boolean>\",\n  \"responseCode\": \"<string>\",\n  \"reasonPhrase\": \"<string>\",\n  \"responseData\": \"<string>\"\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "IsBVNWatchlisted",
+					"item": [
+						{
+							"name": "/BVNVerification/IsBVNWatchlisted",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test('Response status code is 200', function () {\r",
+											"    pm.expect(pm.response.code).to.equal(200);\r",
+											"})\r",
+											"pm.test('Response has the required fields', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData).to.be.an('object');\r",
+											"    pm.expect(responseData.bvn).to.exist;\r",
+											"    pm.expect(responseData.bankCode).to.exist;\r",
+											"    pm.expect(responseData.category).to.exist;\r",
+											"    pm.expect(responseData.watchListed).to.exist;\r",
+											"    pm.expect(responseData.isSuccessful).to.exist;\r",
+											"    pm.expect(responseData.responseCode).to.exist;\r",
+											"    pm.expect(responseData.responseMessage).to.exist;\r",
+											"})\r",
+											"pm.test('BVN is a non-empty string', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.bvn).to.be.a('string').and.to.have.lengthOf.at.least(1, 'BVN should not be empty');\r",
+											"})\r",
+											"pm.test('isSuccessful is a boolean value', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.isSuccessful).to.be.a('boolean');\r",
+											"})\r",
+											"pm.test('responseCode is a non-empty string', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"    pm.expect(responseData.responseCode).to.exist.and.to.be.a('string').and.to.have.lengthOf.at.least(1, 'Value should not be empty');\r",
+											"})\r",
+											"pm.test('Watchlisted should be YES', function () {\r",
+											"    const responseData = pm.response.json();\r",
+											"     pm.expect(responseData.watchListed).to.have.lengthOf(3);\r",
+											"    pm.expect(responseData.watchListed).to.be.eql(\"YES\");\r",
+											"})"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Accept",
+										"value": "text/plain"
+									},
+									{
+										"key": "Clientid",
+										"value": "00212",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "7770fdf8daf1e17e7ac3526d22abebf80c8a514df368ebe219844a08ee296dc6",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  //\"bvn\": \"22222222227\"\n  \"bvn\": \"22222330818\"\n}",
+									"options": {
+										"raw": {
+											"headerFamily": "json",
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/IsBVNWatchlisted",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"IsBVNWatchlisted"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "text/plain"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"bvn\": \"<string>\"\n}",
+											"options": {
+												"raw": {
+													"headerFamily": "json",
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/BVNVerification/IsBVNWatchlisted",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"BVNVerification",
+												"IsBVNWatchlisted"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										}
+									],
+									"cookie": [],
+									"body": "{\n  \"isSuccessful\": \"<boolean>\",\n  \"responseCode\": \"<string>\",\n  \"reasonPhrase\": \"<string>\",\n  \"responseData\": \"<string>\"\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "/BVNValidationTest"
+		}
+	]
+}

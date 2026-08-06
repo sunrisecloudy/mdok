@@ -1,0 +1,133 @@
+{
+	"info": {
+		"_postman_id": "a6cc0295-1ecc-4fab-b146-1782fa68d629",
+		"name": "Collection1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "GETRequests",
+			"item": [
+				{
+					"name": "Get User",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "67ecd050-54a7-43d8-8ea4-8e740395b2ca",
+								"exec": [
+									"\r",
+									"\r",
+									"\r",
+									"pm.environment.get(\"variable_key\");\r",
+									"pm.globals.get(\"variable_key\");\r",
+									"pm.variables.get(\"variable_key\");\r",
+									"pm.environment.set(\"variable_key\", \"variable_value\");\r",
+									"pm.globals.set(\"variable_key\", \"variable_value\");\r",
+									"pm.environment.unset(\"variable_key\");\r",
+									"pm.environment.unset(\"variable_key\");"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "3b82771f-955f-4589-bb7c-f20ce175203f",
+								"exec": [
+									"pm.test(\"Verify the Status code of GetUser API\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Verify Response time of GetUser API\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(100);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/users/2",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/users?page=2",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"users"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"protocolProfileBehavior": {}
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "340da3b6-1a0f-4ed3-8e74-b27c540f4692",
+				"type": "text/javascript",
+				"exec": [
+					"console.log(\"This is my first console message\");",
+					"",
+					"//let url1 = pm.variables.get(\"url\");",
+					"//console.log(\"Url variable defined at Collection level is: \"+ url1);",
+					"",
+					"pm.variables.set(\"url\",\"https://reqres.in\");",
+					"",
+					"let url1 = pm.variables.get(\"url\");",
+					"console.log(\"Url variable defined at Collection level is: \"+ url1);"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "6e156d62-b29f-426a-9873-b7ee28603290",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"id": "ace3a062-7583-430a-ba91-15742233d0e4",
+			"key": "url",
+			"value": ""
+		}
+	],
+	"protocolProfileBehavior": {}
+}

@@ -1,0 +1,2304 @@
+{
+	"info": {
+		"_postman_id": "018b77d9-2d65-4864-899d-ed2d6e3b4e10",
+		"name": "Stocks-API Tests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "23160130"
+	},
+	"item": [
+		{
+			"name": "Search",
+			"item": [
+				{
+					"name": "GET Search Stocks",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=BB",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"search",
+										"stocks"
+									],
+									"query": [
+										{
+											"key": "fragment",
+											"value": "BB"
+										},
+										{
+											"key": "count",
+											"value": "12",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=BB",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"search",
+												"stocks"
+											],
+											"query": [
+												{
+													"key": "fragment",
+													"value": "BB"
+												},
+												{
+													"key": "count",
+													"value": "12",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 24 Oct 2022 12:55:42 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"CurrentPrice\": 4.4,\n        \"CurrentDelta\": 0.06,\n        \"TickerSymbol\": \"BB\",\n        \"Name\": \"BlackBerry Ltd\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 1.23,\n        \"CurrentDelta\": 0.06,\n        \"TickerSymbol\": \"BBAI\",\n        \"Name\": \"BigBear.ai Holdings Inc\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 0.0586,\n        \"CurrentDelta\": -0.0014,\n        \"TickerSymbol\": \"BBAI+\",\n        \"Name\": \"BigBear.ai Holdings Inc - Warrants (08/02/2026)\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 3.13,\n        \"CurrentDelta\": 0.1372,\n        \"TickerSymbol\": \"BBAR\",\n        \"Name\": \"BBVA Argentina - ADR\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 43,\n        \"CurrentDelta\": 0.6,\n        \"TickerSymbol\": \"BBAX\",\n        \"Name\": \"J.P. Morgan Exchange-Traded Fund Trust - JPMorgan BetaBuilders Developed Asia Pacific ex-Japan ETF\",\n        \"Currency\": \"USD\",\n        \"Market\": \"BATS\"\n    },\n    {\n        \"CurrentPrice\": 4.67,\n        \"CurrentDelta\": -0.38,\n        \"TickerSymbol\": \"BBBY\",\n        \"Name\": \"Bed, Bath & Beyond Inc.\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNAS\"\n    },\n    {\n        \"CurrentPrice\": 27.41,\n        \"CurrentDelta\": 0.99,\n        \"TickerSymbol\": \"ABB\",\n        \"Name\": \"ABB Ltd. - ADR\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 147.06,\n        \"CurrentDelta\": 4.13,\n        \"TickerSymbol\": \"ABBV\",\n        \"Name\": \"Abbvie Inc\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 0.09,\n        \"CurrentDelta\": 0,\n        \"TickerSymbol\": \"AIBBR\",\n        \"Name\": \"AIB Acquisition Corp - Tradeable Rights - Dec 2026\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNAS\"\n    },\n    {\n        \"CurrentPrice\": 10.11,\n        \"CurrentDelta\": 0.01,\n        \"TickerSymbol\": \"AIBBU\",\n        \"Name\": \"AIB Acquisition Corp - Units (1 Ord Share Class A & 1 Right)\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNAS\"\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[200] Success Copy",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=BB",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"search",
+										"stocks"
+									],
+									"query": [
+										{
+											"key": "fragment",
+											"value": "BB"
+										},
+										{
+											"key": "count",
+											"value": "12",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=BB",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"search",
+												"stocks"
+											],
+											"query": [
+												{
+													"key": "fragment",
+													"value": "BB"
+												},
+												{
+													"key": "count",
+													"value": "12",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 24 Oct 2022 12:55:42 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"CurrentPrice\": 4.4,\n        \"CurrentDelta\": 0.06,\n        \"TickerSymbol\": \"BB\",\n        \"Name\": \"BlackBerry Ltd\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 1.23,\n        \"CurrentDelta\": 0.06,\n        \"TickerSymbol\": \"BBAI\",\n        \"Name\": \"BigBear.ai Holdings Inc\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 0.0586,\n        \"CurrentDelta\": -0.0014,\n        \"TickerSymbol\": \"BBAI+\",\n        \"Name\": \"BigBear.ai Holdings Inc - Warrants (08/02/2026)\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 3.13,\n        \"CurrentDelta\": 0.1372,\n        \"TickerSymbol\": \"BBAR\",\n        \"Name\": \"BBVA Argentina - ADR\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 43,\n        \"CurrentDelta\": 0.6,\n        \"TickerSymbol\": \"BBAX\",\n        \"Name\": \"J.P. Morgan Exchange-Traded Fund Trust - JPMorgan BetaBuilders Developed Asia Pacific ex-Japan ETF\",\n        \"Currency\": \"USD\",\n        \"Market\": \"BATS\"\n    },\n    {\n        \"CurrentPrice\": 4.67,\n        \"CurrentDelta\": -0.38,\n        \"TickerSymbol\": \"BBBY\",\n        \"Name\": \"Bed, Bath & Beyond Inc.\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNAS\"\n    },\n    {\n        \"CurrentPrice\": 27.41,\n        \"CurrentDelta\": 0.99,\n        \"TickerSymbol\": \"ABB\",\n        \"Name\": \"ABB Ltd. - ADR\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 147.06,\n        \"CurrentDelta\": 4.13,\n        \"TickerSymbol\": \"ABBV\",\n        \"Name\": \"Abbvie Inc\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 0.09,\n        \"CurrentDelta\": 0,\n        \"TickerSymbol\": \"AIBBR\",\n        \"Name\": \"AIB Acquisition Corp - Tradeable Rights - Dec 2026\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNAS\"\n    },\n    {\n        \"CurrentPrice\": 10.11,\n        \"CurrentDelta\": 0.01,\n        \"TickerSymbol\": \"AIBBU\",\n        \"Name\": \"AIB Acquisition Corp - Units (1 Ord Share Class A & 1 Right)\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNAS\"\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[200] Specify Count",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=BB&count=2",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"search",
+										"stocks"
+									],
+									"query": [
+										{
+											"key": "fragment",
+											"value": "BB"
+										},
+										{
+											"key": "count",
+											"value": "2"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Specify Count",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=BB&count=2",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"search",
+												"stocks"
+											],
+											"query": [
+												{
+													"key": "fragment",
+													"value": "BB"
+												},
+												{
+													"key": "count",
+													"value": "2"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 24 Oct 2022 13:06:45 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"CurrentPrice\": 4.4,\n        \"CurrentDelta\": 0.06,\n        \"TickerSymbol\": \"BB\",\n        \"Name\": \"BlackBerry Ltd\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    },\n    {\n        \"CurrentPrice\": 1.23,\n        \"CurrentDelta\": 0.06,\n        \"TickerSymbol\": \"BBAI\",\n        \"Name\": \"BigBear.ai Holdings Inc\",\n        \"Currency\": \"USD\",\n        \"Market\": \"XNYS\"\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[200] Non-existent fragment",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=1123442125",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"search",
+										"stocks"
+									],
+									"query": [
+										{
+											"key": "fragment",
+											"value": "1123442125"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Non-existent fragment",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/search/stocks?fragment=1123442125",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"search",
+												"stocks"
+											],
+											"query": [
+												{
+													"key": "fragment",
+													"value": "1123442125"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Fri, 21 Oct 2022 16:02:30 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "[]"
+								}
+							]
+						},
+						{
+							"name": "[400] Omitted fragment",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);\r",
+											"pm.collectionVariables.set(\"ExpectedErrorCode\", \"InvalidProperty\");"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/search/stocks",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"search",
+										"stocks"
+									],
+									"query": [
+										{
+											"key": "fragment",
+											"value": "<string>",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[400] Omitted fragment",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/search/stocks",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"search",
+												"stocks"
+											],
+											"query": [
+												{
+													"key": "fragment",
+													"value": "<string>",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Fri, 21 Oct 2022 16:01:12 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Errors\": [\n        {\n            \"Code\": \"InvalidProperty\",\n            \"Message\": \"A value for the 'Fragment' parameter or property was not provided.\"\n        }\n    ],\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"detail\": null,\n    \"instance\": null,\n    \"traceId\": \"0HMLJFLE2715G:00000002\"\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Reference",
+			"item": [
+				{
+					"name": "GET Ticker Symbols",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/reference/data/tickersymbols",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"reference",
+										"data",
+										"tickersymbols"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "GET Stock Information",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/reference/data/stockinformation",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"reference",
+										"data",
+										"stockinformation"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Prices",
+			"item": [
+				{
+					"name": "GET Historical Stock Prices",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/historical?tickerSymbol={{tickerSymbol}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}",
+											"description": "(Required) A market instrument ticker symbol."
+										},
+										{
+											"key": "range",
+											"value": "OneMonth",
+											"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\".",
+											"disabled": true
+										}
+									]
+								},
+								"description": "Add more description here!"
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "application/json"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/iexcloud/historicalstockprices?tickerSymbol={{tickerSymbol}}",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"iexcloud",
+												"historicalstockprices"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}",
+													"description": "(Required) A market instrument ticker symbol."
+												},
+												{
+													"key": "range",
+													"value": "OneMonth",
+													"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\".",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 05 Sep 2022 19:43:04 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"date\": \"2022-08-31T00:00:00\",\n        \"open\": 133.79,\n        \"close\": 132.27,\n        \"high\": 134.17,\n        \"low\": 131.3,\n        \"volume\": 8701117\n    },\n    {\n        \"date\": \"2022-09-01T00:00:00\",\n        \"open\": 129.98,\n        \"close\": 129.92,\n        \"high\": 130.13,\n        \"low\": 126.083,\n        \"volume\": 8716270\n    },\n    {\n        \"date\": \"2022-09-02T00:00:00\",\n        \"open\": 131.64,\n        \"close\": 128.48,\n        \"high\": 132.67,\n        \"low\": 127.56,\n        \"volume\": 6121409\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[200] Specify Range",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/historical?tickerSymbol={{tickerSymbol}}&range=FiveDay",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}",
+											"description": "(Required) A market instrument ticker symbol."
+										},
+										{
+											"key": "range",
+											"value": "FiveDay",
+											"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\"."
+										}
+									]
+								},
+								"description": "Add more description here!"
+							},
+							"response": [
+								{
+									"name": "[200] Specify Range",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "application/json"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/iexcloud/historicalstockprices?tickerSymbol={{tickerSymbol}}&range=OneMonth",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"iexcloud",
+												"historicalstockprices"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}",
+													"description": "(Required) A market instrument ticker symbol."
+												},
+												{
+													"key": "range",
+													"value": "OneMonth",
+													"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\"."
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 05 Sep 2022 19:43:31 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"date\": \"2022-08-05T00:00:00\",\n        \"open\": 148.57,\n        \"close\": 150.21,\n        \"high\": 151.283,\n        \"low\": 147.67,\n        \"volume\": 5041315\n    },\n    {\n        \"date\": \"2022-08-08T00:00:00\",\n        \"open\": 149.81,\n        \"close\": 147.81,\n        \"high\": 151.19,\n        \"low\": 146.55,\n        \"volume\": 5564307\n    },\n    {\n        \"date\": \"2022-08-09T00:00:00\",\n        \"open\": 145.59,\n        \"close\": 142.51,\n        \"high\": 146.5,\n        \"low\": 141.31,\n        \"volume\": 6770803\n    },\n    {\n        \"date\": \"2022-08-10T00:00:00\",\n        \"open\": 145.85,\n        \"close\": 146.99,\n        \"high\": 147.18,\n        \"low\": 143.69,\n        \"volume\": 6839997\n    },\n    {\n        \"date\": \"2022-08-11T00:00:00\",\n        \"open\": 148.31,\n        \"close\": 147.83,\n        \"high\": 151.64,\n        \"low\": 147.02,\n        \"volume\": 6243214\n    },\n    {\n        \"date\": \"2022-08-12T00:00:00\",\n        \"open\": 148,\n        \"close\": 151.29,\n        \"high\": 151.47,\n        \"low\": 147.18,\n        \"volume\": 4967492\n    },\n    {\n        \"date\": \"2022-08-15T00:00:00\",\n        \"open\": 150.32,\n        \"close\": 152.13,\n        \"high\": 152.7,\n        \"low\": 148.395,\n        \"volume\": 4502857\n    },\n    {\n        \"date\": \"2022-08-16T00:00:00\",\n        \"open\": 151.45,\n        \"close\": 150.03,\n        \"high\": 152.49,\n        \"low\": 148.85,\n        \"volume\": 5270822\n    },\n    {\n        \"date\": \"2022-08-17T00:00:00\",\n        \"open\": 148.23,\n        \"close\": 148.53,\n        \"high\": 149.63,\n        \"low\": 146.36,\n        \"volume\": 5169594\n    },\n    {\n        \"date\": \"2022-08-18T00:00:00\",\n        \"open\": 148.07,\n        \"close\": 151.38,\n        \"high\": 152.91,\n        \"low\": 147.76,\n        \"volume\": 7808233\n    },\n    {\n        \"date\": \"2022-08-19T00:00:00\",\n        \"open\": 149.29,\n        \"close\": 147.6,\n        \"high\": 150.38,\n        \"low\": 146.9,\n        \"volume\": 5400320\n    },\n    {\n        \"date\": \"2022-08-22T00:00:00\",\n        \"open\": 145.3,\n        \"close\": 141.61,\n        \"high\": 145.811,\n        \"low\": 141.1,\n        \"volume\": 6736816\n    },\n    {\n        \"date\": \"2022-08-23T00:00:00\",\n        \"open\": 142.09,\n        \"close\": 140.72,\n        \"high\": 143.61,\n        \"low\": 140.56,\n        \"volume\": 4499332\n    },\n    {\n        \"date\": \"2022-08-24T00:00:00\",\n        \"open\": 140.25,\n        \"close\": 141.31,\n        \"high\": 141.71,\n        \"low\": 138.61,\n        \"volume\": 5113128\n    },\n    {\n        \"date\": \"2022-08-25T00:00:00\",\n        \"open\": 142.34,\n        \"close\": 146.25,\n        \"high\": 147,\n        \"low\": 142.02,\n        \"volume\": 5618848\n    },\n    {\n        \"date\": \"2022-08-26T00:00:00\",\n        \"open\": 146.16,\n        \"close\": 138.38,\n        \"high\": 147.36,\n        \"low\": 138.05,\n        \"volume\": 7918641\n    },\n    {\n        \"date\": \"2022-08-29T00:00:00\",\n        \"open\": 137.81,\n        \"close\": 137.08,\n        \"high\": 139.13,\n        \"low\": 136.11,\n        \"volume\": 6852263\n    },\n    {\n        \"date\": \"2022-08-30T00:00:00\",\n        \"open\": 137.8,\n        \"close\": 134.41,\n        \"high\": 138.3,\n        \"low\": 132.94,\n        \"volume\": 6147355\n    },\n    {\n        \"date\": \"2022-08-31T00:00:00\",\n        \"open\": 133.79,\n        \"close\": 132.27,\n        \"high\": 134.17,\n        \"low\": 131.3,\n        \"volume\": 8701117\n    },\n    {\n        \"date\": \"2022-09-01T00:00:00\",\n        \"open\": 129.98,\n        \"close\": 129.92,\n        \"high\": 130.13,\n        \"low\": 126.083,\n        \"volume\": 8716270\n    },\n    {\n        \"date\": \"2022-09-02T00:00:00\",\n        \"open\": 131.64,\n        \"close\": 128.48,\n        \"high\": 132.67,\n        \"low\": 127.56,\n        \"volume\": 6121409\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[400] Omitted tickerSymbol",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);\r",
+											"pm.collectionVariables.set(\"ExpectedErrorCode\", \"InvalidProperty\");"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/historical",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "<string>",
+											"description": "(Required) A market instrument ticker symbol.",
+											"disabled": true
+										},
+										{
+											"key": "range",
+											"value": "<string>",
+											"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\".",
+											"disabled": true
+										}
+									]
+								},
+								"description": "Add more description here!"
+							},
+							"response": [
+								{
+									"name": "[400] Omitted tickerSymbol Default Response",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "application/json"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/iexcloud/historicalstockprices",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"iexcloud",
+												"historicalstockprices"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "<string>",
+													"description": "(Required) A market instrument ticker symbol.",
+													"disabled": true
+												},
+												{
+													"key": "range",
+													"value": "<string>",
+													"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\".",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 05 Sep 2022 19:44:16 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"traceId\": \"|c3fdc719-4b3d98473f09beef.\",\n    \"errors\": {\n        \"tickerSymbol\": [\n            \"A value for the 'tickerSymbol' parameter or property was not provided.\"\n        ]\n    }\n}"
+								},
+								{
+									"name": "[400] Omitted tickerSymbol",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "application/json"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/prices/historical",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"prices",
+												"historical"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "<string>",
+													"description": "(Required) A market instrument ticker symbol.",
+													"disabled": true
+												},
+												{
+													"key": "range",
+													"value": "<string>",
+													"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\".",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Mon, 17 Oct 2022 19:46:53 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"errors\": [\n        {\n            \"code\": \"InvalidProperty\",\n            \"message\": \"A value for the 'tickerSymbol' parameter or property was not provided.\"\n        }\n    ],\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"detail\": null,\n    \"instance\": null,\n    \"traceId\": \"0HMLGF19FLKIS:00000001\"\n}"
+								}
+							]
+						},
+						{
+							"name": "[400] Invalid tickerSymbol",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/historical?tickerSymbol=XXX",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "XXX",
+											"description": "(Required) A market instrument ticker symbol."
+										},
+										{
+											"key": "range",
+											"value": "<string>",
+											"description": "The period of time for historical prices to be returned.\nThe default is \"FiveDay\".",
+											"disabled": true
+										}
+									]
+								},
+								"description": "Add more description here!"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "GET Stock Quote",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/quote?tickerSymbol={{tickerSymbol}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"quote"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/prices/quote?tickerSymbol={{tickerSymbol}}",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"prices",
+												"quote"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Tue, 18 Oct 2022 22:46:22 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"CurrentPrice\": 111.19,\n    \"CurrentDelta\": -0.4,\n    \"TickerSymbol\": \"QCOM\",\n    \"Name\": \"Qualcomm, Inc.\",\n    \"Currency\": \"USD\",\n    \"Market\": \"XNAS\"\n}"
+								}
+							]
+						},
+						{
+							"name": "[400] Omitted tickerSymbol",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);\r",
+											"pm.collectionVariables.set(\"ExpectedErrorCode\", \"InvalidProperty\");\r",
+											"pm.collectionVariables.set(\"ExpectedErrorMessageSubstring\", \"parameter or property was not provided\");"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/quote",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"quote"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "<string>",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[400] Omitted tickerSymbol",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/prices/quote",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"prices",
+												"quote"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "<string>",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Tue, 18 Oct 2022 22:59:47 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Errors\": [\n        {\n            \"Code\": \"InvalidProperty\",\n            \"Message\": \"A value for the 'TickerSymbol' parameter or property was not provided.\"\n        }\n    ],\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"detail\": null,\n    \"instance\": null,\n    \"traceId\": \"0HMLHBFBT0FD8:00000005\"\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "GET Stock Advanced Quote",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/advancedquote?tickerSymbol={{tickerSymbol}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"advancedquote"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/prices/advancedquote?tickerSymbol={{tickerSymbol}}",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"prices",
+												"advancedquote"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Fri, 21 Oct 2022 20:01:45 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"CurrentPrice\": 115.75,\n    \"CurrentDelta\": 3.77,\n    \"OpenPrice\": 111.825,\n    \"ClosePrice\": 115.75,\n    \"HighPrice\": null,\n    \"LowPrice\": null,\n    \"Volume\": 344322,\n    \"AverageVolume\": 8301367,\n    \"PricePerEarningsRatio\": 10.26,\n    \"MarketCap\": 129987250000,\n    \"FiftyTwoWeekHigh\": 190.7,\n    \"FiftyTwoWeekLow\": 104.66,\n    \"Yield\": null,\n    \"Beta\": null,\n    \"EarningsPerShare\": null,\n    \"TickerSymbol\": \"QCOM\",\n    \"Name\": \"Qualcomm, Inc.\",\n    \"Currency\": \"USD\",\n    \"Market\": \"XNAS\"\n}"
+								}
+							]
+						},
+						{
+							"name": "[400] Omitted tickerSymbol",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);\r",
+											"pm.collectionVariables.set(\"ExpectedErrorCode\", \"InvalidProperty\");\r",
+											"pm.collectionVariables.set(\"ExpectedErrorMessageSubstring\", \"parameter or property was not provided\");"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/prices/advancedquote",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"prices",
+										"advancedquote"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "<string>",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[400] Omitted tickerSymbol",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/prices/advancedquote",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"prices",
+												"advancedquote"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "<string>",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Tue, 18 Oct 2022 23:00:29 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Errors\": [\n        {\n            \"Code\": \"InvalidProperty\",\n            \"Message\": \"A value for the 'TickerSymbol' parameter or property was not provided.\"\n        }\n    ],\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"detail\": null,\n    \"instance\": null,\n    \"traceId\": \"0HMLHBFBT0FD8:00000006\"\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "API Documentation",
+			"item": [
+				{
+					"name": "GET OpenAPI Specification",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/openapi/v1/openapi.json",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"openapi",
+								"v1",
+								"openapi.json"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET Redoc",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/redoc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"redoc"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Status",
+			"item": [
+				{
+					"name": "GET Market Status",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/status/markets?tickerSymbol={{tickerSymbol}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"status",
+										"markets"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/status/markets?tickerSymbol={{tickerSymbol}}",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"status",
+												"markets"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Tue, 18 Oct 2022 21:09:00 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Name\": \"Nasdaq All Markets\",\n    \"Status\": \"Closed\"\n}"
+								}
+							]
+						},
+						{
+							"name": "[400] Omitted tickerSymbol",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);\r",
+											"pm.collectionVariables.set(\"ExpectedErrorCode\", \"InvalidProperty\");"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/status/markets",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"status",
+										"markets"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "<string>",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[400] Omitted tickerSymbol",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/status/markets",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"status",
+												"markets"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "<string>",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Tue, 18 Oct 2022 23:03:37 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Errors\": [\n        {\n            \"Code\": \"InvalidProperty\",\n            \"Message\": \"A value for the 'TickerSymbol' parameter or property was not provided.\"\n        }\n    ],\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"detail\": null,\n    \"instance\": null,\n    \"traceId\": \"0HMLHBFBT0FD8:0000000F\"\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "News",
+			"item": [
+				{
+					"name": "GET Historical News",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/news/historical?tickerSymbol={{tickerSymbol}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"news",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/news/historical?tickerSymbol={{tickerSymbol}}",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"news",
+												"historical"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Sat, 29 Oct 2022 23:06:26 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"HeadLine\": \"Qualcomm, AMD among chips stocks rising along with Intel''s gains\",\n        \"Summary\": \"Qualcomm and Advanced Micro Devices shares headed toward ending the week with strong gains as chipmakers rose in the wake of a strong market performance from…\",\n        \"Source\": \"Seeking Alpha\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/1gA3d3yaKGY4eDMCnIFm7ubJr14F5AtmkIqehIda2qD1\",\n        \"TimeStamp\": \"2022-10-28T17:58:49\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\",\n            \"AMD\",\n            \"INTC\",\n            \"INCO-BB\"\n        ]\n    },\n    {\n        \"HeadLine\": \"Investors’ Faith in QUALCOMM Incorporated (QCOM) could reap rewards if they hold on for the long haul\",\n        \"Summary\": \"In the current trading session, QUALCOMM Incorporated’s (QCOM) stock is trading at the price of $117.02, a gain of 2.02% over last night’s close. So, the stock is trading at a price that is -39.55% less than its 52-week high of $193.58 and 11.81% better than its 52-week low of $104.66. Based on the past […]\",\n        \"Source\": \"US Post News\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/3jUbHH92Vg6YwhxsEhhAvZTD1HjmzB7KcQbZ59dtYq53\",\n        \"TimeStamp\": \"2022-10-28T16:40:00\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\"\n        ]\n    },\n    {\n        \"HeadLine\": \"US Earnings to Watch: Pfizer, Qualcomm, CVS, Peloton, Coinbase, Uber - BNN Bloomberg\",\n        \"Summary\": \"Disappointing earnings from tech giants this week exposed their vulnerability to a slowing economy: Alphabet and Meta Platforms were battered by softness in digital advertising, echoing a similar trend seen by Apple on Thursday when the iPhone maker warned of an upcoming holiday slowdown. The strong US dollar also hurt Microsoft, 3M and McDonald’s, whereas Kraft-Heinz was spared, raising hopes for a similarly small currency impact next week for peer Hershey. Meanwhile, Exxon and Chevron smashed\",\n        \"Source\": \"BNN Bloomberg\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/1PeUScLSLJPXDLck4Ik5mN2NEujo12KCkGamGAui8IkL\",\n        \"TimeStamp\": \"2022-10-28T15:16:48\",\n        \"RelatedTickerSymbols\": [\n            \"AAPL\",\n            \"MSFT\",\n            \"MSF-GD\",\n            \"MSF-GS\",\n            \"MSF-GH\",\n            \"MSF-GM\",\n            \"MSF-GF\",\n            \"MSF-GB\",\n            \"MSF-GY\",\n            \"MSF-GI\",\n            \"CVX\",\n            \"MMM\",\n            \"QCOM\",\n            \"HSY\",\n            \"GOOG\",\n            \"GOOGL\",\n            \"COIN\",\n            \"XOM\",\n            \"UBER\",\n            \"UT8-GD\",\n            \"UT8-GS\",\n            \"UT8-GH\",\n            \"UT8-GM\",\n            \"UT8-GF\",\n            \"UT8-GB\",\n            \"UT8-GY\",\n            \"UT8-GI\",\n            \"MCD\",\n            \"CVS\",\n            \"PFE\",\n            \"META\"\n        ]\n    },\n    {\n        \"HeadLine\": \"Management - Here''s How Qualcomm Stock Has Managed To Double Market Returns Since 2018\",\n        \"Summary\": \"However, due to the increased economic uncertainty weighing on the broader markets and ongoing supply chain concerns, the P/S multiple has pulled back, currently standing at…\",\n        \"Source\": \"Business Mag\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/3aC5PtWGn9iYw2z3eiTvvkXrAG9ue2Z6jc8jh7ABtL1h\",\n        \"TimeStamp\": \"2022-10-28T12:05:05\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\"\n        ]\n    },\n    {\n        \"HeadLine\": \"The Semiconductor Shortage Just Quickly Became An Inventory Glut\",\n        \"Summary\": \"The Semiconductor Shortage Just Quickly Became An Inventory Glut The global semiconductor shortage appears to have officially \\\"bullwhipped\\\" its way the other direction and, as such, as become a glut. Yes, you read that right , there is now reportedly a glut of semiconductors at top manufacturers, according to a new report by Caixin . Names like Taiwan Semiconductor Manufacturing Co (TSMC), Advanced Micro Devices Inc (AMD) and Nvidia are now dealing with \\\"unsold stockpiles\\\" of inventory as a result of shrinking demand and cancelled orders, the report says. This means that the years-long hold up for chips looks like it has officially come to an end. Xie Ruifeng from semiconductor industry market research institute ICwise told Caixin: “This round of business sentiment is reversing so fast that chip designers were struggling to find production capacity only last year, but now they find chips won’t sell.” Meanwhile, smartphone and PC demand is shrinking, with global 5G smartphone shipments expected to fall by 150 million units in 2022, the report says.\",\n        \"Source\": \"Zero Hedge\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/1pEdmDyqbf1rnvKmagjNn4PQ36FxwtzVW7NNp23TbGIe\",\n        \"TimeStamp\": \"2022-10-28T09:45:00\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\",\n            \"MU\",\n            \"NVDA\",\n            \"NVD-GD\",\n            \"NVD-GS\",\n            \"NVD-GH\",\n            \"NVD-GM\",\n            \"NVD-GF\",\n            \"NVD-GB\",\n            \"NVD-GY\",\n            \"NVD-GI\",\n            \"AMD\",\n            \"SMI\",\n            \"MDTKF\",\n            \"2454-TT\",\n            \"INTC\",\n            \"INCO-BB\",\n            \"TSM\",\n            \"2330-TT\"\n        ]\n    },\n    {\n        \"HeadLine\": \"BOURGEON CAPITAL MANAGEMENT LLC Buys 3, Sells 2 in 3rd Quarter\",\n        \"Summary\": \"Related Stocks: GTLS , TER , QCOM , RTX , SLB ,\",\n        \"Source\": \"GuruFocus\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/MDpfzifCpgofjJYm6i2tiA1AjodGngv4srr3pqKrN38\",\n        \"TimeStamp\": \"2022-10-28T03:00:04\",\n        \"RelatedTickerSymbols\": [\n            \"SLB\",\n            \"SLB-FP\",\n            \"QCOM\",\n            \"RTX\",\n            \"GTLS\",\n            \"I3N-GD\",\n            \"I3N-GS\",\n            \"I3N-GM\",\n            \"I3N-GF\",\n            \"I3N-GB\"\n        ]\n    },\n    {\n        \"HeadLine\": \"Announcing the Winner of the TaroWorks Enterprise Grant\",\n        \"Summary\": \"NORTHAMPTON, MA / ACCESSWIRE / October 26, 2022 / Qualcomm In partnership with Qualcomm through its Qualcomm® Wireless Reach™ initiative , TaroWorks will award $20,000 to We Care Solar to streamline their inventory management, incident and maintenance tracking, and their monitoring & evaluation. This will give the organization more time to support activities that will directly contribute to the success of their scaling plan, allowing We Care Solar to reach more health facilities in under-resourced communities. Continue reading here View additional multimedia and more ESG storytelling from Qualcomm on 3blmedia.com. Contact Info: Spokesperson: Qualcomm Website: https://www.qualcomm.com/company/sustainability Email: info@3blmedia.com SOURCE: Qualcomm\",\n        \"Source\": \"Accesswire\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/p0ctdz0vQ19WyroADYHzF29LxPhi0nozEfZ1HEuuGWg\",\n        \"TimeStamp\": \"2022-10-26T20:00:00\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\"\n        ]\n    },\n    {\n        \"HeadLine\": \"QUALCOMM Incorporated (NASDAQ: QCOM) Stock Forecast: By 2022, Bulls Expect $250.00 Per Share\",\n        \"Summary\": \"In today’s recent session, 2.27 million shares of the QUALCOMM Incorporated (NASDAQ:QCOM) have been traded, and its beta is 1.28. Most recently the company’s share price was $119.84, and it changed around $0.67 or 0.56% from the last close, which brings the market valuation of the company to $129.48B. QCOM at last check was trading … QUALCOMM Incorporated (NASDAQ: QCOM) Stock Forecast: By 2022, Bulls Expect $250.00 Per Share Read More »\",\n        \"Source\": \"Marketing Sentinel\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/1JdmZBGBTISs95MRhefyvdzhkphJRIHwnpuH5ZQj4CB7\",\n        \"TimeStamp\": \"2022-10-26T18:00:00\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\"\n        ]\n    },\n    {\n        \"HeadLine\": \"Qualcomm and Vodafone Partnering to Develop and Test Next-Generation 5G Open RAN Infrastructure\",\n        \"Summary\": \"Highlights: - - - • The 5G Open RAN Infrastructure solutions will be powered by the Qualcomm® X100 5G RAN Accelerator Card and high-performance Massive MIMO Qualcomm® QRU100 5G RAN Platform - • New 5G Open RAN Infrastructure solutions to be unveiled during Mobile World Congress Barcelona 2023 - - - Qualcomm Technologies, Inc. and Vodafone have a strong, longstanding relationship driving mobile communications innovations in Europe and today the companies announce the next step in that co… Read the full story at https://www.webwire.com/ViewPressRel.asp?aId=295902\",\n        \"Source\": \"WebWire\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/2bmRYYtzMDZoVHPR7cFfeMTxUrpBFQDXIUNz31Gde74g\",\n        \"TimeStamp\": \"2022-10-26T14:13:54\",\n        \"RelatedTickerSymbols\": [\n            \"VOD-LN\",\n            \"VOD\",\n            \"QCOM\"\n        ]\n    },\n    {\n        \"HeadLine\": \"The Smartest Buy In Big Tech: Qualcomm’s Positive Value And Growth Setup (NASDAQ:QCOM)\",\n        \"Summary\": \"Qualcomm''s recent strong growth performance may continue. Click here to find out why QCOM is a Strong Buy currently.\",\n        \"Source\": \"Seeking Alpha\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/2nSIRrykpzyXe2oEasKtJbhTEtRfJGHTvoR0ZNkiR5di\",\n        \"TimeStamp\": \"2022-10-25T17:05:03\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\"\n        ]\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[200] Specify Range",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/news/historical?tickerSymbol={{tickerSymbol}}&range=Today",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"news",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}"
+										},
+										{
+											"key": "range",
+											"value": "Today"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "[200] Specify Count",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/news/historical?tickerSymbol={{tickerSymbol}}&count=2",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"news",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}"
+										},
+										{
+											"key": "range",
+											"value": "Today",
+											"disabled": true
+										},
+										{
+											"key": "count",
+											"value": "2"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Specify Count",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/news/historical?tickerSymbol={{tickerSymbol}}&count=2",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"news",
+												"historical"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}"
+												},
+												{
+													"key": "range",
+													"value": "Today",
+													"disabled": true
+												},
+												{
+													"key": "count",
+													"value": "2"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Sat, 29 Oct 2022 23:22:37 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "[\n    {\n        \"HeadLine\": \"Qualcomm, AMD among chips stocks rising along with Intel''s gains\",\n        \"Source\": \"Seeking Alpha\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/1gA3d3yaKGY4eDMCnIFm7ubJr14F5AtmkIqehIda2qD1\",\n        \"TimeStamp\": \"2022-10-28T17:58:49\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\",\n            \"AMD\",\n            \"INTC\",\n            \"INCO-BB\"\n        ]\n    },\n    {\n        \"HeadLine\": \"Investors’ Faith in QUALCOMM Incorporated (QCOM) could reap rewards if they hold on for the long haul\",\n        \"Source\": \"US Post News\",\n        \"Url\": \"https://cloud.iexapis.com/v1/news/article/3jUbHH92Vg6YwhxsEhhAvZTD1HjmzB7KcQbZ59dtYq53\",\n        \"TimeStamp\": \"2022-10-28T16:40:00\",\n        \"RelatedTickerSymbols\": [\n            \"QCOM\"\n        ]\n    }\n]"
+								}
+							]
+						},
+						{
+							"name": "[400] Omitted tickerSymbol",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 400);\r",
+											"pm.collectionVariables.set(\"ExpectedErrorCode\", \"InvalidProperty\");"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/news/historical",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"news",
+										"historical"
+									],
+									"query": [
+										{
+											"key": "tickerSymbol",
+											"value": "{{tickerSymbol}}",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[400] Omitted tickerSymbol",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/news/historical",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"news",
+												"historical"
+											],
+											"query": [
+												{
+													"key": "tickerSymbol",
+													"value": "{{tickerSymbol}}",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Sat, 29 Oct 2022 23:24:02 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/problem+json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Errors\": [\n        {\n            \"Code\": \"InvalidProperty\",\n            \"Message\": \"A value for the 'TickerSymbol' parameter or property was not provided.\"\n        }\n    ],\n    \"type\": \"https://tools.ietf.org/html/rfc7231#section-6.5.1\",\n    \"title\": \"One or more validation errors occurred.\",\n    \"status\": 400,\n    \"detail\": null,\n    \"instance\": null,\n    \"traceId\": \"0HMLQ0FRUKSRQ:00000004\"\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Infrastructure",
+			"item": [
+				{
+					"name": "Ping",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/ping",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"ping"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/ping",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"ping"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "plain",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Wed, 30 Nov 2022 13:07:34 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "text/plain; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "Hello from Stocks-API!"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "Usage",
+					"item": [
+						{
+							"name": "[200] Success",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											"pm.collectionVariables.set(\"ExpectedStatusCode\", 200);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/gateway/infrastructure/usage",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"gateway",
+										"infrastructure",
+										"usage"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "[200] Success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{baseUrl}}/api/gateway/infrastructure/usage",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"gateway",
+												"infrastructure",
+												"usage"
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Date",
+											"value": "Wed, 30 Nov 2022 13:07:27 GMT"
+										},
+										{
+											"key": "Content-Type",
+											"value": "application/json; charset=utf-8"
+										},
+										{
+											"key": "Server",
+											"value": "Kestrel"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Access-Control-Allow-Credentials",
+											"value": "true"
+										},
+										{
+											"key": "Access-Control-Allow-Origin",
+											"value": "http://localhost:3000"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"Available\": true,\n    \"AmountUsed\": 2,\n    \"AmountRemaining\": 49998\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"console.log(\"Collection Pre-Request Script | START\");",
+					"",
+					"// SET ENVIRONMENT VARIABLES",
+					"var moment = require('moment'); // i.e. this moment",
+					"pm.environment.set(\"todaysDate\", moment().format((\"YYYY-MM-DD\")));",
+					"pm.environment.set(\"weekToDate\", moment().add(7, 'days').format((\"YYYY-MM-DD\")));",
+					"pm.environment.set(\"monthToDate\", moment().add(1, 'months').format((\"YYYY-MM-DD\")));",
+					"pm.environment.set(\"yearToDate\", moment().add(1, 'years').format((\"YYYY-MM-DD\")));",
+					"",
+					"// SET COLLECTION VARIABLES",
+					"pm.collectionVariables.set(\"ExpectedStatusCode\", \"<not-specified>\");",
+					"pm.collectionVariables.set(\"ExpectedErrorCode\", \"<not-specified>\");",
+					"pm.collectionVariables.set(\"ExpectedErrorMessageSubstring\", \"<not-specified>\");",
+					"",
+					"//SET DEFAULT HEADERS",
+					"const headerNames = [\"Origin\"];",
+					"",
+					"headerNames.forEach(headerName => {",
+					"    var headerEnvironmentValue = pm.environment.get(headerName);",
+					"    pm.request.headers.upsert({key: headerName, value: headerEnvironmentValue});",
+					"    console.log(`Set ${headerName} : ${headerEnvironmentValue}`);",
+					"});",
+					"",
+					"console.log(\"Collection Pre-Request Script | END\");"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"console.log(\"Collection Tests Script | START\");",
+					"",
+					"// 1 - Check status code is not 500",
+					"pm.test(\"Status code is not 500\", () => {",
+					"    pm.response.to.not.have.status(500);",
+					"});",
+					"",
+					"// 2 - Check status code matches expected",
+					"var expectedStatusCode = pm.collectionVariables.get(\"ExpectedStatusCode\");",
+					"pm.test(`Status code is \"${expectedStatusCode}\"`, () => {",
+					"    pm.expect(pm.response.code).to.eql(expectedStatusCode);",
+					"});",
+					"",
+					"// 3 - Check response body is not empty",
+					"if (pm.response.code != 204 && pm.response.code != 500)",
+					"{",
+					"    pm.test(\"Response is not empty\", () => {",
+					"        pm.expect(pm.response).to.not.be.empty;",
+					"    });",
+					"}",
+					"",
+					"// 4 - Check error response body contains error information and error code matches expected.",
+					"// Optionally check the error message contains a specified substring.",
+					"if (pm.response.code != 200 && pm.response.code != 204)",
+					"{",
+					"    pm.test(\"Error response contains error information\", () => {",
+					"        pm.expect(pm.response.json().Errors).to.not.be.null;",
+					"        pm.expect(pm.response.json().Errors).to.not.be.empty;",
+					"    });",
+					"",
+					"    var expectedErrorCode = pm.collectionVariables.get(\"ExpectedErrorCode\");",
+					"    pm.test(`Error response code is \"${expectedErrorCode}\"`, () => {",
+					"        pm.expect(pm.response.json().Errors[0].Code).to.eql(expectedErrorCode)",
+					"    });",
+					"",
+					"    var expectedErrorMessageSubstring = pm.collectionVariables.get(\"ExpectedErrorMessageSubstring\");",
+					"    if (expectedErrorMessageSubstring != \"<not-specified>\")",
+					"    {",
+					"        pm.test(`Error response message contains \"${expectedErrorMessageSubstring}\"`, () => {",
+					"            pm.expect(pm.response.json().Errors[0].Message).to.contain(expectedErrorMessageSubstring)",
+					"        });",
+					"    }",
+					"}",
+					"",
+					"console.log(\"Collection Tests Script | END\");"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "ExpectedStatusCode",
+			"value": "<not-specified>"
+		},
+		{
+			"key": "ExpectedErrorCode",
+			"value": "<not-specified>"
+		},
+		{
+			"key": "ExpectedErrorMessageSubstring",
+			"value": "<not-specified>"
+		}
+	]
+}

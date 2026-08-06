@@ -1,0 +1,651 @@
+{
+	"info": {
+		"_postman_id": "30841433-d1952c39-06ff-4a02-b193-67c6160ec492",
+		"name": "Phoenix",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Inwarranty Flow",
+			"item": [
+				{
+					"name": "Failed Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "4bd0d3fd-1a39-4424-9fa1-687864480c46",
+								"exec": [
+									"var responseBody=pm.response.json()\r",
+									"\r",
+									"pm.test(\"Verify message Invalid username or password\",function ()\r",
+									"{\r",
+									"    pm.expect(responseBody.message).to.be.equals(\"Invalid username or password\");\r",
+									"\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Status code is 500\", function () {\r",
+									"    pm.response.to.have.status(500);\r",
+									"});\r",
+									"\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "549a8fd2-8b4e-4bad-a394-ba823e89cf7a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"id": "30841433-b62ab091-4636-45a3-8637-a95c1bc061c8",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json, text/plain, */*"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "en,en-US;q=0.9,sv;q=0.8"
+							},
+							{
+								"key": "Connection",
+								"value": "keep-alive"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Origin",
+								"value": "http://phoenix.techwithjatin.com"
+							},
+							{
+								"key": "Referer",
+								"value": "http://phoenix.techwithjatin.com/"
+							},
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\": \"iamfrrrd\",\r\n    \"password\": \"password\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}v1/login",
+							"host": [
+								"{{BASE_URL}}v1"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "FDLogin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "4bd0d3fd-1a39-4424-9fa1-687864480c46",
+								"exec": [
+									"var responseBody=pm.response.json()\r",
+									"\r",
+									"pm.test(\"Verify Token is Created\",function ()\r",
+									"{\r",
+									"    pm.expect(responseBody.data.token).to.be.exist;\r",
+									"    pm.collectionVariables.set(\"fdtoken\",responseBody.data.token)\r",
+									"\r",
+									"});\r",
+									"pm.test(\" Verify Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(500);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "549a8fd2-8b4e-4bad-a394-ba823e89cf7a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"id": "30841433-465f4a98-dffd-4165-9b55-f80d56b06392",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json, text/plain, */*"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "en,en-US;q=0.9,sv;q=0.8"
+							},
+							{
+								"key": "Connection",
+								"value": "keep-alive"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Origin",
+								"value": "http://phoenix.techwithjatin.com"
+							},
+							{
+								"key": "Referer",
+								"value": "http://phoenix.techwithjatin.com/"
+							},
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\": \"iamfd\",\r\n    \"password\": \"password\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}v1/login",
+							"host": [
+								"{{BASE_URL}}v1"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "FDUserDetails",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "a8fee199-94a1-4b5b-91fa-dd4b84f3e9a2",
+								"exec": [
+									"var responseBody=pm.response.json()\r",
+									"pm.test(\"Verify role_name is Frontdesk\",function ()\r",
+									"{\r",
+									"    pm.expect(responseBody.data.role_name).to.be.equals(\"FrontDesk\");\r",
+									"   \r",
+									"\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"id": "30841433-18a971f7-2f80-48cf-9d8e-6d643c07a521",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json, text/plain, */*"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "en,en-US;q=0.9,sv;q=0.8"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{fdtoken}}"
+							},
+							{
+								"key": "Connection",
+								"value": "keep-alive"
+							},
+							{
+								"key": "If-None-Match",
+								"value": "W/\"1b6-cR2dclq1S8zJDBAsHCDA10lTBi4\""
+							},
+							{
+								"key": "Origin",
+								"value": "http://phoenix.techwithjatin.com"
+							},
+							{
+								"key": "Referer",
+								"value": "http://phoenix.techwithjatin.com/"
+							},
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}v1/userdetails",
+							"host": [
+								"{{BASE_URL}}v1"
+							],
+							"path": [
+								"userdetails"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CreateJob",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "cde0ed1f-10d8-40b5-97f8-e3b0f575f0b2",
+								"exec": [
+									"var num = Math.random();\r",
+									"var imei = Math.floor((num * 9 + 1) * 10000000000000); // Guarantees 14 digits\r",
+									"console.log(imei);\r",
+									"pm.collectionVariables.set(\"imei\", imei);\r",
+									"\r",
+									"const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;\r",
+									"const getRandomString = (length) => Math.random().toString(36).substring(2, 2 + length);\r",
+									"\r",
+									"const firstName = getRandomString(5);\r",
+									"const lastName = getRandomString(5);\r",
+									"const mobileNumber = getRandomInt(1000000000, 9999999999).toString();\r",
+									"const emailId = `${firstName}.${lastName}@example.com`;\r",
+									"const emailIdAlt = `${lastName}.${firstName}@example.com`;\r",
+									"\r",
+									"// Generate random values for Indian address\r",
+									"const flatNumber = getRandomString(2);\r",
+									"const apartmentName = getRandomInt(1, 100).toString();\r",
+									"const streetName = `Street ${getRandomInt(1, 100)}`;\r",
+									"const landmark = `Landmark ${getRandomString(3)}`;\r",
+									"const area = `Area ${getRandomInt(1, 100)}`;\r",
+									"const pincode = getRandomInt(100000, 999999).toString();\r",
+									"const country = \"India\";\r",
+									"const state = `State ${getRandomInt(1, 29)}`;\r",
+									"\r",
+									"// Generate random values for product and remarks\r",
+									"const dop = new Date(Date.now() + getRandomInt(1, 365) * 24 * 60 * 60 * 1000).toISOString();\r",
+									"const remark = `Remark ${getRandomString(5)}`;\r",
+									"\r",
+									"// Set dynamic variables in Postman\r",
+									"pm.variables.set('first_name', firstName);\r",
+									"pm.variables.set('last_name', lastName);\r",
+									"pm.variables.set('mobile_number', mobileNumber);\r",
+									"pm.variables.set('email_id', emailId);\r",
+									"pm.variables.set('email_id_alt', emailIdAlt);\r",
+									"pm.variables.set('flat_number', flatNumber);\r",
+									"pm.variables.set('apartment_name', apartmentName);\r",
+									"pm.variables.set('street_name', streetName);\r",
+									"pm.variables.set('landmark', landmark);\r",
+									"pm.variables.set('area', area);\r",
+									"pm.variables.set('pincode', pincode);\r",
+									"pm.variables.set('country', country);\r",
+									"pm.variables.set('state', state);\r",
+									"pm.variables.set('dop', dop);\r",
+									"pm.variables.set('remark', remark);\r",
+									"\r",
+									"console.log(`Random values generated:\\nFirst Name: ${firstName}\\nLast Name: ${lastName}\\nMobile: ${mobileNumber}\\nEmail: ${emailId}\\nAlt Email: ${emailIdAlt}\\nAddress: ${flatNumber}, ${apartmentName}, ${streetName}, ${landmark}, ${area}, ${pincode}, ${country}, ${state}\\nDOP: ${dop}\\nRemark: ${remark}`);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "e3df0715-eb2f-4327-9421-bded391f9eb8",
+								"exec": [
+									"var responseBody=pm.response.json()\r",
+									"pm.collectionVariables.set(\"jobid\",responseBody.data.id)\r",
+									"\r",
+									"pm.test(\"Verify message Job created successfully\",function ()\r",
+									"{\r",
+									"    pm.expect(responseBody.message).to.be.equals(\"Job created successfully\");\r",
+									"\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"id": "30841433-112284db-6955-425d-94c0-a24777783288",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json, text/plain, */*"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "en,en-US;q=0.9,sv;q=0.8"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{fdtoken}}"
+							},
+							{
+								"key": "Connection",
+								"value": "keep-alive"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Origin",
+								"value": "http://phoenix.techwithjatin.com"
+							},
+							{
+								"key": "Referer",
+								"value": "http://phoenix.techwithjatin.com/"
+							},
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"mst_service_location_id\": 0,\r\n    \"mst_platform_id\": 2,\r\n    \"mst_warrenty_status_id\": 1,\r\n    \"mst_oem_id\": 2,\r\n    \"customer\": {\r\n        \"first_name\": \"{{first_name}}\",\r\n        \"last_name\": \"{{last_name}}\",\r\n        \"mobile_number\": \"{{mobile_number}}\",\r\n        \"mobile_number_alt\": \"\",\r\n        \"email_id\": \"{{email_id}}\",\r\n        \"email_id_alt\": \"{{email_id_alt}}\"\r\n    },\r\n    \"customer_address\": {\r\n        \"flat_number\": \"{{flat_number}}\",\r\n        \"apartment_name\": \"{{apartment_name}}\",\r\n        \"street_name\": \"{{street_name}}\",\r\n        \"landmark\": \"{{landmark}}\",\r\n        \"area\": \"{{area}}\",\r\n        \"pincode\": \"{{pincode}}\",\r\n        \"country\": \"{{country}}\",\r\n        \"state\": \"{{state}}\"\r\n    },\r\n    \"customer_product\": {\r\n        \"dop\": \"{{dop}}\",\r\n        \"serial_number\": \"{{imei}}\",\r\n        \"imei1\": \"{{imei}}\",\r\n        \"imei2\": \"{{imei}}\",\r\n        \"popurl\": \"{{dop}}\",\r\n        \"product_id\": 3,\r\n        \"mst_model_id\": 3\r\n    },\r\n    \"problems\": [\r\n        {\r\n            \"id\": 2,\r\n            \"remark\": \"{{remark}}\"\r\n        }\r\n    ]\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}v1/job/create",
+							"host": [
+								"{{BASE_URL}}v1"
+							],
+							"path": [
+								"job",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "SUPLogin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "848547ee-5b30-4e7c-bd57-8388ff6cd29b",
+								"exec": [
+									"var responseBody=pm.response.json()\r",
+									"\r",
+									"pm.test(\"Verify Token is Created\",function ()\r",
+									"{\r",
+									"    pm.expect(responseBody.data.token).to.be.exist;\r",
+									"    pm.collectionVariables.set(\"suptoken\",responseBody.data.token)\r",
+									"\r",
+									"});\r",
+									"pm.test(\" Verify Response time is less than 200ms\", function () {\r",
+									"    pm.expect(pm.response.responseTime).to.be.below(500);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"id": "30841433-35506f28-2e20-4983-8fc1-d48ab9e7be3d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json, text/plain, */*"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "en,en-US;q=0.9,sv;q=0.8"
+							},
+							{
+								"key": "Connection",
+								"value": "keep-alive"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Origin",
+								"value": "http://phoenix.techwithjatin.com"
+							},
+							{
+								"key": "Referer",
+								"value": "http://phoenix.techwithjatin.com/"
+							},
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\": \"iamsup\",\r\n    \"password\": \"password\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}v1/login",
+							"host": [
+								"{{BASE_URL}}v1"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Engineer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "6534e57c-c439-4c32-98bc-8d20efb59c26",
+								"exec": [
+									"var responseBody=pm.response.json()\r",
+									"pm.collectionVariables.set(\"jobid\",responseBody.data.id)\r",
+									"\r",
+									"pm.test(\"Verify message Engineer assigned successfully\",function ()\r",
+									"{\r",
+									"    pm.expect(responseBody.message).to.be.equals(\"Engineer assigned successfully\");\r",
+									"\r",
+									"});\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"id": "30841433-21527678-068d-421e-a93b-7b9fb5a4fcb0",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json, text/plain, */*"
+							},
+							{
+								"key": "Accept-Language",
+								"value": "en,en-US;q=0.9,sv;q=0.8"
+							},
+							{
+								"key": "Authorization",
+								"value": "{{suptoken}}"
+							},
+							{
+								"key": "Connection",
+								"value": "keep-alive"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Origin",
+								"value": "http://phoenix.techwithjatin.com"
+							},
+							{
+								"key": "Referer",
+								"value": "http://phoenix.techwithjatin.com/"
+							},
+							{
+								"key": "User-Agent",
+								"value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"job_id\": {{jobid}},\r\n    \"engineer_id\": 17\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}v1/engineer/assign",
+							"host": [
+								"{{BASE_URL}}v1"
+							],
+							"path": [
+								"engineer",
+								"assign"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "30841433-f99ec654-534c-4dfd-99ed-44b94ff7f2fd"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "9465f94a-a0cd-4212-b178-14e9b3804dcf",
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "51bfa30e-5251-42d1-b4af-c5c06859682a",
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "imei",
+			"value": ""
+		},
+		{
+			"key": "suptoken",
+			"value": ""
+		},
+		{
+			"key": "fdtoken",
+			"value": ""
+		},
+		{
+			"key": "jobid",
+			"value": ""
+		}
+	]
+}

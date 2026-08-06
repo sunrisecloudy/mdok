@@ -1,0 +1,273 @@
+{
+	"info": {
+		"_postman_id": "ba85c25a-b0cc-4dcb-9734-1776b871ec9a",
+		"name": "NewManCollection",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Agent Login Test",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"id": "f46213b1-cd53-44c9-bcac-f316c11a39d5",
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"id": "0515aa61-249c-42d6-b456-e02d22224ce3",
+						"exec": [
+							"var jsonData = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"access_token\", jsonData.content.access_token);",
+							"postman.setEnvironmentVariable(\"CCLogin\", jsonData.content.ccLogin);",
+							"",
+							"// -------------------------------> Test bigins here.. ",
+							"",
+							"// example using pm.response.to.have",
+							"pm.test(\"response code is ok\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"// example using pm.expect()",
+							"pm.test(\"CC Login Should be 0001\", function () {",
+							"    pm.expect(pm.environment.get(\"CCLogin\")).to.equal(\"0001\");",
+							"});",
+							"",
+							" // assert that the status code is 200",
+							" pm.test(\"response should be okay to process\", function () {",
+							"     pm.response.to.be.ok; // info, success, redirection, clientError,  serverError, are other variants",
+							"     // assert that the response has a valid JSON body",
+							"     pm.response.to.be.withBody;",
+							" });",
+							" ",
+							" // Genaric content matching ",
+							" pm.test(\"Body matches string\", function () {",
+							"    pm.expect(pm.response.text()).to.include(\"loadagent1@mailinator.com\");",
+							"});",
+							" ",
+							" // example using response assertions",
+							" pm.test(\"Check response value Status of the Agent should be active\", function () {",
+							"      var jsonData = pm.response.json();",
+							"      pm.expect(jsonData.content.status).to.eql(\"active\");",
+							"  });"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/x-www-form-urlencoded"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "username",
+							"value": "{{username}}",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "{{password}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://{{server}}-api.aswat.co/auth/login?",
+					"protocol": "https",
+					"host": [
+						"{{server}}-api",
+						"aswat",
+						"co"
+					],
+					"path": [
+						"auth",
+						"login"
+					],
+					"query": [
+						{
+							"key": "username",
+							"value": "",
+							"disabled": true
+						},
+						{
+							"key": "password",
+							"value": "",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Loging to position Test",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "517c596a-a8b3-41c1-91b0-6e236584fb4d",
+						"exec": [
+							"// example using pm.response.to.have",
+							"pm.test(\"response code is ok\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							" // assert that the status code is 200",
+							" pm.test(\"response should be okay to process\", function () {",
+							"     pm.response.to.be.ok; // info, success, redirection, clientError,  serverError, are other variants",
+							"     // assert that the response has a valid JSON body",
+							"     pm.response.to.be.withBody;",
+							" });",
+							" ",
+							" // example using response assertions",
+							" pm.test(\"Check response result is true\", function () {",
+							"      var jsonData = pm.response.json();",
+							"      pm.expect(jsonData.result).to.eql(true);",
+							"  });"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"url": {
+					"raw": "https://{{server}}-api.aswat.co/agents/autoLogin/agent-{{CCLogin}}/?access_token={{access_token}}",
+					"protocol": "https",
+					"host": [
+						"{{server}}-api",
+						"aswat",
+						"co"
+					],
+					"path": [
+						"agents",
+						"autoLogin",
+						"agent-{{CCLogin}}",
+						""
+					],
+					"query": [
+						{
+							"key": "access_token",
+							"value": "{{access_token}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Call History test",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "8524ea32-b12c-4c8e-a298-ad343dc0987d",
+						"exec": [
+							"// example using pm.response.to.have",
+							"pm.test(\"response code is ok\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "access_token",
+						"type": "text",
+						"value": "{{access_token}}"
+					}
+				],
+				"url": {
+					"raw": "https://{{server}}-api.aswat.co/agents/channels/calls?fetchStart=1&fetchStop=1",
+					"protocol": "https",
+					"host": [
+						"{{server}}-api",
+						"aswat",
+						"co"
+					],
+					"path": [
+						"agents",
+						"channels",
+						"calls"
+					],
+					"query": [
+						{
+							"key": "fetchStart",
+							"value": "1"
+						},
+						{
+							"key": "fetchStop",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "LogOut  Test",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "0aa78be5-a37f-41ed-9bec-ec322606e861",
+						"exec": [
+							"// example using pm.response.to.have",
+							"pm.test(\"response code is ok\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"url": {
+					"raw": "https://{{server}}-api.aswat.co/agents/logout/?access_token={{access_token}}",
+					"protocol": "https",
+					"host": [
+						"{{server}}-api",
+						"aswat",
+						"co"
+					],
+					"path": [
+						"agents",
+						"logout",
+						""
+					],
+					"query": [
+						{
+							"key": "access_token",
+							"value": "{{access_token}}"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"protocolProfileBehavior": {}
+}

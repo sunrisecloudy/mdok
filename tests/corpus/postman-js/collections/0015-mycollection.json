@@ -1,0 +1,617 @@
+{
+  "info": {
+    "_postman_id": "776ee230-b7d5-43f2-a8c7-94f7bfae0b7f",
+    "name": "mycollection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "54104306",
+    "_collection_link": "https://go.postman.co/collection/54104306-776ee230-b7d5-43f2-a8c7-94f7bfae0b7f?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "GETRequest",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "pro_653e9a52bbb727f3c4958afdb563ace4979d1513b8f98e58a311a133b439b42e",
+            "type": "text"
+          },
+          {
+            "key": "X-Reqres-Env",
+            "value": "prod",
+            "type": "text"
+          },
+          {
+            "key": "",
+            "value": "",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "https://reqres.in/api/collections/products/records?project_id=13565",
+          "protocol": "https",
+          "host": [
+            "reqres",
+            "in"
+          ],
+          "path": [
+            "api",
+            "collections",
+            "products",
+            "records"
+          ],
+          "query": [
+            {
+              "key": "project_id",
+              "value": "13565"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "POSTRequest",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "x-api-key",
+            "value": "pro_653e9a52bbb727f3c4958afdb563ace4979d1513b8f98e58a311a133b439b42e",
+            "type": "text"
+          },
+          {
+            "key": "X-Reqres-Env",
+            "value": "prod",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"data\": {\r\n    \"name\": \"ajinkya mohod\",\r\n    \"price\": 59.99,\r\n    \"category\": \"Electronics\",\r\n    \"in_stock\": true\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://reqres.in/api/collections/products/records?project_id=13565",
+          "protocol": "https",
+          "host": [
+            "reqres",
+            "in"
+          ],
+          "path": [
+            "api",
+            "collections",
+            "products",
+            "records"
+          ],
+          "query": [
+            {
+              "key": "project_id",
+              "value": "13565"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "PUTRequest",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "pro_653e9a52bbb727f3c4958afdb563ace4979d1513b8f98e58a311a133b439b42e",
+            "type": "text"
+          },
+          {
+            "key": "X-Reqres-Env",
+            "value": "prod",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"data\": {\r\n    \"name\": \"update Headphones\",\r\n    \"price\": 59.99,\r\n    \"category\": \"Electronics\",\r\n    \"in_stock\": true\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://reqres.in/api/collections/products/records/c763ffcd-7913-4853-948c-3b7d74029c1c?project_id=13565",
+          "protocol": "https",
+          "host": [
+            "reqres",
+            "in"
+          ],
+          "path": [
+            "api",
+            "collections",
+            "products",
+            "records",
+            "c763ffcd-7913-4853-948c-3b7d74029c1c"
+          ],
+          "query": [
+            {
+              "key": "project_id",
+              "value": "13565"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "DeleteRequest",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "pro_653e9a52bbb727f3c4958afdb563ace4979d1513b8f98e58a311a133b439b42e",
+            "type": "text"
+          },
+          {
+            "key": "X-Reqres-Env",
+            "value": "prod",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "https://reqres.in/api/collections/products/records/c763ffcd-7913-4853-948c-3b7d74029c1c?project_id=13565",
+          "protocol": "https",
+          "host": [
+            "reqres",
+            "in"
+          ],
+          "path": [
+            "api",
+            "collections",
+            "products",
+            "records",
+            "c763ffcd-7913-4853-948c-3b7d74029c1c"
+          ],
+          "query": [
+            {
+              "key": "project_id",
+              "value": "13565"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "GET Single Student",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\r",
+              "    \"Status code is 200\", ()=>\r",
+              "    {\r",
+              "        pm.response.to.have.status(200);\r",
+              "    }\r",
+              ");\r",
+              "pm.test(\r",
+              "    \"successful Get request\",()=>\r",
+              "    {\r",
+              "        pm.expect(pm.response.code).to.be.oneOf([200,201]);\r",
+              "\r",
+              "    });\r",
+              "    pm.test(\r",
+              "        \"content-Type is prestint\", ()=>\r",
+              "        {\r",
+              "            pm.response.to.have.header(\"content-Type\");\r",
+              "        }\r",
+              "    );\r",
+              "    pm.test(\"content-Type header is application/json\", ()=>\r",
+              "    {\r",
+              "        pm.expect(pm.response.headers.get(\"content-Type\")).to.eql\r",
+              "        (\"application/json\");  \r",
+              "    }\r",
+              "    );\r",
+              "    pm.test(\"response time is less than 200ms\", ()=>\r",
+              "    {\r",
+              "        pm.expect(pm.response.responseTime).to.be.below(200);\r",
+              "    }\r",
+              "    );\r",
+              "    //test the type of any part of the response\r",
+              "    const jsonData = pm.response.json();\r",
+              "    pm.test(\"Test data type the response\", ()=>\r",
+              "    {\r",
+              "        pm.expect(jsonData[0]).to.be.an(\"object\");\r",
+              "        pm.expect(jsonData[0].name).to.be.a(\"string\");\r",
+              "        pm.expect(jsonData[0].id).to.be.a(\"string\");\r",
+              "        pm.expect(jsonData[0].courses).to.be.a(\"array\");\r",
+              "        \r",
+              "    });\r",
+              "    //asserting array properties//test array contains in body\r",
+              "    pm.test(\"Test array contains\", ()=>\r",
+              "    {\r",
+              "        pm.expect(jsonData[0].courses).to.include(\"Java\");\r",
+              "        //course array must iclude all listed\r",
+              "        pm.expect(jsonData[0].courses).to.have.members([\"Java\",\"Selenium\"]);\r",
+              "    }\r",
+              "    );\r",
+              "    //value are fields//data Validation    \r",
+              "    \r",
+              "    pm.test(\"Test value of any field\", ()=>\r",
+              "    {\r",
+              "        \r",
+              "        var jsonData = pm.response.json();\r",
+              "        pm.expect(jsonData[0].id).to.eql(\"1\");\r",
+              "        pm.expect(jsonData[0].name).to.eql(\"John\");\r",
+              "        pm.expect(jsonData[0].location).to.eql(\"India\");\r",
+              "        pm.expect(jsonData[0].phone).to.eql(\"1234567890\");\r",
+              "\r",
+              "\r",
+              "        \r",
+              "    }\r",
+              "    );\r",
+              "    //json schema Validation\r",
+              "    var schema = {\r",
+              "    \"type\": \"object\",\r",
+              "    \"properties\": {\r",
+              "        \"id\": { \"type\": \"string\" },\r",
+              "        \"name\": { \"type\": \"string\" },\r",
+              "        \"location\": { \"type\": \"string\" },\r",
+              "        \"phone\": { \"type\": \"string\" },\r",
+              "        \"courses\": {\r",
+              "            \"type\": \"array\",\r",
+              "            \"items\": {\r",
+              "                \"type\": \"string\"\r",
+              "            }\r",
+              "        }\r",
+              "    },\r",
+              "    \"required\": [\"id\", \"name\", \"location\", \"phone\", \"courses\"]\r",
+              "\r",
+              "};\r",
+              "pm.test(\"Schema is valid\", function()\r",
+              "{\r",
+              "    tv4.validate(jsonData[0], schema)\r",
+              "}\r",
+              "); \r",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/student/",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "student",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "GET All Student Data",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// server कडून आलेला JSON data usable format मध्ये store करतो\r",
+              "const jsonData = pm.response.json();\r",
+              "// array मध्ये data असायला पाहिजे\r",
+              "pm.test(\"array is not empty\",()=>\r",
+              "{\r",
+              "    pm.expect(jsonData.length).to.be.above(0);\r",
+              "});\r",
+              "// array मधला पहिला student object असायला पाहिजे\r",
+              "pm.test(\"data type check\", ()=>\r",
+              "{\r",
+              "    pm.expect(jsonData[0].id).to.be.a('string');\r",
+              "    pm.expect(jsonData[0].name).to.be.a('string');\r",
+              "    pm.expect(jsonData[0].location).to.be.a('string');\r",
+              "    pm.expect(jsonData[0].courses).to.be.an('array');\r",
+              "}\r",
+              ");\r",
+              "// courses मध्ये Java आहे का check करतो\r",
+              "pm.test(\"Java course check\", ()=>  \r",
+              "{\r",
+              "    pm.expect(jsonData[0].courses).to.include('Java');\r",
+              "});\r",
+              "//all student datatype check\r",
+              "// सर्व students चा data type check करतो (loop वापरून)\r",
+              "pm.test(\"check all student datatype check\", ()=>\r",
+              "{\r",
+              "jsonData.forEach((students) =>\r",
+              "{\r",
+              "    pm.expect(students.id).to.be.a('string');\r",
+              "    pm.expect(students.name).to.be.a('string');\r",
+              "    pm.expect(students.location).to.be.a('string');\r",
+              "    pm.expect(students.courses).to.be.an('array');\r",
+              "}\r",
+              ");\r",
+              "}\r",
+              ");\r",
+              "//// प्रत्येक student चा name empty नाही check करतो\r",
+              "pm.test(\"check all student name is not empty\", ()=>\r",
+              "{\r",
+              "    jsonData.forEach((student)=>\r",
+              "    {\r",
+              "        pm.expect(student.name).to.not.be.empty;\r",
+              "    });\r",
+              "});\r",
+              "var schema = {\r",
+              "    \"type\": \"array\",\r",
+              "    \"items\": {\r",
+              "        \"type\": \"object\",\r",
+              "        \"properties\": {\r",
+              "            \"id\": { \"type\": \"string\" },\r",
+              "            \"name\": { \"type\": \"string\" },\r",
+              "            \"location\": { \"type\": \"string\" },\r",
+              "            \"phone\": { \"type\": \"string\" },\r",
+              "            \"courses\": {\r",
+              "                \"type\": \"array\",\r",
+              "                \"items\": { \"type\": \"string\" }\r",
+              "            }\r",
+              "        },\r",
+              "        \"required\": [\"id\", \"name\", \"location\", \"phone\", \"courses\"]\r",
+              "    }\r",
+              "};\r",
+              "var schema = {\r",
+              "    \"type\": \"array\",\r",
+              "    \"items\": {\r",
+              "        \"type\": \"object\",\r",
+              "        \"properties\": {\r",
+              "            \"id\": { \"type\": \"string\" },\r",
+              "            \"name\": { \"type\": \"string\" },\r",
+              "            \"location\": { \"type\": \"string\" },\r",
+              "            \"phone\": { \"type\": \"string\" },\r",
+              "            \"courses\": {\r",
+              "                \"type\": \"array\",\r",
+              "                \"items\": { \"type\": \"string\" }\r",
+              "            }\r",
+              "        },\r",
+              "        \"required\": [\"id\", \"name\", \"location\", \"phone\", \"courses\"]\r",
+              "    }\r",
+              "};\r",
+              "\r",
+              "\r",
+              "pm.test(\"Schema is valid\", function ()\r",
+              "{\r",
+              "    pm.expect(tv4.validate(jsonData, schema)).to.be.true;\r",
+              "});\r",
+              "// response status code 200 (OK) आहे का check करतो\r",
+              "pm.test(\"Status code is 200\",()=>\r",
+              "\r",
+              "{\r",
+              "    pm.response.to.have.status(200);\r",
+              "}\r",
+              ");"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/student",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "student"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Creat/post New Student",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const responsedata = pm.response.json(); // Parse the response body as JSON\r",
+              "\r",
+              "pm.test(\"status code is 201\", ()=>\r",
+              "{\r",
+              "    pm.response.to.have.status(201);\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"time should be less than 200ms\", ()=>\r",
+              "{\r",
+              "    pm.expect(pm.response.responseTime).to.be.below(200);\r",
+              "});\r",
+              "pm.test(\"id should be generated\", ()=>\r",
+              "{\r",
+              "    pm.expect(responsedata.id).to.not.be.empty;\r",
+              "}\r",
+              ");\r",
+              "pm.test(\"name and location should match\", ()=>\r",
+              "{\r",
+              "    pm.expect(responsedata.name).to.equal(\"ajinkya\");\r",
+              "    pm.expect(responsedata.location).to.equal(\"India\");\r",
+              "});\r",
+              "var schema = {\r",
+              "    \"type\": \"object\",\r",
+              "    \"properties\": {\r",
+              "        \"id\": { \"type\": \"string\" },\r",
+              "        \"name\": { \"type\": \"string\" },\r",
+              "        \"location\": { \"type\": \"string\" },\r",
+              "        \"phone\": { \"type\": \"string\" },\r",
+              "        \"courses\": {\r",
+              "            \"type\": \"array\",\r",
+              "            \"items\": { \"type\": \"string\" }\r",
+              "        }\r",
+              "    },\r",
+              "    \"required\": [\"id\",\"name\",\"location\",\"phone\",\"courses\"]\r",
+              "};\r",
+              "pm.test(\"response body should match schema\", () => \r",
+              "{\r",
+              "    pm.response.to.have.jsonSchema(schema);\r",
+              "});\r",
+              "pm.test(\"courses shoul not empty\", ()=>\r",
+              "{\r",
+              "    pm.expect(responsedata.courses).to.not.be.empty;\r",
+              "}\r",
+              ")\r",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n     \r\n     \"id\": 4,\r\n      \"name\": \"ajinkya\",\r\n      \"location\": \"India\",\r\n      \"phone\": \"12345\",\r\n      \"courses\": [\r\n        \"API\",\r\n        \"Postman\"\r\n      ]\r\n       \r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/student",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "student"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Student",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"id\": \"2\",\r\n      \"name\": \"Tester\",\r\n      \"location\": \"US\",\r\n      \"phone\": \"98876543213\",\r\n      \"courses\": [\r\n        \"Python\",\r\n        \"API\"\r\n      ]\r\n\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/student/2",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "student",
+            "2"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Updated student",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n     \"name\": \"Ajinkya mohod\"\r\n\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/student/3",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "student",
+            "3"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Student",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/student/YDLJ6etfQJU",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "student",
+            "YDLJ6etfQJU"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "New Request",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    }
+  ]
+}

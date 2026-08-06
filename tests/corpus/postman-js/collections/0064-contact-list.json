@@ -1,0 +1,708 @@
+{
+	"info": {
+		"_postman_id": "c8c0fded-b80a-4998-bad8-39e3ab59b5cf",
+		"name": "Contact List",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "18688880"
+	},
+	"item": [
+		{
+			"name": "Basic Endpoint Tests",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.environment.set(\"token\", jsonData.token);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"poltavka@test.ts\",\n    \"password\": \"poltavka\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/users/login",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"users",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contact List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Content-Type is application/json\", function () {",
+									"    pm.response.to.have.header(\"Content-Type\", \"application/json; charset=utf-8\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Contact",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.environment.set(\"contactID\", jsonData._id);",
+									"",
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"{{firstName}}\",\n    \"lastName\": \"{{lastName}}\",\n    \"birthdate\": \"{{birthdate}}\",\n    \"email\": \"{{email}}\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contact",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Correct contact is returned\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"Apartment Q\");",
+									"});",
+									"",
+									"pm.test(\"Correct first name is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.firstName).to.eql(pm.environment.get(\"firstName\"));",
+									"});",
+									"",
+									"pm.test(\"Correct last name is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.lastName).to.eql(pm.environment.get(\"lastName\"));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/{{contactID}}",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"{{contactID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Contact",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"Suzi\",\n    \"lastName\": \"Pruni\",\n    \"birthdate\": \"1978-08-08\",\n    \"email\": \"pprunewhip@fake.com\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/{{contactID}}",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"{{contactID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Contact",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/{{contactID}}",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"{{contactID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Negative Tests",
+			"item": [
+				{
+					"name": "Get Contact List Unauthorised",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contact Unautorised",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/655c89d0727d2300130088ea",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"655c89d0727d2300130088ea"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Contact Missing Required Field",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Missing First Name error message is returned\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"`firstName` is required\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"\",\n    \"lastName\": \"Prunewhip\",\n    \"birthdate\": \"1977-07-07\",\n    \"email\": \"pprunewhip@fake.com\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Contact Last Name Too Long",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Last Name Too Long error message is returned\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"`lastName` (`WeNeedMoreThanTwentyCharackters`) is longer than the maximum allowed length (20)\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"Prunella\",\n    \"lastName\": \"WeNeedMoreThanTwentyCharackters\",\n    \"birthdate\": \"1977-07-07\",\n    \"email\": \"pprunewhip@fake.com\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Contact Invalid Date",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Invalid Date error message is returned\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"Birthdate is invalid\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"{{firstName}}\",\n    \"lastName\": \"{{lastName}}\",\n    \"birthdate\": \"1980-13-35\",\n    \"email\": \"{{email}}\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Contact Invalid Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Invalid Email error message is returned\", function () {",
+									"    pm.expect(pm.response.text()).to.include(\"Email is invalid\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"Suzi\",\n    \"lastName\": \"Pruni\",\n    \"birthdate\": \"1978-08-08\",\n    \"email\": \"pprunewhip@fake\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/{{contactID}}",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"{{contactID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contact Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/600c89d0727d2300130088ea",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"600c89d0727d2300130088ea"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Contact Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"Suzi\",\n    \"lastName\": \"Pruni\",\n    \"birthdate\": \"1978-08-08\",\n    \"email\": \"pprunewhip@fake.com\",\n    \"phone\": \"8005551000\",\n    \"street1\": \"123 Main St.\",\n    \"street2\": \"Apartment Q\",\n    \"city\": \"New York\",\n    \"stateProvince\": \"NY\",\n    \"postalCode\": \"12345\",\n    \"country\": \"USA\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://thinking-tester-contact-list.herokuapp.com/contacts/600c89d0727d2300130088ea",
+							"protocol": "https",
+							"host": [
+								"thinking-tester-contact-list",
+								"herokuapp",
+								"com"
+							],
+							"path": [
+								"contacts",
+								"600c89d0727d2300130088ea"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"pm.test(\"Response time is less than 300ms\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(300);",
+					"});"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,1394 @@
+{
+	"info": {
+		"_postman_id": "c29677be-2609-4e08-8355-ecc002c6cf2b",
+		"name": "Performance Tests for TF - CHURCHES",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "UI and Short Requests",
+			"item": [
+				{
+					"name": "Enquiry Listing",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "b0eab5d1-6a3c-4640-80de-77b3e1c8abb3",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/enquiries?enquiryStatus=1&fromDate=2000-01-01T00:00:00.000Z&toDate=2020-07-29T22:59:59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"enquiries"
+							],
+							"query": [
+								{
+									"key": "enquiryStatus",
+									"value": "1"
+								},
+								{
+									"key": "fromDate",
+									"value": "2000-01-01T00:00:00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-29T22:59:59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Dashboard - Leads",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "8e3cf0f1-c1bc-4f67-8014-37cea50b68f5",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/dashboard/leads?userId=&isDealerGroupDashboard=false&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"leads"
+							],
+							"query": [
+								{
+									"key": "userId",
+									"value": ""
+								},
+								{
+									"key": "isDealerGroupDashboard",
+									"value": "false"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Dashboard - Completed Activity",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "19e89dd8-5f77-44cd-a6f6-f401782263cd",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/dashboard/completed-activity?userId=&isToday=true&isDealerGroupDashboard=false&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"completed-activity"
+							],
+							"query": [
+								{
+									"key": "userId",
+									"value": ""
+								},
+								{
+									"key": "isToday",
+									"value": "true"
+								},
+								{
+									"key": "isDealerGroupDashboard",
+									"value": "false"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer Summary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "db523624-d42a-43e7-8678-e7a81887297a",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/customers/882742/summary?currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"customers",
+								"882742",
+								"summary"
+							],
+							"query": [
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Open Sales Diary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "f1c56cab-81cc-49ab-b356-cc8511e0c529",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/sales-exec-diary?dealerId=107&assignedToId=&fromDate=2020-07-01T23%3A00%3A00.000Z&toDate=2020-07-29T22%3A59%3A59.999Z&entryTypes%5B0%5D=1&entryTypes%5B1%5D=2&entryTypes%5B2%5D=3&entryTypes%5B3%5D=4&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"sales-exec-diary"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "assignedToId",
+									"value": ""
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-07-01T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-29T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "entryTypes%5B0%5D",
+									"value": "1"
+								},
+								{
+									"key": "entryTypes%5B1%5D",
+									"value": "2"
+								},
+								{
+									"key": "entryTypes%5B2%5D",
+									"value": "3"
+								},
+								{
+									"key": "entryTypes%5B3%5D",
+									"value": "4"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"protocolProfileBehavior": {}
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "Logs - Daily Activity Log",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "c0de6be4-4652-4815-b676-7e669ec90f48",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/daily-log?dealerIds%5B0%5D=107&fromDate=2020-07-23T23%3A00%3A00.000Z&toDate=2020-07-24T22%3A59%3A59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"daily-log"
+							],
+							"query": [
+								{
+									"key": "dealerIds%5B0%5D",
+									"value": "107"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-07-23T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logs - Enquiry Log",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "9f91b866-d105-40a3-867b-597ad5a87872",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/enquiry-log?dealerId=107&fromDate=2020-07-17T23%3A00%3A00.000Z&toDate=2020-07-24T22%3A59%3A59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"enquiry-log"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-07-17T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Daily Sales Activity Report",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "3d9c68c6-e81c-4d43-a623-842aa3d84554",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/daily-sales-activity?fromDate=2020-07-23T23%3A00%3A00.000Z&toDate=2020-07-24T22%3A59%3A59.999Z&groupBy=dealer&isCommercial=false&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"daily-sales-activity"
+							],
+							"query": [
+								{
+									"key": "fromDate",
+									"value": "2020-07-23T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "groupBy",
+									"value": "dealer"
+								},
+								{
+									"key": "isCommercial",
+									"value": "false"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Extended Sales Report",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5b45f56a-eedd-4d4d-9cf5-39609fed4b8c",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/extended-sales?dealerId=107&franchise=64&groupBy=1&fromDate=2020-07-31T23:00:00.000Z&toDate=2020-08-11T22:59:59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"extended-sales"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "franchise",
+									"value": "64"
+								},
+								{
+									"key": "groupBy",
+									"value": "1"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-07-31T23:00:00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-08-11T22:59:59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Sales Report",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "61795587-af85-40a0-90de-f6cbd8fba9a6",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/daily-log?dealerIds%5B0%5D=107&fromDate=2020-07-23T23%3A00%3A00.000Z&toDate=2020-07-24T22%3A59%3A59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"daily-log"
+							],
+							"query": [
+								{
+									"key": "dealerIds%5B0%5D",
+									"value": "107"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-07-23T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Order List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "998a6593-fd41-4ef8-a66c-7714eebf2807",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/order-list?dealerId=107&deliverystatus=%5B1%2C2%5D&ordersOrDeliveries=Orders&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"order-list"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "deliverystatus",
+									"value": "%5B1%2C2%5D"
+								},
+								{
+									"key": "ordersOrDeliveries",
+									"value": "Orders"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Order Take Report",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "f87868c7-a014-4c33-b7a0-7c71e916a3e6",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/order-take?dealerGroupId=24&dealerIds=&franchiseId=&fromDate=2020-07-22T23%3A00%3A00.000Z&toDate=2020-07-24T22%3A59%3A59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"order-take"
+							],
+							"query": [
+								{
+									"key": "dealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "dealerIds",
+									"value": ""
+								},
+								{
+									"key": "franchiseId",
+									"value": ""
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-07-22T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Part Exchange Search",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "1216fef0-9dac-48be-9293-305fc4547bfb",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/part-exchange?model=&dueInPartExchangesOnly=true&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"part-exchange"
+							],
+							"query": [
+								{
+									"key": "model",
+									"value": ""
+								},
+								{
+									"key": "dueInPartExchangesOnly",
+									"value": "true"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Outstanding Offers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "e42ff6d0-bd43-4802-984d-31e2d4d3ede2",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/outstanding-offers?dealerId=107&fromDate=2020-03-01T00:00:00.000Z&toDate=2020-07-24T22:59:59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"outstanding-offers"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-03-01T00:00:00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22:59:59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Email Report",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "64f4ab7e-318f-41c6-be38-a45d4f265bb3",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/email?customerEmailAddress=&recipient=&fromDate=2020-01-01T00:00:00.000Z&toDate=2020-07-24T22:59:59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"email"
+							],
+							"query": [
+								{
+									"key": "customerEmailAddress",
+									"value": ""
+								},
+								{
+									"key": "recipient",
+									"value": ""
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-01-01T00:00:00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-24T22:59:59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Used Vehicle Stock List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "13f9df93-7820-477e-a44a-27b62f024b93",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/used-stock?dealerId=107&make=&model=&registrationNumber=&maximumPrice=&minDaysInStock=&maxDaysInStock=&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"used-stock"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "make",
+									"value": ""
+								},
+								{
+									"key": "model",
+									"value": ""
+								},
+								{
+									"key": "registrationNumber",
+									"value": ""
+								},
+								{
+									"key": "maximumPrice",
+									"value": ""
+								},
+								{
+									"key": "minDaysInStock",
+									"value": ""
+								},
+								{
+									"key": "maxDaysInStock",
+									"value": ""
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"protocolProfileBehavior": {}
+		},
+		{
+			"name": "Misc Extra Reports",
+			"item": [
+				{
+					"name": "Report - Assigned Leads",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "df9e9f4c-e4a0-4857-b243-476e8dfdaa74",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/assigned-leads?userId=&modelOfInterest=&live=true&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"assigned-leads"
+							],
+							"query": [
+								{
+									"key": "userId",
+									"value": ""
+								},
+								{
+									"key": "modelOfInterest",
+									"value": ""
+								},
+								{
+									"key": "live",
+									"value": "true"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Cancelled Orders",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "4d25e15f-a831-4e36-86e8-e9a0d8f20e64",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/cancelled-orders?dealerId=107&fromDate=2020-06-30T23%3A00%3A00.000Z&toDate=2020-07-31T22%3A59%3A59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"cancelled-orders"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-06-30T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-31T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Enquiry Marketing",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "b38ed185-133a-4d3b-b4b7-93a9f145c535",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/customer-marketing?dealerId=107&dataUsageId=1&orderFromDate=&orderToDate=&deliveryFromDate=&deliveryToDate=&modelsOrdered=&fundingType=&mainFeatureType=&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"customer-marketing"
+							],
+							"query": [
+								{
+									"key": "dealerId",
+									"value": "107"
+								},
+								{
+									"key": "dataUsageId",
+									"value": "1"
+								},
+								{
+									"key": "orderFromDate",
+									"value": ""
+								},
+								{
+									"key": "orderToDate",
+									"value": ""
+								},
+								{
+									"key": "deliveryFromDate",
+									"value": ""
+								},
+								{
+									"key": "deliveryToDate",
+									"value": ""
+								},
+								{
+									"key": "modelsOrdered",
+									"value": ""
+								},
+								{
+									"key": "fundingType",
+									"value": ""
+								},
+								{
+									"key": "mainFeatureType",
+									"value": ""
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Enquiry Performance",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ceb14069-603d-4f1b-9df1-9f03c8a664fd",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/enquiry-performance?groupBy=2&vehicleCondition=1&fromDate=2020-06-29T23%3A00%3A00.000Z&toDate=2020-07-31T22%3A59%3A59.999Z&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"enquiry-performance"
+							],
+							"query": [
+								{
+									"key": "groupBy",
+									"value": "2"
+								},
+								{
+									"key": "vehicleCondition",
+									"value": "1"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-06-29T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-31T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Dealbook",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "7a870e15-be76-4b0b-b2c8-805347eacc97",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/dealbook?salesTypeId=0&ordersDeliveries=Deliveries&startDate=2020-06-30T23%3A00%3A00.000Z&endDate=2020-07-31T22%3A59%3A59.999Z&totals=false&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"dealbook"
+							],
+							"query": [
+								{
+									"key": "salesTypeId",
+									"value": "0"
+								},
+								{
+									"key": "ordersDeliveries",
+									"value": "Deliveries"
+								},
+								{
+									"key": "startDate",
+									"value": "2020-06-30T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "endDate",
+									"value": "2020-07-31T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "totals",
+									"value": "false"
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - F&I",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "41c663b7-ee17-4902-bfb9-c7e3cf3da6d2",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/fandi?ordersDeliveries=Deliveries&fromDate=2020-06-30T23%3A00%3A00.000Z&toDate=2020-07-31T22%3A59%3A59.999Z&isCommercial=&currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"fandi"
+							],
+							"query": [
+								{
+									"key": "ordersDeliveries",
+									"value": "Deliveries"
+								},
+								{
+									"key": "fromDate",
+									"value": "2020-06-30T23%3A00%3A00.000Z"
+								},
+								{
+									"key": "toDate",
+									"value": "2020-07-31T22%3A59%3A59.999Z"
+								},
+								{
+									"key": "isCommercial",
+									"value": ""
+								},
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Report - Unassigned Leads",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "af9e0019-4661-43ce-b621-5b013d66fed2",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/api/reports/unassigned-leads?currentDealerGroupId=24&currentDealerId=107",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"unassigned-leads"
+							],
+							"query": [
+								{
+									"key": "currentDealerGroupId",
+									"value": "24"
+								},
+								{
+									"key": "currentDealerId",
+									"value": "107"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"protocolProfileBehavior": {}
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkMzMDQ3Q0Y4RTVENUExQTZGQURBRkIxNzA5QjM0MDRGMjVBQkRGMDUiLCJ0eXAiOiJKV1QiLCJ4NXQiOiJ3d1I4LU9YVm9hYjYydnNYQ2JOQVR5V3Izd1UifQ.eyJuYmYiOjE1OTc0MDk5NzksImV4cCI6MTU5NzQxMTc3OSwiaXNzIjoiaHR0cHM6Ly92b2x2b2lkZW50aXR5LmRlYWxlcndlYi5hcHAiLCJhdWQiOiJodHRwczovL3ZvbHZvaWRlbnRpdHkuZGVhbGVyd2ViLmFwcC9yZXNvdXJjZXMiLCJjbGllbnRfaWQiOiJzcjJjbGllbnQiLCJzdWIiOiIyMzNhMjNkZi0zYmI5LTQ0OTMtOGMwNC1lZmQwYzFkOWVkMGMiLCJhdXRoX3RpbWUiOjE1OTc0MDk5NzksImlkcCI6ImxvY2FsIiwic2NvcGUiOlsiZW1haWwiLCJvcGVuaWQiLCJwcm9maWxlIiwic3IyYXBpIiwib2ZmbGluZV9hY2Nlc3MiXSwiYW1yIjpbInB3ZCJdfQ.i8OyQpYnSY45xRw5EVMStIHSVYuSWH2gWaCLozfE81blTN9K0q4O2wagz2zfMt6G9vF6hgtIXC101YoTljUypuphPXPXuZ_3UebPWXmHDAvBZp2avm9Z3Xn1Rh9RofimXEsdGMIks3yQ3ImrZHX1D5WYOE1Y7-sdOfV4WAz5TpBle7f5jqK6lUS74srx_Cwq7wBxaNO2rhBWu9auJi7Y8npzmDZ6wFhAZUbPFpVgF1gBHUFACARxwJ7IrtI60_d18AvczCSZQ0zlnQQSher0fMcb6WRidVzquZZH3qrgVbw49sxYQt8tSSgj4vvOW94XAOz4-Fey8SdgDp7muJBBnw",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "5ef6f01b-907b-43f6-9fcf-6986b55bc40a",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "99e60a95-a369-4de6-99da-d52c02afb1eb",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"protocolProfileBehavior": {}
+}

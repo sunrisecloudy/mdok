@@ -1,0 +1,440 @@
+{
+	"info": {
+		"_postman_id": "597afacf-e79a-4fc5-8add-c9f2eba360e0",
+		"name": "PostmanLab",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "PostmanLab1",
+			"item": [
+				{
+					"name": "Get postmanLab1 SecretInformation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 on open API\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://postmanlab1.azurewebsites.net/SecretInformation",
+							"protocol": "https",
+							"host": [
+								"postmanlab1",
+								"azurewebsites",
+								"net"
+							],
+							"path": [
+								"SecretInformation"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PostmanLab2",
+			"item": [
+				{
+					"name": "Get postmanLab2Token with ClientCredentials",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 when getting postmanLab2Token\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"var jsonData = pm.response.json();\r",
+									"pm.environment.set(\"postmanLab2Token\", jsonData.access_token);\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							},
+							{
+								"key": "Cookie",
+								"value": "buid=0.AREARCP1MGNGLky6s2G_JOu-2JOVq51cnC5DrfSys1AHFPwRAAA.AQABAAEAAAD--DLA3VO7QrddgJg7WevrxgrKpn5ojFEy3JVvXA_QTrL9wynmYn-4tFQ1ehaNwy3fWQmxwUs83aiB1LCDeuDYYhA0J50nv_MciL1B1LJoZdduzAHR1yM7ekJuTiPpeWAgAA; fpc=AiqLQb9EDlxIhLbw-cs7GCr7jxcHAwAAAOV81NcOAAAA"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "client_credentials",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{postmanClient}}",
+									"type": "text"
+								},
+								{
+									"key": "scope",
+									"value": "{{clientId2}}/.default",
+									"type": "text"
+								},
+								{
+									"key": "client_secret",
+									"value": "{{postmanSecret}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "https://login.microsoftonline.com/{{tenant}}/oauth2/v2.0/token",
+							"protocol": "https",
+							"host": [
+								"login",
+								"microsoftonline",
+								"com"
+							],
+							"path": [
+								"{{tenant}}",
+								"oauth2",
+								"v2.0",
+								"token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get postmanLab2 SecretInformation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 when getting SecretInformation with postmanLab2Token\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{postmanLab2Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://postmanlab2.azurewebsites.net/SecretInformation",
+							"protocol": "https",
+							"host": [
+								"postmanlab2",
+								"azurewebsites",
+								"net"
+							],
+							"path": [
+								"SecretInformation"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get postmanLab2 SecretInformation Copy",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401 when getting SecretInformation without postmanLab2Token\", function () {\r",
+									"    pm.response.to.have.status(401);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://postmanlab2.azurewebsites.net/SecretInformation",
+							"protocol": "https",
+							"host": [
+								"postmanlab2",
+								"azurewebsites",
+								"net"
+							],
+							"path": [
+								"SecretInformation"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PostmanLab3",
+			"item": [
+				{
+					"name": "Get postmanLab3Token with ClientCredentials",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400 when getting postmanLab3Token\", function () {\r",
+									"    pm.response.to.have.status(400);\r",
+									"});\r",
+									"pm.test(\"Error due to not assigned role\", function () {\r",
+									"    pm.expect(pm.response.text()).to.include(\"AADSTS501051\");\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							},
+							{
+								"key": "Cookie",
+								"value": "buid=0.AREARCP1MGNGLky6s2G_JOu-2JOVq51cnC5DrfSys1AHFPwRAAA.AQABAAEAAAD--DLA3VO7QrddgJg7WevrxgrKpn5ojFEy3JVvXA_QTrL9wynmYn-4tFQ1ehaNwy3fWQmxwUs83aiB1LCDeuDYYhA0J50nv_MciL1B1LJoZdduzAHR1yM7ekJuTiPpeWAgAA; fpc=AiqLQb9EDlxIhLbw-cs7GCr7jxcHAwAAAOV81NcOAAAA"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "client_credentials",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{postmanClient}}",
+									"type": "text"
+								},
+								{
+									"key": "scope",
+									"value": "{{clientId3}}/.default",
+									"type": "text"
+								},
+								{
+									"key": "client_secret",
+									"value": "{{postmanSecret}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "https://login.microsoftonline.com/{{tenant}}/oauth2/v2.0/token",
+							"protocol": "https",
+							"host": [
+								"login",
+								"microsoftonline",
+								"com"
+							],
+							"path": [
+								"{{tenant}}",
+								"oauth2",
+								"v2.0",
+								"token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get postmanLab3 SecretInformation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401 with postmanlab3 secretInformation with postmanlab2Token\", function () {\r",
+									"    pm.response.to.have.status(401);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{postmanLab2Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://postmanlab3.azurewebsites.net/SecretInformation",
+							"protocol": "https",
+							"host": [
+								"postmanlab3",
+								"azurewebsites",
+								"net"
+							],
+							"path": [
+								"SecretInformation"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "PostmanLab4",
+			"item": [
+				{
+					"name": "Get postmanLab4Token with ClientCredentials",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 when getting postmanLab4Token\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"var jsonData = pm.response.json();\r",
+									"pm.environment.set(\"postmanLab4Token\", jsonData.access_token);\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							},
+							{
+								"key": "Cookie",
+								"value": "buid=0.AREARCP1MGNGLky6s2G_JOu-2JOVq51cnC5DrfSys1AHFPwRAAA.AQABAAEAAAD--DLA3VO7QrddgJg7WevrxgrKpn5ojFEy3JVvXA_QTrL9wynmYn-4tFQ1ehaNwy3fWQmxwUs83aiB1LCDeuDYYhA0J50nv_MciL1B1LJoZdduzAHR1yM7ekJuTiPpeWAgAA; fpc=AiqLQb9EDlxIhLbw-cs7GCr7jxcHAwAAAOV81NcOAAAA"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "client_credentials",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{postmanClient}}",
+									"type": "text"
+								},
+								{
+									"key": "scope",
+									"value": "{{clientId4}}/.default",
+									"type": "text"
+								},
+								{
+									"key": "client_secret",
+									"value": "{{postmanSecret}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "https://login.microsoftonline.com/{{tenant}}/oauth2/v2.0/token",
+							"protocol": "https",
+							"host": [
+								"login",
+								"microsoftonline",
+								"com"
+							],
+							"path": [
+								"{{tenant}}",
+								"oauth2",
+								"v2.0",
+								"token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get postmanLab4 SecretInformation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 when getting postmanLab4 SecretInformation with postmanLab4Token\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{postmanLab4Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://postmanlab4.azurewebsites.net/SecretInformation",
+							"protocol": "https",
+							"host": [
+								"postmanlab4",
+								"azurewebsites",
+								"net"
+							],
+							"path": [
+								"SecretInformation"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
