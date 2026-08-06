@@ -7,9 +7,12 @@
 
 #![forbid(unsafe_code)]
 
+mod transient;
+
+use base64::Engine as _;
 use clap::{Args, Parser, Subcommand};
 use mdok_command::{CommandPolicy, ProcessOutput, run as run_external_command};
-use mdok_curl::{CurlError, CurlPlan, CurlPolicy, ExecutionSession};
+use mdok_curl::{BodyArtifact, CurlError, CurlPlan, CurlPolicy, ExecutionSession};
 use mdok_markdown::{
     MAX_EXECUTABLE_BLOCKS, MAX_FENCE_BODY_BYTES, MAX_FENCES, MAX_SOURCE_BYTES, MAX_STEPS,
     MarkdownError, parse, plan_document,
@@ -25,6 +28,7 @@ use mdok_template::{
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::ffi::OsString;
 use std::fs;
@@ -32,7 +36,8 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tempfile::NamedTempFile;
 use url::Url;
 use walkdir::WalkDir;
 
@@ -100,6 +105,9 @@ struct CommonOptions {
     /// Maximum response body captured in memory.
     #[arg(long, global = true, value_name = "BYTES")]
     max_body: Option<usize>,
+    /// Persist the response body as a durable artifact under configured write roots.
+    #[arg(long, global = true, value_name = "PATH")]
+    artifact: Option<PathBuf>,
     /// Emit one JSON report to stdout.
     #[arg(long, global = true)]
     json: bool,
@@ -126,10 +134,70 @@ struct CommonOptions {
     verbose: bool,
 }
 
+#[derive(Args, Clone, Debug, Default)]
+struct MarkdownInputArgs {
+    /// Inline Markdown source. Prefer stdin for large or secret-bearing input.
+    #[arg(long, value_name = "MARKDOWN", conflicts_with = "path")]
+    content: Option<String>,
+    /// Markdown path, or `-` for stdin. With no path, stdin is used.
+    #[arg(value_name = "PATH", conflicts_with = "content")]
+    path: Option<PathBuf>,
+}
+
+#[derive(Args, Clone, Debug, Default)]
+struct RecordArgs {
+    /// Destination Markdown path. Otherwise use .mdok/records/.
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
+    /// Replace an existing recording.
+    #[arg(long)]
+    force: bool,
+    /// Emit the exact response body after recording instead of the JSON envelope.
+    #[arg(long)]
+    raw: bool,
+    /// Inline Markdown source.
+    #[arg(long, value_name = "MARKDOWN", conflicts_with_all = ["path", "argv"])]
+    content: Option<String>,
+    /// Markdown path, or `-` for stdin.
+    #[arg(value_name = "PATH", conflicts_with = "content")]
+    path: Option<PathBuf>,
+    /// Direct argv after `--`; it is converted to canonical Markdown.
+    #[arg(
+        last = true,
+        allow_hyphen_values = true,
+        conflicts_with_all = ["content", "path"]
+    )]
+    argv: Vec<String>,
+}
+
+#[derive(Args, Clone, Debug)]
+struct ReplayArgs {
+    /// Recorded Markdown path.
+    path: PathBuf,
+    /// Fail if the recording source/configuration has drifted.
+    #[arg(long)]
+    strict: bool,
+}
+
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Parse, plan, execute, and check documents.
     Test { paths: Vec<PathBuf> },
+    /// Execute transient Markdown from inline content or stdin.
+    Run(MarkdownInputArgs),
+    /// Execute one direct curl or trusted-profile command.
+    Call {
+        /// Emit the exact response body instead of the JSON invocation envelope.
+        #[arg(long)]
+        raw: bool,
+        /// Direct argv after `--`.
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        argv: Vec<String>,
+    },
+    /// Record transient Markdown or direct argv, then execute it.
+    Record(RecordArgs),
+    /// Re-run a recorded Markdown document.
+    Replay(ReplayArgs),
     /// Parse and statically validate without network access.
     Lint { paths: Vec<PathBuf> },
     /// Print the normalized redacted execution plan.
@@ -289,6 +357,8 @@ fn default_jobs() -> usize {
 
 #[derive(Clone, Debug)]
 struct EffectiveConfig {
+    config_path: Option<PathBuf>,
+    config_root: PathBuf,
     vars: BTreeMap<String, Variable>,
     allowed_hosts: Vec<String>,
     denied_hosts: Vec<String>,
@@ -308,6 +378,7 @@ struct EffectiveConfig {
     fail_fast: bool,
     timeout: Duration,
     max_body: usize,
+    artifact_path: Option<PathBuf>,
     command_timeout: Duration,
     max_command_output_bytes: usize,
     max_command_args: usize,
@@ -373,6 +444,7 @@ struct PlanOutcome {
 struct DocumentRun {
     report: DocumentReport,
     executions: Vec<Option<ExternalExecutionResult>>,
+    contexts: Vec<Option<Value>>,
     secret_values: Vec<String>,
 }
 
@@ -413,11 +485,33 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.options.json;
     let json_lines = cli.options.json_lines;
+    let invocation_error_context = invocation_error_context(&cli.command);
     match run(cli) {
         Ok(code) => ExitCode::from(code),
         Err(error) => {
             let CliError { code, diagnostic } = *error;
-            if json {
+            if let Some((operation, raw, argv)) = invocation_error_context
+                && !raw
+            {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&invocation_error_envelope(
+                        operation,
+                        &argv,
+                        &diagnostic,
+                    ))
+                    .unwrap_or_else(|_| {
+                        serde_json::json!({
+                            "schema_version": "1",
+                            "operation": invocation_operation_name(operation),
+                            "success": false,
+                            "result_kind": "none",
+                            "diagnostics": [&diagnostic]
+                        })
+                        .to_string()
+                    })
+                );
+            } else if json {
                 println!(
                     "{}",
                     serde_json::json!({
@@ -442,9 +536,41 @@ fn main() -> ExitCode {
     }
 }
 
+fn invocation_error_context(
+    command: &Option<Command>,
+) -> Option<(InvocationOperation, bool, Vec<String>)> {
+    match command.as_ref()? {
+        Command::Call { raw, argv } => Some((InvocationOperation::Call, *raw, argv.clone())),
+        Command::Record(args) => Some((
+            InvocationOperation::Record,
+            args.raw,
+            if args.argv.is_empty() {
+                vec!["<unavailable>".to_string()]
+            } else {
+                args.argv.clone()
+            },
+        )),
+        Command::Replay(_) => Some((
+            InvocationOperation::Replay,
+            false,
+            vec!["<recording>".to_string()],
+        )),
+        Command::Run(_)
+        | Command::Test { .. }
+        | Command::Lint { .. }
+        | Command::Plan { .. }
+        | Command::List { .. }
+        | Command::Version => None,
+    }
+}
+
 fn run(cli: Cli) -> Result<u8, Box<CliError>> {
     let (mode, paths) = match cli.command {
         Some(Command::Version) => return print_version(&cli.options),
+        Some(Command::Run(input)) => return run_transient_input(input, &cli.options),
+        Some(Command::Call { raw, argv }) => return run_direct_call(argv, &cli.options, raw),
+        Some(Command::Record(args)) => return run_record(args, &cli.options),
+        Some(Command::Replay(args)) => return run_replay(args, &cli.options),
         Some(Command::Test { paths }) => (Mode::Test, paths),
         Some(Command::Lint { paths }) => (Mode::Lint, paths),
         Some(Command::Plan { paths }) => (Mode::Plan, paths),
@@ -559,6 +685,1262 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
     })?;
     emit_report(&report, &cli.options, mode, stream_jsonl)?;
     Ok(report_exit_code(&report))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InvocationOperation {
+    Run,
+    Call,
+    Record,
+    Replay,
+}
+
+#[derive(Clone, Debug)]
+struct TransientDocument {
+    source: Vec<u8>,
+    label: PathBuf,
+    config_anchor: PathBuf,
+    source_kind: &'static str,
+    argv: Option<Vec<String>>,
+    replay_drift: Option<Value>,
+}
+
+#[derive(Clone, Debug)]
+struct RecordingInfo {
+    path: PathBuf,
+    manifest_path: PathBuf,
+    source_sha256: String,
+    replay_command: String,
+}
+
+fn run_transient_input(
+    input: MarkdownInputArgs,
+    options: &CommonOptions,
+) -> Result<u8, Box<CliError>> {
+    validate_invocation_options(options)?;
+    let source = read_transient_markdown(input)?;
+    run_invocation(
+        source,
+        InvocationOperation::Run,
+        options,
+        false,
+        None,
+        false,
+    )
+}
+
+fn validate_invocation_options(options: &CommonOptions) -> Result<(), Box<CliError>> {
+    if options.jobs == 0 {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Invalid jobs value",
+                "--jobs must be at least 1",
+            ),
+        ));
+    }
+    if options.json && options.json_lines {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Conflicting output modes",
+                "--json and --json-lines cannot be selected together",
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn run_direct_call(
+    argv: Vec<String>,
+    options: &CommonOptions,
+    raw: bool,
+) -> Result<u8, Box<CliError>> {
+    validate_invocation_options(options)?;
+    let source = direct_transient_document(argv)?;
+    run_invocation(source, InvocationOperation::Call, options, raw, None, false)
+}
+
+fn run_record(args: RecordArgs, options: &CommonOptions) -> Result<u8, Box<CliError>> {
+    validate_invocation_options(options)?;
+    let (source, force, raw) = if !args.argv.is_empty() {
+        (direct_transient_document(args.argv)?, args.force, args.raw)
+    } else {
+        let input = MarkdownInputArgs {
+            content: args.content,
+            path: args.path,
+        };
+        (read_transient_markdown(input)?, args.force, args.raw)
+    };
+    run_invocation(
+        source,
+        InvocationOperation::Record,
+        options,
+        raw,
+        args.output,
+        force,
+    )
+}
+
+fn run_replay(args: ReplayArgs, options: &CommonOptions) -> Result<u8, Box<CliError>> {
+    validate_invocation_options(options)?;
+    let path = args.path;
+    let mut source = read_transient_markdown(MarkdownInputArgs {
+        content: None,
+        path: Some(path),
+    })?;
+    source.source_kind = "recording";
+    let config = load_config(&[source.config_anchor.clone()], options)?;
+    let drift = replay_drift(&source, options, &config)?;
+    source.replay_drift = Some(drift.clone());
+    if args.strict && drift.get("status").and_then(Value::as_str) != Some("exact") {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Recording drift detected",
+                drift
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("recording provenance does not match the current inputs"),
+            ),
+        ));
+    }
+    run_invocation(
+        source,
+        InvocationOperation::Replay,
+        options,
+        false,
+        None,
+        false,
+    )
+}
+
+fn read_transient_markdown(input: MarkdownInputArgs) -> Result<TransientDocument, Box<CliError>> {
+    if let Some(content) = input.content {
+        let source = bounded_source_bytes(content.into_bytes())?;
+        return Ok(TransientDocument {
+            source,
+            label: PathBuf::from("<inline>"),
+            config_anchor: PathBuf::from("-"),
+            source_kind: "inline",
+            argv: None,
+            replay_drift: None,
+        });
+    }
+    let path = input.path.unwrap_or_else(|| PathBuf::from("-"));
+    let source = if path == Path::new("-") {
+        read_bounded_source(io::stdin()).map_err(source_read_diagnostic)?
+    } else {
+        let file = fs::File::open(&path).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error("MDOK-E001", "Cannot read document", error.to_string())
+                    .at_file(&path),
+            )
+        })?;
+        read_bounded_source(file).map_err(source_read_diagnostic)?
+    };
+    Ok(TransientDocument {
+        source,
+        label: if path == Path::new("-") {
+            PathBuf::from("<stdin>")
+        } else {
+            path.clone()
+        },
+        config_anchor: path.clone(),
+        source_kind: if path == Path::new("-") {
+            "stdin"
+        } else {
+            "path"
+        },
+        argv: None,
+        replay_drift: None,
+    })
+}
+
+fn direct_transient_document(argv: Vec<String>) -> Result<TransientDocument, Box<CliError>> {
+    if argv.is_empty() {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error("MDOK-E001", "Empty command", "provide argv after `--`"),
+        ));
+    }
+    let source = transient::canonical_command_markdown(&argv).map_err(|message| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error("MDOK-E001", "Invalid direct command", message),
+        )
+    })?;
+    Ok(TransientDocument {
+        source: bounded_source_bytes(source.into_bytes())?,
+        label: PathBuf::from("<argv>"),
+        config_anchor: PathBuf::from("-"),
+        source_kind: "argv",
+        argv: Some(argv),
+        replay_drift: None,
+    })
+}
+
+fn bounded_source_bytes(source: Vec<u8>) -> Result<Vec<u8>, Box<CliError>> {
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E700",
+                "Markdown source limit exceeded",
+                format!("source exceeds {MAX_SOURCE_BYTES} bytes"),
+            ),
+        ));
+    }
+    Ok(source)
+}
+
+fn source_read_diagnostic(error: SourceReadError) -> Box<CliError> {
+    let too_large = matches!(&error, SourceReadError::TooLarge { .. });
+    let (title, message) = match error {
+        SourceReadError::Io(error) => ("Cannot read document", error.to_string()),
+        SourceReadError::TooLarge { limit, observed } => (
+            "Markdown source limit exceeded",
+            format!("source is at least {observed} bytes; the maximum is {limit} bytes"),
+        ),
+    };
+    let code = if too_large { "MDOK-E700" } else { "MDOK-E001" };
+    cli_error(EXIT_INPUT, Diagnostic::error(code, title, message))
+}
+
+fn run_invocation(
+    source: TransientDocument,
+    operation: InvocationOperation,
+    options: &CommonOptions,
+    raw: bool,
+    output: Option<PathBuf>,
+    force: bool,
+) -> Result<u8, Box<CliError>> {
+    let config = load_config(&[source.config_anchor.clone()], options)?;
+    let source_sha256 = sha256_hex(&source.source);
+    let recording = if operation == InvocationOperation::Record {
+        if let Some(argv) = &source.argv {
+            validate_recordable_argv(argv)?;
+        }
+        validate_recordable_source(&source.source, &config)?;
+        Some(write_recording(
+            &source,
+            output,
+            force,
+            options,
+            &source_sha256,
+            &config,
+        )?)
+    } else {
+        None
+    };
+    let mut temporary = NamedTempFile::new().map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-E800", "Transient source failed", error.to_string()),
+        )
+    })?;
+    temporary.write_all(&source.source).map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-E800", "Transient source failed", error.to_string()),
+        )
+    })?;
+    temporary.flush().map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-E800", "Transient source failed", error.to_string()),
+        )
+    })?;
+
+    let mut document = process_document(temporary.path(), Mode::Test, &config, options);
+    document.report.path = source.label.display().to_string();
+    let mut secret_values = config.secret_values();
+    secret_values.extend(document.secret_values.iter().cloned());
+    let redactor = Redactor::new(secret_values);
+    if operation == InvocationOperation::Run {
+        let mut report = Report::now();
+        append_report_document(&mut report, document, 0);
+        report.duration_ms = report
+            .documents
+            .first()
+            .map(|document| document.duration_ms)
+            .unwrap_or_default();
+        let report = redactor.redact_report(&report).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Report error", error.to_string()),
+            )
+        })?;
+        emit_report(&report, options, Mode::Test, false)?;
+        return Ok(report_exit_code(&report));
+    }
+
+    let context = document.contexts.first().and_then(Clone::clone);
+    let envelope = invocation_envelope(
+        &document,
+        context.as_ref(),
+        &source,
+        operation,
+        recording.as_ref(),
+        &source_sha256,
+        &redactor,
+    );
+    if raw {
+        write_raw_context(context.as_ref(), &config)?;
+    } else {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&envelope).map_err(|error| {
+                cli_error(
+                    EXIT_INTERNAL,
+                    Diagnostic::error(
+                        "MDOK-E800",
+                        "Invocation serialization failed",
+                        error.to_string(),
+                    ),
+                )
+            })?
+        );
+    }
+    Ok(if document.report.status.is_failure() {
+        report_exit_code_from_document(&document.report)
+    } else {
+        EXIT_OK
+    })
+}
+
+fn report_exit_code_from_document(document: &DocumentReport) -> u8 {
+    let policy = document
+        .diagnostics
+        .iter()
+        .chain(
+            document
+                .steps
+                .iter()
+                .flat_map(|step| step.diagnostics.iter()),
+        )
+        .any(|diagnostic| is_policy_code(&diagnostic.code));
+    if policy {
+        EXIT_POLICY
+    } else if document.status == Status::Error {
+        EXIT_INPUT
+    } else {
+        EXIT_CHECK_FAILED
+    }
+}
+
+fn invocation_operation_name(operation: InvocationOperation) -> &'static str {
+    match operation {
+        InvocationOperation::Run => "run",
+        InvocationOperation::Call => "call",
+        InvocationOperation::Record => "record",
+        InvocationOperation::Replay => "replay",
+    }
+}
+
+fn invocation_error_envelope(
+    operation: InvocationOperation,
+    argv: &[String],
+    diagnostic: &Diagnostic,
+) -> Value {
+    let source_bytes = serde_json::to_vec(argv).unwrap_or_default();
+    let source_sha256 = sha256_hex(&source_bytes);
+    let adapter = if argv.first().map(String::as_str) == Some("curl") {
+        "curl"
+    } else {
+        "exec"
+    };
+    let redactor = Redactor::new(std::iter::empty::<String>());
+    let diagnostic_value = invocation_diagnostic_value(diagnostic);
+    let policy = is_policy_code(&diagnostic.code);
+    redactor.redact_value(&json!({
+        "schema_version": "1",
+        "operation": invocation_operation_name(operation),
+        "run_id": format!("error-{}", &source_sha256[..16]),
+        "success": false,
+        "result_kind": "none",
+        "request": {
+            "adapter": adapter,
+            "argv": redact_argv_for_output(argv, &redactor),
+            "source": {
+                "kind": match operation {
+                    InvocationOperation::Replay => "recording",
+                    _ => "argv",
+                },
+                "path": Value::Null,
+                "sha256": source_sha256,
+            },
+        },
+        "response": Value::Null,
+        "execution": {
+            "started_at": now_string(),
+            "duration_ms": 0,
+            "timed_out": false,
+            "policy_allowed": !policy,
+            "policy_reason": if policy {
+                Value::String(diagnostic.message.clone())
+            } else {
+                Value::Null
+            },
+            "exit_code": Value::Null,
+        },
+        "recording": Value::Null,
+        "artifacts": [],
+        "diagnostics": [diagnostic_value],
+    }))
+}
+
+fn invocation_diagnostic_value(diagnostic: &Diagnostic) -> Value {
+    json!({
+        "severity": diagnostic.severity,
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+        "hint": diagnostic.hint,
+    })
+}
+
+fn is_policy_code(code: &str) -> bool {
+    matches!(
+        code,
+        "MDOK-E302"
+            | "MDOK-E303"
+            | "MDOK-E304"
+            | "MDOK-E306"
+            | "MDOK-E307"
+            | "MDOK-E312"
+            | "MDOK-E404"
+            | "MDOK-E602"
+            | "MDOK-E603"
+            | "MDOK-E604"
+    )
+}
+
+fn invocation_envelope(
+    document: &DocumentRun,
+    context: Option<&Value>,
+    source: &TransientDocument,
+    operation: InvocationOperation,
+    recording: Option<&RecordingInfo>,
+    source_sha256: &str,
+    redactor: &Redactor,
+) -> Value {
+    let step = document.report.steps.first();
+    let argv = source
+        .argv
+        .clone()
+        .or_else(|| step.map(|step| step.command.clone()))
+        .unwrap_or_else(|| vec!["<unavailable>".to_string()]);
+    let adapter = context
+        .and_then(|value| value.get("kind"))
+        .and_then(Value::as_str)
+        .map_or_else(
+            || {
+                if source
+                    .argv
+                    .as_ref()
+                    .and_then(|argv| argv.first())
+                    .map(String::as_str)
+                    == Some("curl")
+                {
+                    "curl"
+                } else {
+                    "exec"
+                }
+            },
+            |kind| if kind == "exec" { "exec" } else { "curl" },
+        );
+    let response = context.cloned();
+    let result_kind = if context.is_none() {
+        "none"
+    } else if adapter == "curl" {
+        "http"
+    } else {
+        "command"
+    };
+    let diagnostics = document
+        .report
+        .diagnostics
+        .iter()
+        .chain(
+            document
+                .report
+                .steps
+                .iter()
+                .flat_map(|step| step.diagnostics.iter()),
+        )
+        .map(invocation_diagnostic_value)
+        .collect::<Vec<_>>();
+    let raw = json!({
+        "schema_version": "1",
+        "operation": invocation_operation_name(operation),
+        "run_id": format!("run-{}", source_sha256.get(..16).unwrap_or(source_sha256)),
+        "success": document.report.status == Status::Passed,
+        "result_kind": result_kind,
+        "request": {
+            "adapter": adapter,
+            "argv": redact_argv_for_output(&argv, redactor),
+            "source": {
+                "kind": source.source_kind,
+                "path": source.label,
+                "sha256": source_sha256,
+            },
+        },
+        "response": response,
+        "execution": {
+            "started_at": now_string(),
+            "duration_ms": document.report.duration_ms,
+            "timed_out": context.and_then(|value| value.get("timed_out")).and_then(Value::as_bool).unwrap_or(false),
+            "policy_allowed": !diagnostics.iter().any(|value| value.get("code").and_then(Value::as_str).is_some_and(is_policy_code)),
+            "policy_reason": diagnostics.iter().find(|value| value.get("code").and_then(Value::as_str).is_some_and(is_policy_code)).and_then(|value| value.get("message")).cloned().unwrap_or(Value::Null),
+            "exit_code": context.and_then(|value| value.get("exit_code")).cloned().unwrap_or(Value::Null),
+        },
+        "recording": recording.map(|recording| json!({
+            "path": record_path_string(&recording.path),
+            "manifest_path": record_path_string(&recording.manifest_path),
+            "source_sha256": recording.source_sha256,
+            "replay_command": recording.replay_command,
+            "drift": source.replay_drift.clone().unwrap_or_else(|| {
+                json!({
+                    "status": "not_checked",
+                    "source_changed": false,
+                    "configuration_changed": false,
+                    "inputs_changed": false,
+                    "message": "replay provenance was not checked"
+                })
+            }),
+        })).unwrap_or(Value::Null),
+        "artifacts": response
+            .as_ref()
+            .and_then(|value| value.get("body_metadata"))
+            .and_then(|value| value.get("artifact"))
+            .filter(|value| !value.is_null())
+            .map(|value| vec![value.clone()])
+            .unwrap_or_default(),
+        "diagnostics": diagnostics,
+    });
+    redactor.redact_value(&raw)
+}
+
+fn write_raw_context(
+    context: Option<&Value>,
+    config: &EffectiveConfig,
+) -> Result<(), Box<CliError>> {
+    let Some(context) = context else {
+        return Ok(());
+    };
+    if context.get("kind").and_then(Value::as_str) == Some("exec")
+        && context.get("secret_tainted").and_then(Value::as_bool) == Some(true)
+    {
+        return Err(cli_error(
+            EXIT_POLICY,
+            Diagnostic::error(
+                "MDOK-E404",
+                "Raw secret-tainted output denied",
+                "structured output is required when a trusted command receives secret environment values",
+            ),
+        ));
+    }
+    let stdout = io::stdout();
+    let mut output = stdout.lock();
+    if let Some(path) = context
+        .get("body_metadata")
+        .and_then(|value| value.get("artifact"))
+        .and_then(|value| value.get("path"))
+        .and_then(Value::as_str)
+    {
+        let artifact_path = config.config_root.join(path);
+        let mut file = fs::File::open(&artifact_path).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+            )
+        })?;
+        let mut buffer = [0u8; 16 * 1024];
+        loop {
+            let count = file.read(&mut buffer).map_err(|error| {
+                cli_error(
+                    EXIT_INTERNAL,
+                    Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+                )
+            })?;
+            if count == 0 {
+                break;
+            }
+            output.write_all(&buffer[..count]).map_err(|error| {
+                cli_error(
+                    EXIT_INTERNAL,
+                    Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+                )
+            })?;
+        }
+    } else if let Some(text) = context.get("body_text").and_then(Value::as_str) {
+        output.write_all(text.as_bytes()).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+            )
+        })?;
+    } else if let Some(encoded) = context.get("body_base64").and_then(Value::as_str) {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|error| {
+                cli_error(
+                    EXIT_INTERNAL,
+                    Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+                )
+            })?;
+        output.write_all(&bytes).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+            )
+        })?;
+    } else if let Some(stdout_text) = context.get("stdout").and_then(Value::as_str) {
+        output.write_all(stdout_text.as_bytes()).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+            )
+        })?;
+    }
+    output.flush().map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-E800", "Raw output failed", error.to_string()),
+        )
+    })?;
+    Ok(())
+}
+
+fn redact_argv_for_output(argv: &[String], redactor: &Redactor) -> Vec<String> {
+    let mut redacted = Vec::with_capacity(argv.len());
+    let mut redact_next = false;
+    for argument in argv {
+        if redact_next {
+            redacted.push("[REDACTED]".to_string());
+            redact_next = false;
+            continue;
+        }
+        let lower = argument.to_ascii_lowercase();
+        let option = lower
+            .split_once('=')
+            .map_or(lower.as_str(), |(name, _)| name);
+        if matches!(
+            option,
+            "-u" | "--user" | "--cookie" | "-b" | "--proxy" | "-x" | "--oauth2-bearer"
+        ) {
+            if argument.contains('=') {
+                redacted.push(format!(
+                    "{}=[REDACTED]",
+                    argument
+                        .split_once('=')
+                        .map(|(name, _)| name)
+                        .unwrap_or(argument)
+                ));
+            } else {
+                redacted.push(argument.clone());
+                redact_next = true;
+            }
+            continue;
+        }
+        if option == "-h" || option == "--header" {
+            if let Some((name, value)) = argument.split_once('=') {
+                redacted.push(format!("{name}={}", redact_header_value(value, redactor)));
+            } else {
+                redacted.push(argument.clone());
+                redact_next = true;
+            }
+            continue;
+        }
+        if let Some((name, _value)) = argument.split_once(':')
+            && is_sensitive_header(name)
+        {
+            redacted.push(format!("{name}: [REDACTED]"));
+            continue;
+        }
+        let redacted_value = redact_url_credentials(argument, redactor);
+        redacted.push(redacted_value);
+    }
+    redacted
+}
+
+fn redact_header_value(value: &str, redactor: &Redactor) -> String {
+    if let Some((name, _)) = value.split_once(':')
+        && is_sensitive_header(name)
+    {
+        return format!("{name}: [REDACTED]");
+    }
+    redactor.redact_text(value)
+}
+
+fn is_sensitive_header(name: &str) -> bool {
+    matches!(
+        name.trim().to_ascii_lowercase().as_str(),
+        "authorization"
+            | "proxy-authorization"
+            | "cookie"
+            | "set-cookie"
+            | "x-api-key"
+            | "x-auth-token"
+    )
+}
+
+fn redact_url_credentials(value: &str, redactor: &Redactor) -> String {
+    let Ok(mut url) = Url::parse(value) else {
+        return redactor.redact_text(value);
+    };
+    if !url.username().is_empty() || url.password().is_some() {
+        let _ = url.set_username("[REDACTED]");
+        let _ = url.set_password(Some("[REDACTED]"));
+        return url.to_string();
+    }
+    redactor.redact_text(value)
+}
+
+fn write_recording(
+    source: &TransientDocument,
+    output: Option<PathBuf>,
+    force: bool,
+    options: &CommonOptions,
+    source_sha256: &str,
+    config: &EffectiveConfig,
+) -> Result<RecordingInfo, Box<CliError>> {
+    let path = output.unwrap_or_else(|| {
+        let root = options
+            .config
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        root.join(".mdok").join("records").join(format!(
+            "record-{}-{}.md",
+            unix_timestamp(),
+            &source_sha256[..8]
+        ))
+    });
+    let path = if path.extension().is_none() {
+        path.with_extension("md")
+    } else {
+        path
+    };
+    write_private_atomic(&path, &source.source, force)?;
+    let manifest_path = recording_manifest_path(&path);
+    let provenance = provenance_snapshot(config, options);
+    let provenance_sha256 = sha256_json(&provenance);
+    let manifest = json!({
+        "schema_version": "1",
+        "source_sha256": source_sha256,
+        "source_kind": source.source_kind,
+        "mdok_version": mdok_report::MDOK_VERSION,
+        "curl_compatibility": mdok_report::CURL_COMPAT_VERSION,
+        "created_at": now_string(),
+        "provenance": provenance,
+        "provenance_sha256": provenance_sha256,
+    });
+    if let Err(error) = write_private_atomic(
+        &manifest_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&manifest).unwrap_or_default()
+        )
+        .as_bytes(),
+        force,
+    ) {
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+    Ok(RecordingInfo {
+        replay_command: format!("mdok replay {}", record_path_string(&path)),
+        path,
+        manifest_path,
+        source_sha256: source_sha256.to_owned(),
+    })
+}
+
+fn write_private_atomic(path: &Path, bytes: &[u8], force: bool) -> Result<(), Box<CliError>> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    create_private_directory(parent).map_err(|error| {
+        cli_error(
+            EXIT_POLICY,
+            Diagnostic::error("MDOK-E303", "Recording path denied", error.to_string()),
+        )
+    })?;
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return Err(cli_error(
+            EXIT_POLICY,
+            Diagnostic::error(
+                "MDOK-E303",
+                "Recording path denied",
+                "recording destination cannot be a symbolic link",
+            ),
+        ));
+    }
+    if !force && path.exists() {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Recording already exists",
+                path.display().to_string(),
+            ),
+        ));
+    }
+    let mut temporary = NamedTempFile::new_in(parent).map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error("MDOK-E800", "Recording write failed", error.to_string()),
+        )
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        temporary
+            .as_file()
+            .set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|error| {
+                cli_error(
+                    EXIT_INTERNAL,
+                    Diagnostic::error(
+                        "MDOK-E800",
+                        "Recording permission failed",
+                        error.to_string(),
+                    ),
+                )
+            })?;
+    }
+    temporary
+        .write_all(bytes)
+        .and_then(|_| temporary.as_file_mut().sync_all())
+        .map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error("MDOK-E800", "Recording write failed", error.to_string()),
+            )
+        })?;
+    if force {
+        temporary.persist(path).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error(
+                    "MDOK-E800",
+                    "Recording rename failed",
+                    error.error.to_string(),
+                ),
+            )
+        })?;
+    } else {
+        temporary.persist_noclobber(path).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-E001",
+                    "Recording already exists",
+                    error.error.to_string(),
+                ),
+            )
+        })?;
+    }
+    let _ = fs::File::open(parent).and_then(|directory| directory.sync_all());
+    Ok(())
+}
+
+fn validate_recordable_argv(argv: &[String]) -> Result<(), Box<CliError>> {
+    for (index, argument) in argv.iter().enumerate() {
+        let lower = argument.to_ascii_lowercase();
+        if lower.contains("authorization:")
+            || lower.contains("cookie:")
+            || lower.contains("x-api-key:")
+            || matches!(lower.as_str(), "-u" | "--user" | "--cookie" | "--proxy")
+            || (index > 0 && argv[index - 1] == "-u")
+            || (index > 0 && argv[index - 1] == "--user")
+            || (index > 0 && argv[index - 1] == "--cookie")
+        {
+            return Err(cli_error(
+                EXIT_POLICY,
+                Diagnostic::error(
+                    "MDOK-E404",
+                    "Secret-bearing command cannot be recorded",
+                    "use a named secret and a Markdown template instead of persisting a literal credential",
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_recordable_source(
+    source: &[u8],
+    config: &EffectiveConfig,
+) -> Result<(), Box<CliError>> {
+    let text = std::str::from_utf8(source).map_err(|_| {
+        cli_error(
+            EXIT_POLICY,
+            Diagnostic::error(
+                "MDOK-E404",
+                "Secret-bearing document cannot be recorded",
+                "recordings must be valid UTF-8 Markdown so their source can be inspected safely",
+            ),
+        )
+    })?;
+    let known_secrets = config.secret_values();
+    if known_secrets
+        .iter()
+        .any(|secret| !secret.is_empty() && text.contains(secret))
+    {
+        return Err(cli_error(
+            EXIT_POLICY,
+            Diagnostic::error(
+                "MDOK-E404",
+                "Secret-bearing document cannot be recorded",
+                "the Markdown source contains a resolved secret value; use a named template variable",
+            ),
+        ));
+    }
+    for line in text.lines() {
+        let lower = line.to_ascii_lowercase();
+        let sensitive_header = [
+            "authorization:",
+            "proxy-authorization:",
+            "cookie:",
+            "set-cookie:",
+            "x-api-key:",
+            "x-auth-token:",
+        ]
+        .iter()
+        .any(|marker| lower.contains(marker));
+        if sensitive_header && !line.contains("{{") {
+            return Err(cli_error(
+                EXIT_POLICY,
+                Diagnostic::error(
+                    "MDOK-E404",
+                    "Secret-bearing document cannot be recorded",
+                    "replace literal authorization, cookie, or API-key values with a named template variable",
+                ),
+            ));
+        }
+        if (lower.contains("--user ")
+            || lower.contains("--cookie ")
+            || lower.contains(" -b ")
+            || lower.contains("--oauth2-bearer "))
+            && !line.contains("{{")
+        {
+            return Err(cli_error(
+                EXIT_POLICY,
+                Diagnostic::error(
+                    "MDOK-E404",
+                    "Secret-bearing document cannot be recorded",
+                    "replace literal credential options with a named template variable",
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn create_private_directory(path: &Path) -> io::Result<()> {
+    if path.as_os_str().is_empty() {
+        return Ok(());
+    }
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        current.push(component.as_os_str());
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                if !fs::metadata(&current).is_ok_and(|target| target.is_dir()) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        format!(
+                            "directory component is not a directory: {}",
+                            current.display()
+                        ),
+                    ));
+                }
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    format!(
+                        "directory component is not a directory: {}",
+                        current.display()
+                    ),
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                fs::create_dir(&current)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&current, fs::Permissions::from_mode(0o700))?;
+                }
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+fn provenance_snapshot(config: &EffectiveConfig, options: &CommonOptions) -> Value {
+    let cwd = std::env::current_dir()
+        .ok()
+        .and_then(|path| fs::canonicalize(path).ok())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut profiles = Map::new();
+    for (name, profile) in &config.command_profiles {
+        profiles.insert(
+            name.clone(),
+            json!({
+                "program": profile.program,
+                "program_sha256": sha256_file(&profile.program),
+                "env_keys": profile.env.keys().collect::<Vec<_>>(),
+                "secret_env_keys": profile.secret_env.keys().collect::<Vec<_>>(),
+            }),
+        );
+    }
+    let secret_sources = config
+        .vars
+        .iter()
+        .filter(|(_, variable)| variable.secret)
+        .map(|(name, _)| name.clone())
+        .collect::<Vec<_>>();
+    let input_ids = options
+        .secret
+        .iter()
+        .filter_map(|entry| entry.split_once('=').map(|(name, _)| name.to_string()))
+        .chain(secret_sources.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let non_secret_variables = config
+        .vars
+        .iter()
+        .filter(|(_, variable)| !variable.secret)
+        .map(|(name, variable)| (name.clone(), variable.value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let secret_value_digests = config
+        .vars
+        .iter()
+        .filter(|(_, variable)| variable.secret)
+        .map(|(name, variable)| (name.clone(), sha256_json(&variable.value)))
+        .collect::<BTreeMap<_, _>>();
+    json!({
+        "mdok_version": mdok_report::MDOK_VERSION,
+        "curl_compatibility": mdok_report::CURL_COMPAT_VERSION,
+        "libcurl": mdok_report::LIBCURL_VERSION,
+        "tls": mdok_report::TLS_BACKEND,
+        "config_path": config.config_path,
+        "config_sha256": config.config_path.as_deref().and_then(sha256_file),
+        "config_root": config.config_root,
+        "working_directory": cwd,
+        "environment_profile": options.env,
+        "allowed_hosts": config.allowed_hosts,
+        "denied_hosts": config.denied_hosts,
+        "allowed_schemes": config.allowed_schemes,
+        "allow_private_network": config.allow_private_network,
+        "allow_proxy": config.allow_proxy,
+        "allow_insecure_tls": config.allow_insecure_tls,
+        "allow_resolve": config.allow_resolve,
+        "allow_connect_to": config.allow_connect_to,
+        "allow_file_reads": config.allow_file_reads,
+        "allowed_read_roots": config.allowed_read_roots,
+        "allow_artifact_writes": config.allow_artifact_writes,
+        "allowed_artifact_roots": config.allowed_artifact_roots,
+        "artifact_path": config.artifact_path,
+        "timeouts": {
+            "connect_ms": config.connect_timeout.as_millis(),
+            "total_ms": config.timeout.as_millis(),
+            "command_ms": config.command_timeout.as_millis(),
+        },
+        "limits": {
+            "max_body": config.max_body,
+            "max_command_output_bytes": config.max_command_output_bytes,
+            "max_command_args": config.max_command_args,
+            "max_command_arg_bytes": config.max_command_arg_bytes,
+            "max_command_argv_bytes": config.max_command_argv_bytes,
+        },
+        "profiles": profiles,
+        "secret_source_ids": input_ids,
+        "secret_value_digests": secret_value_digests,
+        "non_secret_variables_sha256": sha256_json(&Value::Object(
+            non_secret_variables.into_iter().collect()
+        )),
+    })
+}
+
+fn sha256_json(value: &Value) -> String {
+    serde_json::to_vec(value)
+        .map(|bytes| sha256_hex(&bytes))
+        .unwrap_or_default()
+}
+
+fn sha256_file(path: &Path) -> Option<String> {
+    let mut file = fs::File::open(path).ok()?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer).ok()?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Some(hex_digest(&digest.finalize()))
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut result = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        result.push(HEX[(byte >> 4) as usize] as char);
+        result.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    result
+}
+
+fn recording_manifest_path(source_path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.json", source_path.display()))
+}
+
+fn replay_drift(
+    source: &TransientDocument,
+    options: &CommonOptions,
+    config: &EffectiveConfig,
+) -> Result<Value, Box<CliError>> {
+    let manifest_path = recording_manifest_path(&source.label);
+    if !manifest_path.is_file() {
+        return Ok(json!({
+            "status": "unknown",
+            "source_changed": false,
+            "configuration_changed": false,
+            "inputs_changed": false,
+            "message": "recording manifest is missing"
+        }));
+    }
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-E001",
+                    "Cannot read recording manifest",
+                    error.to_string(),
+                ),
+            )
+        })?)
+        .map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error("MDOK-E001", "Invalid recording manifest", error.to_string()),
+            )
+        })?;
+    if manifest.get("schema_version").and_then(Value::as_str) != Some("1") {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Unsupported recording manifest",
+                "recording manifest schema_version must be `1`",
+            ),
+        ));
+    }
+    let expected = manifest.get("source_sha256").and_then(Value::as_str);
+    let actual = sha256_hex(&source.source);
+    if expected.is_none() {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Invalid recording manifest",
+                "recording manifest is missing source_sha256",
+            ),
+        ));
+    }
+    let current_provenance = provenance_snapshot(config, options);
+    let expected_provenance = manifest
+        .get("provenance_sha256")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-E001",
+                    "Invalid recording manifest",
+                    "recording manifest is missing provenance_sha256",
+                ),
+            )
+        })?;
+    let actual_provenance = sha256_json(&current_provenance);
+    let source_changed = expected != Some(actual.as_str());
+    let configuration_changed = expected_provenance != actual_provenance;
+    let expected_inputs = manifest
+        .get("provenance")
+        .and_then(|value| value.get("secret_source_ids"));
+    let actual_inputs = current_provenance.get("secret_source_ids");
+    let inputs_changed = expected_inputs != actual_inputs;
+    let changed = source_changed || configuration_changed || inputs_changed;
+    Ok(json!({
+        "status": if changed { "changed" } else { "exact" },
+        "source_changed": source_changed,
+        "configuration_changed": configuration_changed,
+        "inputs_changed": inputs_changed,
+        "message": if changed {
+            "recording source, configuration, or secret input identifiers changed"
+        } else {
+            "recording source and provenance match the current inputs"
+        },
+        "expected_source_sha256": expected,
+        "actual_source_sha256": actual,
+        "expected_provenance_sha256": expected_provenance,
+        "actual_provenance_sha256": actual_provenance,
+    }))
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default()
+}
+
+fn now_string() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or_default();
+    let days = seconds.div_euclid(86_400);
+    let day_seconds = seconds.rem_euclid(86_400);
+    let hour = day_seconds / 3_600;
+    let minute = (day_seconds % 3_600) / 60;
+    let second = day_seconds % 60;
+
+    // Proleptic Gregorian conversion from Unix days. Keeping this local
+    // avoids adding a date dependency to the small CLI binary while emitting
+    // the RFC 3339 form required by the invocation schema.
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 }.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096).div_euclid(365);
+    let year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let month_part = (5 * doy + 2).div_euclid(153);
+    let day = doy - (153 * month_part + 2).div_euclid(5) + 1;
+    let month = month_part + if month_part < 10 { 3 } else { -9 };
+    let year = year + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
+fn record_path_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }
 
 fn report_exit_code(report: &Report) -> u8 {
@@ -870,6 +2252,7 @@ where
                 diagnostics: outcome.diagnostics,
             },
             executions: Vec::new(),
+            contexts: Vec::new(),
             secret_values: outcome.secret_values,
         };
     };
@@ -878,16 +2261,19 @@ where
         Mode::Lint => DocumentRun {
             report: plan_report(&plan, Status::Passed, true),
             executions: Vec::new(),
+            contexts: Vec::new(),
             secret_values: collect_secret_values(&plan.variables),
         },
         Mode::Plan => DocumentRun {
             report: plan_report(&plan, Status::Planned, true),
             executions: Vec::new(),
+            contexts: Vec::new(),
             secret_values: collect_secret_values(&plan.variables),
         },
         Mode::List => DocumentRun {
             report: plan_report(&plan, Status::Planned, false),
             executions: Vec::new(),
+            contexts: Vec::new(),
             secret_values: collect_secret_values(&plan.variables),
         },
     };
@@ -982,11 +2368,13 @@ where
         return DocumentRun {
             report: document,
             executions: vec![None; plan.steps.len()],
+            contexts: vec![None; plan.steps.len()],
             secret_values: collect_secret_values(&variables),
         };
     }
     let mut steps = Vec::new();
     let mut executions = Vec::new();
+    let mut contexts = Vec::new();
     for step in &plan.steps {
         let started = Instant::now();
         let mut report = StepReport {
@@ -1046,6 +2434,7 @@ where
             let step_ordinal = steps.len();
             steps.push(report);
             executions.push(None);
+            contexts.push(None);
             on_step(step_ordinal, steps.last().expect("step was just pushed"));
             if options.fail_fast || config.fail_fast {
                 break;
@@ -1068,8 +2457,10 @@ where
             ),
         };
         let mut execution = None;
+        let mut context_for_step = None;
         match context_result {
             Ok(context) => {
+                context_for_step = Some(context.clone());
                 if step.kind == StepKind::Exec {
                     execution = execution_result_from_context(&context, &report.command);
                 }
@@ -1204,6 +2595,7 @@ where
         let step_ordinal = steps.len();
         steps.push(report);
         executions.push(execution);
+        contexts.push(context_for_step);
         on_step(step_ordinal, steps.last().expect("step was just pushed"));
         if failed && (options.fail_fast || config.fail_fast) {
             break;
@@ -1222,6 +2614,7 @@ where
             diagnostics: Vec::new(),
         },
         executions,
+        contexts,
         secret_values: collect_secret_values(&variables),
     }
 }
@@ -1276,9 +2669,29 @@ fn transfer(
     let response = plan
         .execute_in_session(&policy, session)
         .map_err(curl_diagnostic)?;
+    let artifact = if let Some(destination) = &config.artifact_path {
+        let artifact = response
+            .body
+            .promote_to_artifact(destination, &policy, config.max_body as u64)
+            .map_err(curl_diagnostic)?;
+        Some(relative_artifact_reference(artifact, &config.config_root))
+    } else {
+        None
+    };
     response
-        .evaluation_json_limited(variables, steps, config.max_body)
+        .evaluation_json_limited_with_artifact(variables, steps, config.max_body, artifact.as_ref())
         .map_err(curl_diagnostic)
+}
+
+fn relative_artifact_reference(mut artifact: BodyArtifact, root: &Path) -> BodyArtifact {
+    if let Ok(relative) = artifact.path.strip_prefix(root) {
+        artifact.path = relative.to_path_buf();
+    } else if let Ok(cwd) = std::env::current_dir()
+        && let Ok(relative) = artifact.path.strip_prefix(cwd)
+    {
+        artifact.path = relative.to_path_buf();
+    }
+    artifact
 }
 
 #[allow(clippy::result_large_err)]
@@ -3537,7 +4950,7 @@ fn load_config(
         .and_then(Path::parent)
         .map(Path::to_path_buf)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let file = if let Some(path) = config_path {
+    let file = if let Some(path) = config_path.clone() {
         let text = fs::read_to_string(&path).map_err(|error| {
             cli_error(
                 EXIT_INPUT,
@@ -3667,6 +5080,15 @@ fn load_config(
         .max_body
         .or(file.execution.max_body_bytes)
         .unwrap_or(8 * 1024 * 1024);
+    let artifact_path = options.artifact.as_ref().map(|path| {
+        if path.is_absolute() {
+            path.clone()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_else(|_| config_root.clone())
+                .join(path)
+        }
+    });
     let memory_body_threshold = file
         .execution
         .memory_body_threshold_bytes
@@ -3691,7 +5113,8 @@ fn load_config(
         .as_deref()
         .map(|path| resolve_command_directory(&config_root, path))
         .transpose()?;
-    let mut command_profiles = resolve_command_profiles(&file.policy.exec, &config_root, &vars)?;
+    let mut command_profiles =
+        resolve_command_profiles(&file.policy.exec, &config_root, &mut vars)?;
     for configured in &file.policy.allowed_commands {
         let program = resolve_command_program(&config_root, configured)?;
         command_profiles
@@ -3709,6 +5132,8 @@ fn load_config(
             .iter()
             .any(|host| matches!(host.as_str(), "*" | "localhost" | "127.0.0.1" | "::1"));
     Ok(EffectiveConfig {
+        config_path: config_path.map(|path| fs::canonicalize(&path).unwrap_or(path)),
+        config_root,
         vars,
         allowed_hosts: options
             .allow_host
@@ -3743,6 +5168,7 @@ fn load_config(
         fail_fast: options.fail_fast || file.execution.fail_fast,
         timeout,
         max_body,
+        artifact_path,
         command_timeout,
         max_command_output_bytes: file.execution.max_command_output_bytes.max(1),
         max_command_args: file.execution.max_command_args.max(1),
@@ -3757,7 +5183,7 @@ fn load_config(
 fn resolve_command_profiles(
     policy: &ExecPolicyConfig,
     config_root: &Path,
-    variables: &BTreeMap<String, Variable>,
+    variables: &mut BTreeMap<String, Variable>,
 ) -> Result<BTreeMap<String, ResolvedCommandProfile>, Box<CliError>> {
     let mut profiles = BTreeMap::new();
     for (name, profile) in &policy.commands {
@@ -3780,7 +5206,7 @@ fn resolve_command_profiles(
         let mut secret_env = BTreeMap::new();
         for (key, variable_name) in &profile.secret_env {
             validate_command_environment_name(key)?;
-            let Some(variable) = variables.get(variable_name) else {
+            let Some(variable) = variables.get_mut(variable_name) else {
                 return Err(cli_error(
                     EXIT_INPUT,
                     Diagnostic::error(
@@ -3792,6 +5218,10 @@ fn resolve_command_profiles(
                     ),
                 ));
             };
+            // An explicit secret_env mapping is a taint boundary even when
+            // the source variable has a neutral name such as `value`. Mark
+            // it before reports and invocation envelopes collect secrets.
+            variable.secret = true;
             let Some(value) = variable.value.as_str() else {
                 return Err(cli_error(
                     EXIT_INPUT,

@@ -1170,6 +1170,7 @@ name = "mdok-cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "base64",
  "clap",
  "jmespath",
  "mdok-command",
@@ -1180,6 +1181,8 @@ dependencies = [
  "mdok-template",
  "serde",
  "serde_json",
+ "sha2",
+ "tempfile",
  "toml",
  "url",
  "walkdir",
@@ -1216,6 +1219,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "url",

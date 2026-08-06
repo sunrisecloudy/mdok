@@ -61,6 +61,9 @@
         "null"
       ]
     },
+    "body_metadata": {
+      "$ref": "#/$defs/bodyMetadata"
+    },
     "body_kind": {
       "enum": [
         "json",
@@ -101,5 +104,129 @@
       "type": "object"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "bodyMetadata": {
+      "type": "object",
+      "description": "Optional typed metadata for the response body. The legacy body, body_text, body_base64, and body_kind fields remain valid and are not replaced by this object.",
+      "required": [
+        "kind",
+        "bytes",
+        "sha256",
+        "storage",
+        "truncated",
+        "artifact"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "json",
+            "text",
+            "binary",
+            "empty",
+            "truncated"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "media_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "encoding": {
+          "enum": [
+            "none",
+            "utf-8",
+            "base64"
+          ]
+        },
+        "storage": {
+          "enum": [
+            "none",
+            "inline",
+            "artifact"
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "artifact": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/artifactReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifactReference": {
+      "type": "object",
+      "description": "A durable, redacted reference to bytes stored outside the JSON response.",
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "complete"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "body",
+            "download",
+            "file",
+            "other"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+$",
+          "description": "A workspace-relative artifact path. Consumers must not treat it as an authority to access arbitrary paths."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "media_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suggested_filename": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

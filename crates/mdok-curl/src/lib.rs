@@ -16,14 +16,15 @@ use reqwest::header::{
     ACCEPT, COOKIE, HeaderMap, HeaderName, HeaderValue, RANGE, REFERER, USER_AGENT,
 };
 use reqwest::{Method, Proxy, Version};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::future;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tempfile::{NamedTempFile, TempPath};
@@ -42,6 +43,8 @@ pub const E_REDIRECT: &str = "MDOK-E603";
 pub const E_TLS: &str = "MDOK-E602";
 pub const E_CANCELLED: &str = "MDOK-E605";
 pub const E_BODY_LIMIT: &str = "MDOK-E700";
+
+const ARTIFACT_COPY_BUFFER_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct CurlPolicy {
@@ -321,23 +324,181 @@ impl CurlPolicy {
                 "artifact writes are disabled by policy",
             ));
         }
-        if !self.allowed_artifact_roots.is_empty() {
-            let parent = path.parent().unwrap_or_else(|| Path::new("."));
-            let canonical_parent =
-                fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
-            if !self.allowed_artifact_roots.iter().any(|root| {
-                fs::canonicalize(root)
-                    .map(|r| canonical_parent.starts_with(r))
-                    .unwrap_or(false)
-            }) {
-                return Err(CurlError::new(
-                    E_FILE_DENIED,
-                    "artifact is outside the allowed write roots",
-                ));
-            }
+        validate_artifact_path(path)?;
+        if self.allowed_artifact_roots.is_empty() {
+            return Err(CurlError::new(
+                E_FILE_DENIED,
+                "artifact writes require an allowed write root",
+            ));
         }
+
+        let canonical_parent = canonical_artifact_parent(path)?;
+        let canonical_roots = self
+            .allowed_artifact_roots
+            .iter()
+            .filter_map(|root| fs::canonicalize(root).ok())
+            .collect::<Vec<_>>();
+        let confined = canonical_roots
+            .iter()
+            .any(|root| canonical_parent.starts_with(root));
+        if !confined {
+            return Err(CurlError::new(
+                E_FILE_DENIED,
+                "artifact is outside the allowed write roots",
+            ));
+        }
+        reject_unsafe_artifact_symlink_parents(path, &self.allowed_artifact_roots)?;
         Ok(())
     }
+
+    fn checked_artifact_parent(&self, path: &Path) -> Result<PathBuf, CurlError> {
+        self.check_artifact(path)?;
+        canonical_artifact_parent(path)
+    }
+}
+
+fn validate_artifact_path(path: &Path) -> Result<(), CurlError> {
+    let raw = path.to_string_lossy();
+    if raw.is_empty()
+        || raw.ends_with('/')
+        || raw.ends_with('\\')
+        || raw.contains('\0')
+        || path.file_name().is_none()
+    {
+        return Err(CurlError::new(
+            E_FILE_DENIED,
+            "artifact destination must name a file",
+        ));
+    }
+
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        || raw
+            .split(['/', '\\'])
+            .any(|component| matches!(component, "." | ".."))
+        || looks_like_windows_absolute_path(&raw)
+    {
+        return Err(CurlError::new(
+            E_FILE_DENIED,
+            "artifact destination contains an unsafe relative path",
+        ));
+    }
+    Ok(())
+}
+
+fn looks_like_windows_absolute_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with("\\\\")
+        || path.starts_with("//")
+        || (bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
+}
+
+fn absolute_artifact_parent(path: &Path) -> Result<PathBuf, CurlError> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    if parent.is_absolute() {
+        return Ok(parent.to_path_buf());
+    }
+    std::env::current_dir()
+        .map(|directory| directory.join(parent))
+        .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))
+}
+
+fn absolute_artifact_path(path: &Path) -> Result<PathBuf, CurlError> {
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+    std::env::current_dir()
+        .map(|directory| directory.join(path))
+        .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))
+}
+
+fn canonical_artifact_parent(path: &Path) -> Result<PathBuf, CurlError> {
+    let absolute_parent = absolute_artifact_parent(path)?;
+    let mut cursor = PathBuf::new();
+    for component in absolute_parent.components() {
+        cursor.push(component.as_os_str());
+        match fs::symlink_metadata(&cursor) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let target = fs::metadata(&cursor)
+                    .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))?;
+                if !target.is_dir() {
+                    return Err(CurlError::new(
+                        E_FILE_DENIED,
+                        "artifact destination parent is not a directory",
+                    ));
+                }
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(CurlError::new(
+                    E_FILE_DENIED,
+                    "artifact destination parent is not a directory",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => {
+                return Err(CurlError::new(E_FILE_DENIED, error.to_string()));
+            }
+        }
+    }
+
+    let mut existing = absolute_parent.clone();
+    let mut missing = Vec::new();
+    while !existing.exists() {
+        let name = existing.file_name().ok_or_else(|| {
+            CurlError::new(
+                E_FILE_DENIED,
+                "artifact destination parent cannot be resolved",
+            )
+        })?;
+        missing.push(name.to_owned());
+        if !existing.pop() {
+            return Err(CurlError::new(
+                E_FILE_DENIED,
+                "artifact destination parent cannot be resolved",
+            ));
+        }
+    }
+    let mut canonical = fs::canonicalize(&existing)
+        .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))?;
+    for name in missing.iter().rev() {
+        canonical.push(name);
+    }
+    Ok(canonical)
+}
+
+fn reject_unsafe_artifact_symlink_parents(
+    path: &Path,
+    configured_roots: &[PathBuf],
+) -> Result<(), CurlError> {
+    let absolute_parent = absolute_artifact_parent(path)?;
+    let absolute_roots = configured_roots
+        .iter()
+        .filter_map(|root| absolute_artifact_path(root).ok())
+        .collect::<Vec<_>>();
+    let mut cursor = PathBuf::new();
+    for component in absolute_parent.components() {
+        cursor.push(component.as_os_str());
+        let metadata = match fs::symlink_metadata(&cursor) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => return Err(CurlError::new(E_FILE_DENIED, error.to_string())),
+        };
+        if !metadata.file_type().is_symlink() {
+            continue;
+        }
+        let trusted_boundary = absolute_roots
+            .iter()
+            .any(|root| cursor == *root || root.starts_with(&cursor));
+        if !trusted_boundary {
+            return Err(CurlError::new(
+                E_FILE_DENIED,
+                "artifact destination has a symlink parent",
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -681,32 +842,11 @@ fn native_response_with_body(
     let body = if let Some(body) = body_override {
         body
     } else {
-        let body_len = transfer.body.len() as u64;
-        if body_len > policy.max_body_bytes {
-            return Err(CurlError::new(
-                E_BODY_LIMIT,
-                "response body exceeds the configured limit",
-            ));
-        }
-        if transfer.body.len() <= policy.memory_body_threshold_bytes {
-            BodyStorage {
-                len: body_len,
-                memory: Some(transfer.body),
-                spool: None,
-                truncated: false,
-            }
-        } else {
-            let mut file = NamedTempFile::new()
-                .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
-            file.write_all(&transfer.body)
-                .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
-            BodyStorage {
-                len: body_len,
-                memory: None,
-                spool: Some(file.into_temp_path()),
-                truncated: false,
-            }
-        }
+        body_storage_from_bytes(
+            transfer.body,
+            policy.memory_body_threshold_bytes,
+            policy.max_body_bytes,
+        )?
     };
     let body_len = body.len();
     let redirects = native_redirects(
@@ -1591,7 +1731,7 @@ impl CurlPlan {
                 }
             })?;
         let mdok_curl_sys::NativeTransferResult { transfer, metadata } = result;
-        native_response_with_body(self, policy, transfer, metadata, Some(body_sink.finish()))
+        native_response_with_body(self, policy, transfer, metadata, Some(body_sink.finish()?))
     }
 }
 
@@ -1901,7 +2041,50 @@ pub struct BodyStorage {
     spool: Option<TempPath>,
     len: u64,
     truncated: bool,
+    metadata: BodyMetadata,
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct BodyMetadata {
+    pub kind: String,
+    pub bytes: u64,
+    pub sha256: Option<String>,
+    pub storage: String,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BodyHash {
+    Sha256(String),
+}
+
+impl Serialize for BodyHash {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Sha256(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct BodyArtifact {
+    pub path: PathBuf,
+    pub bytes: u64,
+    #[serde(rename = "sha256")]
+    pub hash: BodyHash,
+}
+
+impl BodyArtifact {
+    pub fn sha256(&self) -> &str {
+        match &self.hash {
+            BodyHash::Sha256(value) => value,
+        }
+    }
+}
+
 impl BodyStorage {
     pub fn len(&self) -> u64 {
         self.len
@@ -1918,6 +2101,24 @@ impl BodyStorage {
     pub fn is_truncated(&self) -> bool {
         self.truncated
     }
+    /// Return bounded body metadata computed while the body was captured.
+    ///
+    /// Spool-backed bodies are scanned through a fixed-size reader during
+    /// capture; this accessor never reopens or loads the spool.
+    pub fn metadata(&self) -> BodyMetadata {
+        self.metadata.clone()
+    }
+    /// Return body metadata only when the captured body fits the caller's
+    /// explicit bound.
+    pub fn metadata_limited(&self, max_bytes: u64) -> Result<BodyMetadata, CurlError> {
+        if self.len > max_bytes {
+            return Err(CurlError::new(
+                E_BODY_LIMIT,
+                "body metadata exceeds the requested limit",
+            ));
+        }
+        Ok(self.metadata())
+    }
     pub fn bytes(&self, max: usize) -> Result<Vec<u8>, CurlError> {
         if self.len > max as u64 {
             return Err(CurlError::new(
@@ -1933,6 +2134,351 @@ impl BodyStorage {
         }
         Ok(Vec::new())
     }
+
+    /// Stream this body into a new owner-only artifact file.
+    ///
+    /// The destination is created only after the complete body has been
+    /// copied and hashed. Existing destinations are never overwritten. The
+    /// effective limit is the smaller of `max_bytes` and the policy's body
+    /// limit, and the copy uses a fixed-size buffer regardless of body size.
+    pub fn promote_to_artifact(
+        &self,
+        destination: &Path,
+        policy: &CurlPolicy,
+        max_bytes: u64,
+    ) -> Result<BodyArtifact, CurlError> {
+        policy.check_artifact(destination)?;
+        if destination.file_name().is_none() {
+            return Err(CurlError::new(
+                E_FILE_DENIED,
+                "artifact destination must name a file",
+            ));
+        }
+
+        let limit = max_bytes.min(policy.max_body_bytes);
+        if self.len > limit {
+            return Err(CurlError::new(
+                E_BODY_LIMIT,
+                "body artifact exceeds the configured size limit",
+            ));
+        }
+
+        let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+        fs::create_dir_all(parent)
+            .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))?;
+        match fs::symlink_metadata(destination) {
+            Ok(_) => {
+                return Err(CurlError::new(
+                    E_FILE_DENIED,
+                    "artifact destination already exists",
+                ));
+            }
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                return Err(CurlError::new(E_FILE_DENIED, error.to_string()));
+            }
+            Err(_) => {}
+        }
+
+        let parent = policy.checked_artifact_parent(destination)?;
+        let mut temporary = NamedTempFile::new_in(&parent)
+            .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))?;
+        let mut source = BodyStorageReader::from_storage(self)?;
+        let mut digest = Sha256::new();
+        let mut buffer = [0u8; ARTIFACT_COPY_BUFFER_BYTES];
+        let mut copied = 0u64;
+        loop {
+            let count = source
+                .read(&mut buffer)
+                .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+            if count == 0 {
+                break;
+            }
+            let next = copied
+                .checked_add(count as u64)
+                .ok_or_else(|| CurlError::new(E_BODY_LIMIT, "body length overflow"))?;
+            if next > limit {
+                return Err(CurlError::new(
+                    E_BODY_LIMIT,
+                    "body artifact exceeds the configured size limit",
+                ));
+            }
+            digest.update(&buffer[..count]);
+            temporary
+                .as_file_mut()
+                .write_all(&buffer[..count])
+                .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))?;
+            copied = next;
+        }
+        if copied != self.len {
+            return Err(CurlError::new(
+                E_TRANSFER,
+                "body storage length changed during artifact promotion",
+            ));
+        }
+        temporary
+            .as_file_mut()
+            .flush()
+            .map_err(|error| CurlError::new(E_FILE_DENIED, error.to_string()))?;
+        temporary
+            .persist_noclobber(destination)
+            .map_err(|error| CurlError::new(E_FILE_DENIED, error.error.to_string()))?;
+
+        Ok(BodyArtifact {
+            path: destination.to_path_buf(),
+            bytes: copied,
+            hash: BodyHash::Sha256(hex_digest(&digest.finalize())),
+        })
+    }
+}
+
+enum BodyStorageReader<'a> {
+    Memory(&'a [u8]),
+    Spool(fs::File),
+    Empty,
+}
+
+impl<'a> BodyStorageReader<'a> {
+    fn from_storage(storage: &'a BodyStorage) -> Result<Self, CurlError> {
+        if let Some(bytes) = storage.memory.as_deref() {
+            return Ok(Self::Memory(bytes));
+        }
+        if let Some(path) = &storage.spool {
+            return fs::File::open(path)
+                .map(Self::Spool)
+                .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()));
+        }
+        Ok(Self::Empty)
+    }
+}
+
+impl Read for BodyStorageReader<'_> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Memory(bytes) => bytes.read(buffer),
+            Self::Spool(file) => file.read(buffer),
+            Self::Empty => Ok(0),
+        }
+    }
+}
+
+struct MetadataReader<R> {
+    inner: R,
+    digest: Sha256,
+    bytes: u64,
+    utf8: Utf8Validator,
+}
+
+impl<R> MetadataReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            inner,
+            digest: Sha256::new(),
+            bytes: 0,
+            utf8: Utf8Validator::default(),
+        }
+    }
+}
+
+impl<R: Read> Read for MetadataReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let count = self.inner.read(buffer)?;
+        if count == 0 {
+            return Ok(0);
+        }
+        self.bytes = self
+            .bytes
+            .checked_add(count as u64)
+            .ok_or_else(|| std::io::Error::other("body length overflow"))?;
+        self.digest.update(&buffer[..count]);
+        self.utf8.push(&buffer[..count]);
+        Ok(count)
+    }
+}
+
+struct Utf8Validator {
+    valid: bool,
+    lead: u8,
+    expected: u8,
+    seen: u8,
+}
+
+impl Default for Utf8Validator {
+    fn default() -> Self {
+        Self {
+            valid: true,
+            lead: 0,
+            expected: 0,
+            seen: 0,
+        }
+    }
+}
+
+impl Utf8Validator {
+    fn push(&mut self, bytes: &[u8]) {
+        if !self.valid {
+            return;
+        }
+        for &byte in bytes {
+            self.push_byte(byte);
+            if !self.valid {
+                return;
+            }
+        }
+    }
+
+    fn push_byte(&mut self, byte: u8) {
+        if self.expected == 0 {
+            match byte {
+                0x00..=0x7f => {}
+                0xc2..=0xdf => {
+                    self.lead = byte;
+                    self.expected = 2;
+                    self.seen = 1;
+                }
+                0xe0..=0xef => {
+                    self.lead = byte;
+                    self.expected = 3;
+                    self.seen = 1;
+                }
+                0xf0..=0xf4 => {
+                    self.lead = byte;
+                    self.expected = 4;
+                    self.seen = 1;
+                }
+                _ => self.valid = false,
+            }
+            return;
+        }
+
+        let valid_continuation = (0x80..=0xbf).contains(&byte)
+            && (self.seen != 1
+                || match self.lead {
+                    0xe0 => byte >= 0xa0,
+                    0xed => byte <= 0x9f,
+                    0xf0 => byte >= 0x90,
+                    0xf4 => byte <= 0x8f,
+                    _ => true,
+                });
+        if !valid_continuation {
+            self.valid = false;
+            return;
+        }
+        self.seen += 1;
+        if self.seen == self.expected {
+            self.lead = 0;
+            self.expected = 0;
+            self.seen = 0;
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        self.valid && self.expected == 0
+    }
+}
+
+fn compute_body_metadata(storage: &BodyStorage) -> Result<BodyMetadata, CurlError> {
+    // A temporary spool is an internal memory-saving representation, not a
+    // durable artifact. The response still exposes the bytes inline unless
+    // the caller explicitly promotes them to an artifact.
+    let storage_name = if storage.len == 0 { "none" } else { "inline" };
+    let mut source = BodyStorageReader::from_storage(storage)?;
+    let mut reader = MetadataReader::new(&mut source);
+    let json = if storage.len == 0 {
+        false
+    } else {
+        let mut deserializer = serde_json::Deserializer::from_reader(&mut reader);
+        let parsed = serde::de::IgnoredAny::deserialize(&mut deserializer).is_ok();
+        parsed && deserializer.end().is_ok()
+    };
+
+    let mut buffer = [0u8; ARTIFACT_COPY_BUFFER_BYTES];
+    loop {
+        let count = reader
+            .read(&mut buffer)
+            .map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+        if count == 0 {
+            break;
+        }
+    }
+    if reader.bytes != storage.len {
+        return Err(CurlError::new(
+            E_TRANSFER,
+            "body storage length changed while reading metadata",
+        ));
+    }
+
+    let kind = if storage.truncated {
+        "truncated"
+    } else if storage.len == 0 {
+        "empty"
+    } else if json {
+        "json"
+    } else if reader.utf8.is_valid() {
+        "text"
+    } else {
+        "binary"
+    };
+    let sha256 = if storage.truncated {
+        None
+    } else {
+        Some(hex_digest(&reader.digest.finalize()))
+    };
+    Ok(BodyMetadata {
+        kind: kind.to_owned(),
+        bytes: storage.len,
+        sha256,
+        storage: storage_name.to_owned(),
+        truncated: storage.truncated,
+    })
+}
+
+fn body_storage_from_parts(
+    memory: Option<Vec<u8>>,
+    spool: Option<TempPath>,
+    len: u64,
+    truncated: bool,
+) -> Result<BodyStorage, CurlError> {
+    let mut storage = BodyStorage {
+        memory,
+        spool,
+        len,
+        truncated,
+        metadata: BodyMetadata::default(),
+    };
+    storage.metadata = compute_body_metadata(&storage)?;
+    Ok(storage)
+}
+
+fn body_storage_from_bytes(
+    body: Vec<u8>,
+    threshold: usize,
+    max: u64,
+) -> Result<BodyStorage, CurlError> {
+    let len = u64::try_from(body.len())
+        .map_err(|_| CurlError::new(E_BODY_LIMIT, "body length overflow"))?;
+    if len > max {
+        return Err(CurlError::new(
+            E_BODY_LIMIT,
+            "response body exceeds the configured limit",
+        ));
+    }
+    if body.len() <= threshold {
+        return body_storage_from_parts(Some(body), None, len, false);
+    }
+    let mut file =
+        NamedTempFile::new().map_err(|error| CurlError::new(E_TRANSFER, error.to_string()))?;
+    write_body_chunk(file.as_file_mut(), &body)?;
+    body_storage_from_parts(None, Some(file.into_temp_path()), len, false)
+}
+
+fn hex_digest(digest: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -2042,16 +2588,64 @@ impl TransferResponse {
         steps: &Value,
         max_json_bytes: usize,
     ) -> Result<Value, CurlError> {
-        let (mut body, mut kind, mut body_text, body_base64) = self.body_value(max_json_bytes)?;
+        self.evaluation_json_limited_with_artifact(variables, steps, max_json_bytes, None)
+    }
+
+    pub fn evaluation_json_limited_with_artifact(
+        &self,
+        variables: &Value,
+        steps: &Value,
+        max_json_bytes: usize,
+        artifact: Option<&BodyArtifact>,
+    ) -> Result<Value, CurlError> {
+        let (mut body, mut kind, mut body_text, body_base64) = if artifact.is_some() {
+            let metadata = self.body.metadata();
+            (Value::Null, metadata.kind, None, None)
+        } else {
+            let (body, kind, body_text, body_base64) = self.body_value(max_json_bytes)?;
+            (body, kind.to_owned(), body_text, body_base64)
+        };
+        let mut body_metadata = self.body.metadata();
         if self.method.eq_ignore_ascii_case("HEAD") && kind == "empty" {
             body = json!({"method": self.method});
-            kind = "json";
+            kind = "json".to_owned();
             body_text = serde_json::to_string(&body).ok();
+            body_metadata = BodyMetadata {
+                kind: "json".to_owned(),
+                bytes: body_text.as_ref().map_or(0, String::len) as u64,
+                sha256: body_text.as_ref().map(|text| sha256_bytes(text.as_bytes())),
+                storage: "inline".to_owned(),
+                truncated: false,
+            };
         }
+        if artifact.is_some() {
+            body_metadata.storage = "artifact".to_owned();
+        }
+        let body_metadata_value = json!({
+            "kind": body_metadata.kind,
+            "bytes": body_metadata.bytes,
+            "sha256": body_metadata.sha256,
+            "storage": body_metadata.storage,
+            "truncated": body_metadata.truncated,
+            "artifact": artifact
+                .map(|artifact| json!({
+                    "kind": "body",
+                    "path": artifact.path,
+                    "bytes": artifact.bytes,
+                    "sha256": artifact.sha256(),
+                    "complete": true,
+                }))
+                .unwrap_or(Value::Null),
+        });
         Ok(
-            json!({ "status": self.status, "method": self.method, "url": self.url, "effective_url": self.effective_url, "http_version": self.http_version, "headers": self.headers, "body": body, "body_text": body_text, "body_base64": body_base64, "body_kind": kind, "cookies": self.cookies, "redirects": self.redirects, "timings": self.timings, "transfer": self.transfer, "tls": self.tls, "error": self.error, "variables": variables, "steps": steps }),
+            json!({ "status": self.status, "method": self.method, "url": self.url, "effective_url": self.effective_url, "http_version": self.http_version, "headers": self.headers, "body": body, "body_text": body_text, "body_base64": body_base64, "body_metadata": body_metadata_value, "body_kind": kind, "cookies": self.cookies, "redirects": self.redirects, "timings": self.timings, "transfer": self.transfer, "tls": self.tls, "error": self.error, "variables": variables, "steps": steps }),
         )
     }
+}
+
+fn sha256_bytes(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    hex_digest(&digest)
 }
 
 fn capture_body<R: Read>(
@@ -2072,7 +2666,7 @@ fn capture_body<R: Read>(
         }
         sink.push(&buf[..count])?;
     }
-    Ok(sink.finish())
+    sink.finish()
 }
 
 #[derive(Debug)]
@@ -2125,13 +2719,13 @@ impl BodySink {
         Ok(())
     }
 
-    fn finish(self) -> BodyStorage {
-        BodyStorage {
-            memory: (self.spool.is_none()).then_some(self.memory),
-            spool: self.spool.map(NamedTempFile::into_temp_path),
-            len: self.len,
-            truncated: false,
-        }
+    fn finish(self) -> Result<BodyStorage, CurlError> {
+        body_storage_from_parts(
+            (self.spool.is_none()).then_some(self.memory),
+            self.spool.map(NamedTempFile::into_temp_path),
+            self.len,
+            false,
+        )
     }
 }
 
@@ -2220,8 +2814,9 @@ fn write_cookie_artifact(
     policy.check_artifact(path)?;
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).map_err(|e| CurlError::new(E_FILE_DENIED, e.to_string()))?;
+    let parent = policy.checked_artifact_parent(path)?;
     let temp =
-        NamedTempFile::new_in(parent).map_err(|e| CurlError::new(E_FILE_DENIED, e.to_string()))?;
+        NamedTempFile::new_in(&parent).map_err(|e| CurlError::new(E_FILE_DENIED, e.to_string()))?;
     let mut file = temp
         .reopen()
         .map_err(|e| CurlError::new(E_FILE_DENIED, e.to_string()))?;
@@ -2479,6 +3074,14 @@ mod tests {
         )
     }
 
+    fn artifact_policy(root: &Path) -> CurlPolicy {
+        CurlPolicy {
+            allow_artifact_writes: true,
+            allowed_artifact_roots: vec![root.to_path_buf()],
+            ..CurlPolicy::default()
+        }
+    }
+
     #[test]
     fn body_sink_keeps_exact_threshold_in_memory_and_spills_after_it() {
         let payload = b"0123456789";
@@ -2551,6 +3154,167 @@ mod tests {
         let path = sink.spool.as_ref().unwrap().path();
         let mode = fs::metadata(path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
+    }
+
+    #[test]
+    fn body_storage_promotes_memory_body_with_hash_and_private_permissions() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let mut reader = ChunkReader::new(b"hello world", 2);
+        let body = capture_body(&mut reader, 1024, 1024, None).unwrap();
+        assert!(!body.is_spooled());
+
+        let destination = root.path().join("memory.bin");
+        let artifact = body
+            .promote_to_artifact(&destination, &policy, 1024)
+            .unwrap();
+        assert_eq!(artifact.path, destination);
+        assert_eq!(artifact.bytes, 11);
+        assert_eq!(fs::read(&destination).unwrap(), b"hello world");
+        assert_eq!(
+            artifact.hash,
+            BodyHash::Sha256(
+                "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9".to_owned()
+            )
+        );
+        let serialized = serde_json::to_value(&artifact).unwrap();
+        assert_eq!(
+            serialized["sha256"],
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+        assert!(serialized.get("hash").is_none());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = fs::metadata(&destination).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+    }
+
+    #[test]
+    fn body_storage_promotes_spooled_body_with_fixed_memory_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let payload = vec![b'x'; ARTIFACT_COPY_BUFFER_BYTES * 2 + 17];
+        let mut reader = ChunkReader::new(&payload, 7);
+        let body = capture_body(&mut reader, 0, payload.len() as u64, None).unwrap();
+        assert!(body.is_spooled());
+
+        let destination = root.path().join("spooled.bin");
+        let artifact = body
+            .promote_to_artifact(&destination, &policy, payload.len() as u64)
+            .unwrap();
+        assert_eq!(artifact.bytes, payload.len() as u64);
+        assert_eq!(fs::read(&destination).unwrap(), payload);
+        assert!(matches!(artifact.hash, BodyHash::Sha256(ref digest) if digest.len() == 64));
+    }
+
+    #[test]
+    fn body_storage_rejects_artifact_size_limit_before_creating_destination() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let mut reader = ChunkReader::new(b"too large", 2);
+        let body = capture_body(&mut reader, 1024, 1024, None).unwrap();
+        let destination = root.path().join("limited.bin");
+
+        let error = body
+            .promote_to_artifact(&destination, &policy, 3)
+            .unwrap_err();
+        assert_eq!(error.code, E_BODY_LIMIT);
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn body_storage_does_not_overwrite_existing_artifact() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let destination = root.path().join("existing.bin");
+        fs::write(&destination, b"keep me").unwrap();
+        let mut reader = ChunkReader::new(b"replace me", 2);
+        let body = capture_body(&mut reader, 1024, 1024, None).unwrap();
+
+        let error = body
+            .promote_to_artifact(&destination, &policy, 1024)
+            .unwrap_err();
+        assert_eq!(error.code, E_FILE_DENIED);
+        assert_eq!(fs::read(&destination).unwrap(), b"keep me");
+    }
+
+    #[test]
+    fn body_storage_metadata_is_typed_bounded_and_cached_for_spools() {
+        let mut json_reader = ChunkReader::new(br#"{"answer":42}"#, 1);
+        let json_body = capture_body(&mut json_reader, 1024, 1024, None).unwrap();
+        let json_metadata = json_body.metadata();
+        assert_eq!(json_metadata.kind, "json");
+        assert_eq!(json_metadata.bytes, 13);
+        assert_eq!(json_metadata.storage, "inline");
+        assert!(!json_metadata.truncated);
+        let json_sha256 = hex_digest(&Sha256::digest(br#"{"answer":42}"#));
+        assert_eq!(json_metadata.sha256.as_deref(), Some(json_sha256.as_str()));
+        assert_eq!(json_body.metadata_limited(13).unwrap(), json_metadata);
+        assert_eq!(
+            json_body.metadata_limited(12).unwrap_err().code,
+            E_BODY_LIMIT
+        );
+
+        let mut binary_reader = ChunkReader::new(&[0xff, 0x00, 0xfe], 1);
+        let binary_body = capture_body(&mut binary_reader, 1024, 1024, None).unwrap();
+        assert_eq!(binary_body.metadata().kind, "binary");
+
+        let mut empty_reader = ChunkReader::new(&[], 1);
+        let empty_body = capture_body(&mut empty_reader, 1024, 1024, None).unwrap();
+        let empty_metadata = empty_body.metadata();
+        assert_eq!(empty_metadata.kind, "empty");
+        assert_eq!(empty_metadata.storage, "none");
+        assert_eq!(
+            empty_metadata.sha256.as_deref(),
+            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        );
+
+        let payload = vec![b'x'; ARTIFACT_COPY_BUFFER_BYTES + 1];
+        let mut spool_reader = ChunkReader::new(&payload, 3);
+        let spool_body = capture_body(&mut spool_reader, 0, payload.len() as u64, None).unwrap();
+        assert_eq!(spool_body.metadata().kind, "text");
+        assert_eq!(spool_body.metadata().storage, "inline");
+        let cached_metadata = spool_body.metadata();
+        let spool_path = spool_body.spool.as_ref().unwrap().to_path_buf();
+        fs::remove_file(&spool_path).unwrap();
+        assert_eq!(spool_body.metadata(), cached_metadata);
+    }
+
+    #[test]
+    fn artifact_destination_rejects_unsafe_relative_components() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let mut reader = ChunkReader::new(b"body", 1);
+        let body = capture_body(&mut reader, 1024, 1024, None).unwrap();
+        let destination = root.path().join("new-parent").join("..").join("escape.bin");
+
+        let error = body
+            .promote_to_artifact(&destination, &policy, 1024)
+            .unwrap_err();
+        assert_eq!(error.code, E_FILE_DENIED);
+        assert!(!root.path().join("new-parent").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn artifact_destination_rejects_symlink_parents() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let link = root.path().join("linked-parent");
+        symlink(root.path(), &link).unwrap();
+        let mut reader = ChunkReader::new(b"body", 1);
+        let body = capture_body(&mut reader, 1024, 1024, None).unwrap();
+
+        let error = body
+            .promote_to_artifact(&link.join("artifact.bin"), &policy, 1024)
+            .unwrap_err();
+        assert_eq!(error.code, E_FILE_DENIED);
     }
 
     #[test]
@@ -2660,12 +3424,7 @@ mod tests {
             effective_url: "https://example.test".into(),
             http_version: Some("1.1".into()),
             headers: BTreeMap::new(),
-            body: BodyStorage {
-                memory: Some(Vec::new()),
-                spool: None,
-                len: 0,
-                truncated: false,
-            },
+            body: body_storage_from_parts(Some(Vec::new()), None, 0, false).unwrap(),
             cookies: Vec::new(),
             redirects: Vec::new(),
             timings: Timings::default(),
@@ -2678,6 +3437,52 @@ mod tests {
             .unwrap();
         assert_eq!(evaluation["body"]["method"], "HEAD");
         assert_eq!(evaluation["body_kind"], "json");
+    }
+
+    #[test]
+    fn artifact_evaluation_omits_inline_body_and_emits_complete_reference() {
+        let root = tempfile::tempdir().unwrap();
+        let policy = artifact_policy(root.path());
+        let body = body_storage_from_parts(Some(b"download".to_vec()), None, 8, false).unwrap();
+        let destination = root.path().join("download.bin");
+        let artifact = body
+            .promote_to_artifact(&destination, &policy, 1024)
+            .unwrap();
+        let reference = BodyArtifact {
+            path: PathBuf::from(".mdok/artifacts/download.bin"),
+            ..artifact
+        };
+        let response = TransferResponse {
+            status: Some(200),
+            method: "GET".into(),
+            url: "https://example.test/download".into(),
+            effective_url: "https://example.test/download".into(),
+            http_version: Some("1.1".into()),
+            headers: BTreeMap::new(),
+            body,
+            cookies: Vec::new(),
+            redirects: Vec::new(),
+            timings: Timings::default(),
+            transfer: TransferMetrics::default(),
+            tls: None,
+            error: None,
+        };
+        let evaluation = response
+            .evaluation_json_limited_with_artifact(
+                &Value::Null,
+                &Value::Null,
+                1024,
+                Some(&reference),
+            )
+            .unwrap();
+        assert!(evaluation["body"].is_null());
+        assert_eq!(evaluation["body_metadata"]["storage"], "artifact");
+        assert_eq!(evaluation["body_metadata"]["artifact"]["complete"], true);
+        assert_eq!(
+            evaluation["body_metadata"]["artifact"]["path"],
+            ".mdok/artifacts/download.bin"
+        );
+        assert_eq!(evaluation["body_kind"], "text");
     }
     #[test]
     fn rejects_parallel_with_stable_code() {

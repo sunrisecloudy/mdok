@@ -1,0 +1,484 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdok.dev/schema/call-v1.json",
+  "title": "MDOK agent-native invocation result",
+  "description": "Versioned JSON contract for the agent-native MDOK invocation envelope emitted by call, record, and replay.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "operation",
+    "run_id",
+    "success",
+    "result_kind",
+    "request",
+    "response",
+    "execution",
+    "recording",
+    "artifacts",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "operation": {
+      "enum": [
+        "run",
+        "call",
+        "record",
+        "replay"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "success": {
+      "type": "boolean"
+    },
+    "result_kind": {
+      "enum": [
+        "http",
+        "command",
+        "none"
+      ],
+      "description": "The type of result in response. none is used when execution stopped before an adapter result existed."
+    },
+    "request": {
+      "$ref": "#/$defs/request"
+    },
+    "response": {
+      "oneOf": [
+        {
+          "$ref": "https://mdok.dev/schema/response-v1.json"
+        },
+        {
+          "$ref": "#/$defs/commandResult"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "execution": {
+      "$ref": "#/$defs/execution"
+    },
+    "recording": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/recording"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifactReference"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "result_kind": {
+            "const": "http"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "response": {
+            "$ref": "https://mdok.dev/schema/response-v1.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "result_kind": {
+            "const": "command"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "response": {
+            "$ref": "#/$defs/commandResult"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "result_kind": {
+            "const": "none"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "response": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": [
+        "adapter",
+        "argv",
+        "source"
+      ],
+      "properties": {
+        "adapter": {
+          "enum": [
+            "curl",
+            "exec"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "secret_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "command_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "path",
+            "stdin",
+            "inline",
+            "argv",
+            "recording"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "started_at",
+        "duration_ms",
+        "timed_out",
+        "policy_allowed"
+      ],
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timed_out": {
+          "type": "boolean"
+        },
+        "policy_allowed": {
+          "type": "boolean"
+        },
+        "policy_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "recording": {
+      "type": "object",
+      "required": [
+        "path",
+        "source_sha256",
+        "replay_command"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "replay_command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "drift": {
+          "$ref": "#/$defs/drift"
+        }
+      },
+      "additionalProperties": false
+    },
+    "drift": {
+      "type": "object",
+      "required": [
+        "status",
+        "source_changed",
+        "configuration_changed",
+        "inputs_changed"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_checked",
+            "exact",
+            "changed",
+            "unknown"
+          ]
+        },
+        "source_changed": {
+          "type": "boolean"
+        },
+        "configuration_changed": {
+          "type": "boolean"
+        },
+        "inputs_changed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "commandResult": {
+      "type": "object",
+      "required": [
+        "kind",
+        "success",
+        "exit_code",
+        "stdout",
+        "stderr",
+        "stdout_bytes",
+        "stderr_bytes",
+        "output_truncated"
+      ],
+      "properties": {
+        "kind": {
+          "const": "command"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "timed_out": {
+          "type": "boolean"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "stdout_json": {},
+        "stdout_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stderr_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_truncated": {
+          "type": "boolean"
+        },
+        "secret_tainted": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifactReference": {
+      "type": "object",
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "complete"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "body",
+            "download",
+            "file",
+            "other"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+$",
+          "description": "A workspace-relative artifact path; consumers must apply their own path and trust policy before opening it."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "media_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suggested_filename": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        },
+        "hint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
