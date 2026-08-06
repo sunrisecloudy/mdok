@@ -179,6 +179,30 @@ struct ReplayArgs {
     strict: bool,
 }
 
+#[derive(Args, Clone, Debug)]
+struct PostmanImportArgs {
+    /// Postman Collection v2.1 JSON file.
+    input: PathBuf,
+    /// Generated MDOK Markdown destination.
+    #[arg(long, value_name = "PATH")]
+    out: PathBuf,
+    /// Write generated Markdown despite blocking import diagnostics.
+    #[arg(long)]
+    allow_lossy: bool,
+    /// Replace existing Markdown and manifest files.
+    #[arg(long)]
+    force: bool,
+    /// Import manifest destination. Defaults to <out>.import.json.
+    #[arg(long, value_name = "PATH")]
+    manifest: Option<PathBuf>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+enum ImportCommand {
+    /// Import a Postman Collection v2.1 JSON file.
+    Postman(PostmanImportArgs),
+}
+
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Parse, plan, execute, and check documents.
@@ -198,6 +222,11 @@ enum Command {
     Record(RecordArgs),
     /// Re-run a recorded Markdown document.
     Replay(ReplayArgs),
+    /// Import an external API collection into canonical MDOK Markdown.
+    Import {
+        #[command(subcommand)]
+        format: ImportCommand,
+    },
     /// Parse and statically validate without network access.
     Lint { paths: Vec<PathBuf> },
     /// Print the normalized redacted execution plan.
@@ -560,6 +589,7 @@ fn invocation_error_context(
         | Command::Lint { .. }
         | Command::Plan { .. }
         | Command::List { .. }
+        | Command::Import { .. }
         | Command::Version => None,
     }
 }
@@ -571,6 +601,9 @@ fn run(cli: Cli) -> Result<u8, Box<CliError>> {
         Some(Command::Call { raw, argv }) => return run_direct_call(argv, &cli.options, raw),
         Some(Command::Record(args)) => return run_record(args, &cli.options),
         Some(Command::Replay(args)) => return run_replay(args, &cli.options),
+        Some(Command::Import {
+            format: ImportCommand::Postman(args),
+        }) => return run_postman_import(args, &cli.options),
         Some(Command::Test { paths }) => (Mode::Test, paths),
         Some(Command::Lint { paths }) => (Mode::Lint, paths),
         Some(Command::Plan { paths }) => (Mode::Plan, paths),
@@ -816,6 +849,191 @@ fn run_replay(args: ReplayArgs, options: &CommonOptions) -> Result<u8, Box<CliEr
         None,
         false,
     )
+}
+
+fn run_postman_import(
+    args: PostmanImportArgs,
+    options: &CommonOptions,
+) -> Result<u8, Box<CliError>> {
+    validate_invocation_options(options)?;
+    if args.input == args.out {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-PM-IMPORT",
+                "Invalid Postman import destination",
+                "input and --out must be different paths",
+            ),
+        ));
+    }
+    let import_options = mdok_postman::ImportOptions {
+        allow_lossy: args.allow_lossy,
+    };
+    let output =
+        mdok_postman::import_collection_file(&args.input, &import_options).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error("MDOK-PM-IMPORT", "Postman import failed", error.to_string())
+                    .at_file(&args.input),
+            )
+        })?;
+    let manifest_path = args
+        .manifest
+        .clone()
+        .or_else(|| options.report.clone())
+        .unwrap_or_else(|| PathBuf::from(format!("{}.import.json", args.out.display())));
+    if output.has_blockers() && !args.allow_lossy {
+        if manifest_path.exists() && !args.force {
+            return Err(cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-PM-IMPORT",
+                    "Refusing to overwrite import manifest",
+                    format!(
+                        "{} already exists; pass --force to replace it",
+                        manifest_path.display()
+                    ),
+                )
+                .at_file(&manifest_path),
+            ));
+        }
+        let manifest_bytes = serde_json::to_vec_pretty(&output.manifest).map_err(|error| {
+            cli_error(
+                EXIT_INTERNAL,
+                Diagnostic::error(
+                    "MDOK-PM-IMPORT",
+                    "Cannot encode import manifest",
+                    error.to_string(),
+                ),
+            )
+        })?;
+        fs::write(&manifest_path, manifest_bytes).map_err(|error| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-PM-IMPORT",
+                    "Cannot write import manifest",
+                    error.to_string(),
+                )
+                .at_file(&manifest_path),
+            )
+        })?;
+        let summary = output
+            .manifest
+            .issues
+            .iter()
+            .filter(|issue| issue.severity == mdok_postman::IssueSeverity::Error)
+            .map(|issue| format!("{}: {}", issue.code, issue.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-PM-REVIEW",
+                "Postman import requires review",
+                format!(
+                    "{} blocking issue(s); review {} and rerun with --allow-lossy only after deciding how to handle them: {}",
+                    output
+                        .manifest
+                        .issues
+                        .iter()
+                        .filter(|issue| issue.severity == mdok_postman::IssueSeverity::Error)
+                        .count(),
+                    manifest_path.display(),
+                    summary
+                ),
+            )
+            .at_file(&args.input),
+        ));
+    }
+    for path in [&args.out, &manifest_path] {
+        if path.exists() && !args.force {
+            return Err(cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-PM-IMPORT",
+                    "Refusing to overwrite import output",
+                    format!(
+                        "{} already exists; pass --force to replace it",
+                        path.display()
+                    ),
+                )
+                .at_file(path),
+            ));
+        }
+    }
+    let manifest_bytes = serde_json::to_vec_pretty(&output.manifest).map_err(|error| {
+        cli_error(
+            EXIT_INTERNAL,
+            Diagnostic::error(
+                "MDOK-PM-IMPORT",
+                "Cannot encode import manifest",
+                error.to_string(),
+            ),
+        )
+    })?;
+    fs::write(&args.out, output.markdown.as_bytes()).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-PM-IMPORT",
+                "Cannot write imported Markdown",
+                error.to_string(),
+            )
+            .at_file(&args.out),
+        )
+    })?;
+    fs::write(&manifest_path, manifest_bytes).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-PM-IMPORT",
+                "Cannot write import manifest",
+                error.to_string(),
+            )
+            .at_file(&manifest_path),
+        )
+    })?;
+    let blocking_count = output
+        .manifest
+        .issues
+        .iter()
+        .filter(|issue| issue.severity == mdok_postman::IssueSeverity::Error)
+        .count();
+    let warning_count = output
+        .manifest
+        .issues
+        .iter()
+        .filter(|issue| issue.severity == mdok_postman::IssueSeverity::Warning)
+        .count();
+    let result = json!({
+        "operation": "import",
+        "format": "postman_collection_v2.1",
+        "success": true,
+        "input": args.input,
+        "output": args.out,
+        "manifest": manifest_path,
+        "generated_steps": output.manifest.generated_steps.len(),
+        "blocking_issues": blocking_count,
+        "warnings": warning_count,
+    });
+    if options.json || options.json_lines {
+        println!("{}", result);
+    } else {
+        println!(
+            "Imported {} step(s) to {} (manifest: {})",
+            output.manifest.generated_steps.len(),
+            args.out.display(),
+            manifest_path.display()
+        );
+        if blocking_count > 0 || warning_count > 0 {
+            eprintln!(
+                "review required: {} blocking issue(s), {} warning(s)",
+                blocking_count, warning_count
+            );
+        }
+    }
+    Ok(EXIT_OK)
 }
 
 fn read_transient_markdown(input: MarkdownInputArgs) -> Result<TransientDocument, Box<CliError>> {

@@ -15,6 +15,7 @@ mdok-command = { path = "../mdok-command" }
 mdok-markdown = { path = "../mdok-markdown" }
 mdok-template = { path = "../mdok-template" }
 mdok-report = { path = "../mdok-report" }
+mdok-postman = { path = "../mdok-postman" }
 clap.workspace = true
 anyhow.workspace = true
 base64.workspace = true

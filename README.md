@@ -13,6 +13,18 @@ cargo run -p mdok-cli -- test mdok-prd/examples/auth-flow.md --var base_url=http
 
 The bare form `mdok file.md` is an alias for `mdok test file.md`. Use `mdok-test-server --listen 127.0.0.1:0 --json-ready` for deterministic local HTTP fixtures.
 
+Postman Collection v2.1 files can be converted into reviewable canonical
+Markdown:
+
+```sh
+mdok import postman collection.json --out api.mdok.md
+```
+
+The importer writes a provenance/diagnostic manifest beside the Markdown and
+fails closed on semantics that cannot be represented safely. See
+[docs/POSTMAN_IMPORT.md](docs/POSTMAN_IMPORT.md) for the supported subset and
+runtime boundary.
+
 ## Project files
 
 - `mdok.toml` controls language, execution limits, variables, and network/filesystem policy.

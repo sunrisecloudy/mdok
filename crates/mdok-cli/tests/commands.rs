@@ -112,6 +112,151 @@ fn assert_private_file(path: &Path) {
 }
 
 #[test]
+fn postman_import_writes_canonical_markdown_and_manifest() {
+    let directory = tempdir().expect("temporary directory should be available");
+    let root = canonical_temp_root(&directory);
+    let input = root.join("collection.json");
+    let output_path = root.join("collection.md");
+    let collection = serde_json::json!({
+        "info": {
+            "name": "Imported API",
+            "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+        },
+        "variable": [{"key": "base_url", "value": "https://example.test"}],
+        "item": [{
+            "name": "Health",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/health",
+                "header": [{"key": "X-Test", "value": "mdok"}]
+            },
+            "event": [{
+                "listen": "test",
+                "script": {"exec": ["pm.response.to.have.status(200);"]}
+            }]
+        }]
+    });
+    fs::write(
+        &input,
+        serde_json::to_vec(&collection).expect("collection should serialize"),
+    )
+    .expect("collection should be writable");
+    let result = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("import"),
+            OsString::from("postman"),
+            input.as_os_str().to_os_string(),
+            OsString::from("--out"),
+            output_path.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(
+        result.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let result_json = json_output(&result);
+    assert_eq!(result_json["operation"], "import");
+    assert_eq!(result_json["success"], true);
+    assert_eq!(result_json["generated_steps"], 1);
+    let markdown = fs::read_to_string(&output_path).expect("generated Markdown should exist");
+    assert!(markdown.contains("curl mdok name=health"));
+    assert!(markdown.contains("status == "));
+    let lint = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("lint"),
+            output_path.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(
+        lint.status.code(),
+        Some(0),
+        "generated Markdown should lint: {}",
+        String::from_utf8_lossy(&lint.stdout)
+    );
+    let manifest_path = PathBuf::from(
+        result_json["manifest"]
+            .as_str()
+            .expect("manifest path should be reported"),
+    );
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(manifest_path).expect("manifest should exist"))
+            .expect("manifest should be JSON");
+    assert_eq!(
+        manifest["generated_steps"].as_array().map(Vec::len),
+        Some(1)
+    );
+}
+
+#[test]
+fn postman_import_strict_mode_preserves_review_manifest() {
+    let directory = tempdir().expect("temporary directory should be available");
+    let root = canonical_temp_root(&directory);
+    let input = root.join("collection.json");
+    let output_path = root.join("collection.md");
+    let collection = serde_json::json!({
+        "info": {
+            "name": "Needs review",
+            "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+        },
+        "item": [{
+            "name": "Health",
+            "request": "https://example.test/health",
+            "event": [{
+                "listen": "prerequest",
+                "script": {"exec": ["pm.variables.set(\"nonce\", \"dynamic\");"]}
+            }]
+        }]
+    });
+    fs::write(
+        &input,
+        serde_json::to_vec(&collection).expect("collection should serialize"),
+    )
+    .expect("collection should be writable");
+    let strict = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("import"),
+            OsString::from("postman"),
+            input.as_os_str().to_os_string(),
+            OsString::from("--out"),
+            output_path.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(strict.status.code(), Some(2));
+    let strict_json = json_output(&strict);
+    assert_eq!(strict_json["diagnostics"][0]["code"], "MDOK-PM-REVIEW");
+    assert!(!output_path.exists());
+    let manifest_path = PathBuf::from(format!("{}.import.json", output_path.display()));
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("review manifest should exist"))
+            .expect("review manifest should be JSON");
+    assert_eq!(manifest["issues"][0]["code"], "MDOK-PM-PREREQUEST");
+
+    let lossy = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("import"),
+            OsString::from("postman"),
+            input.as_os_str().to_os_string(),
+            OsString::from("--out"),
+            output_path.as_os_str().to_os_string(),
+            OsString::from("--allow-lossy"),
+            OsString::from("--force"),
+        ],
+    );
+    assert_eq!(lossy.status.code(), Some(0));
+    assert!(output_path.exists());
+}
+
+#[test]
 fn direct_call_validation_and_output_contract_are_offline() {
     let directory = tempdir().expect("temporary directory should be available");
     let root = canonical_temp_root(&directory);

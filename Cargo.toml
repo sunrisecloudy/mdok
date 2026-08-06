@@ -13,6 +13,7 @@ members = [
   "crates/mdok-jmespath",
   "crates/mdok-runtime",
   "crates/mdok-report",
+  "crates/mdok-postman",
   "crates/mdok-test-server",
   "crates/mdok-benchmarks",
 ]
