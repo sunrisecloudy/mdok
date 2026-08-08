@@ -1405,6 +1405,9 @@ dependencies = [
 name = "mdok-quickjs"
 version = "0.0.0"
 dependencies = [
+ "base64",
+ "mdok-curl",
+ "percent-encoding",
  "reqwest",
  "rquickjs",
  "serde",
@@ -1417,7 +1420,9 @@ dependencies = [
 name = "mdok-report"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "mdok-core",
+ "percent-encoding",
  "serde",
  "serde_json",
  "tempfile",

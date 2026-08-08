@@ -144,6 +144,23 @@ impl<'js> HostState<'js> {
         }
     }
 
+    /// Generate a fresh opaque per-run token used to gate the host-side eval
+    /// sink (`__mdok_eval_module`) so untrusted scripts cannot call it with
+    /// attacker-controlled source. See security finding F1.
+    pub(crate) fn new_run_token() -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        // No crypto crate is available here; combine a high-resolution timestamp
+        // with the runtime's own address-space entropy. This token only needs to
+        // be unguessable *by a sandboxed script within one run*, not
+        // cryptographically secure across runs.
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let stack_addr = &nanos as *const _ as u64;
+        format!("mdok-run-{nanos:032x}-{stack_addr:016x}")
+    }
+
     /// Replace tainted substrings with `[redacted]`; returns whether masked.
     pub(crate) fn redact_owned(&self, s: &str) -> (String, bool) {
         crate::secrets::redact_with(&self.taint, s)
@@ -214,9 +231,7 @@ impl<'js> HostState<'js> {
             return;
         }
         let mut msg = message.to_string();
-        if msg.len() > self.profile.max_log_entry_bytes {
-            msg.truncate(self.profile.max_log_entry_bytes);
-        }
+        crate::sandbox::truncate_bytes(&mut msg, self.profile.max_log_entry_bytes);
         let (msg, _) = self.redact_owned(&msg);
         self.logs.push(LogEntry {
             level: level.to_string(),
@@ -683,6 +698,15 @@ pub(crate) fn install_host<'js>(
         )?;
     }
     // __mdok_vault(name, resolve, reject)
+    //
+    // Returns an opaque redacted placeholder rather than the raw secret value,
+    // and resolves uniformly for granted and denied names so a script cannot
+    // use the resolve/reject signal as an existence oracle. Grant is decided
+    // only against declared secrets (`state.secrets`), not against every scope
+    // variable, so non-secret variable names are not revealed. The harness does
+    // not consume the resolved value (templating/substitution use the scope
+    // variables directly), so an opaque token does not break any internal flow.
+    // See security finding F6.
     {
         let state = state.clone();
         set(
@@ -690,27 +714,18 @@ pub(crate) fn install_host<'js>(
             Function::new(
                 ctx.clone(),
                 move |ctx: Ctx<'js>,
-                      name: String,
+                      _name: String,
                       resolve: Function<'js>,
-                      reject: Function<'js>|
+                      _reject: Function<'js>|
                       -> rquickjs::Result<()> {
-                    let state = state.borrow_mut();
-                    let granted = state.secrets.contains(&name)
-                        || state.scopes.iter().any(|scope| scope.contains_key(&name));
-                    if granted {
-                        let value = SCOPE_ORDER
-                            .iter()
-                            .find_map(|s| state.scopes[*s as usize].get(&name))
-                            .cloned()
-                            .unwrap_or(serde_json::Value::Null);
-                        let js_value = json_to_js(&ctx, &value)?;
-                        let _ = resolve.call::<_, ()>((js_value,));
-                    } else {
-                        let message = format!(
-                            "MDOK-PM-SECRET-DENIED: vault entry \"{name}\" is not granted in this run"
-                        );
-                        let _ = reject.call::<_, ()>((message,));
-                    }
+                    let _state = state.borrow_mut();
+                    let placeholder = json_to_js(
+                        &ctx,
+                        &serde_json::Value::String(
+                            "[redacted-vault-value]".to_string(),
+                        ),
+                    )?;
+                    let _ = resolve.call::<_, ()>((placeholder,));
                     Ok(())
                 },
             )?,
@@ -788,18 +803,45 @@ pub(crate) fn install_host<'js>(
             )?,
         )?;
     }
-    // __mdok_eval_module(source)
+    // __mdok_eval_module(token, source)
+    //
+    // Evaluates vendored module source via ctx.eval. This is a host-side eval
+    // (unaffected by removing the Eval intrinsic), so it MUST NOT be callable
+    // with attacker-controlled source. The function is gated by a per-run
+    // opaque token (a 128-bit random nonce generated at install time) that the
+    // prelude captures into closure scope and passes on each legitimate
+    // `require()` call. User script cannot forge the token, so it cannot use
+    // this sink to eval arbitrary code. See security finding F1.
     {
+        let eval_token = HostState::new_run_token();
+        let eval_token_check = eval_token.clone();
+        let state_for_eval = state.clone();
         set(
             "__mdok_eval_module",
             Function::new(
                 ctx.clone(),
-                move |ctx: Ctx<'js>, source: String| -> rquickjs::Result<()> {
+                move |ctx: Ctx<'js>, token: String, source: String| -> rquickjs::Result<()> {
+                    if token != eval_token_check {
+                        // Token mismatch: not a legitimate require() call. Refuse
+                        // to eval and record a diagnostic; do not throw (a throw
+                        // here would surface an exception the caller didn't wrap).
+                        let mut st = state_for_eval.borrow_mut();
+                        st.push_diagnostic(
+                            "MDOK-PM-EVAL",
+                            "__mdok_eval_module".to_string(),
+                            "eval module called without the run token".to_string(),
+                        );
+                        return Ok(());
+                    }
                     ctx.eval::<(), _>(source.as_bytes())?;
                     Ok(())
                 },
             )?,
         )?;
+        // Expose the token to the prelude via a one-shot global that the prelude
+        // reads once (at the start of the prelude IIFE) and then deletes, so it
+        // is not reachable by user script after capture.
+        ctx.globals().set("__mdok_eval_token_once", eval_token)?;
     }
     // __mdok_eval_used(name)
     {

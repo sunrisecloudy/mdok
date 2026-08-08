@@ -885,6 +885,23 @@ fn run_replay(args: ReplayArgs, options: &CommonOptions) -> Result<u8, Box<CliEr
     )
 }
 
+/// Build a `CurlPolicy` for the probe `--network fetch` path by discovering the
+/// operator's `mdok.toml` near the case file. Falls back to the default policy
+/// (http/https only, private network denied) when no config is found or loading
+/// fails. See security finding F4.
+fn probe_fetch_policy(case: &Path) -> CurlPolicy {
+    let parent = case
+        .parent()
+        .map(|p| if p.as_os_str().is_empty() { Path::new(".") } else { p })
+        .unwrap_or_else(|| Path::new("."));
+    let paths = vec![parent.to_path_buf()];
+    let options = CommonOptions::default();
+    match load_config(&paths, &options) {
+        Ok(config) => curl_policy(&config),
+        Err(_) => CurlPolicy::default(),
+    }
+}
+
 fn run_probe(args: ProbeArgs) -> Result<u8, Box<CliError>> {
     if args.network != "offline" && args.network != "fetch" {
         return Err(cli_error(
@@ -938,7 +955,13 @@ fn run_probe(args: ProbeArgs) -> Result<u8, Box<CliError>> {
     }
     let output = if args.network == "fetch" {
         let timeout = Duration::from_millis(input.profile.script_timeout_ms.max(1));
-        let mut executor = mdok_quickjs::fetch_executor(timeout);
+        // Apply the operator's egress policy (discovered from mdok.toml near
+        // the case file) so pm.sendRequest respects the same host/SSRF rules as
+        // curl fences. Falls back to the default policy (http/https only,
+        // private network denied) when no mdok.toml is found. See security
+        // finding F4.
+        let policy = probe_fetch_policy(&args.case);
+        let mut executor = mdok_quickjs::fetch_executor(timeout, policy);
         mdok_quickjs::run_script_with_executor(&input, &mut executor)
     } else {
         mdok_quickjs::run_script(&input)
@@ -2981,6 +3004,23 @@ fn variables_to_value(variables: &BTreeMap<String, Variable>) -> Value {
             .map(|(key, variable)| (key.clone(), variable.value.clone()))
             .collect(),
     )
+}
+
+/// Build the operator policy for the MCP server by discovering `mdok.toml`
+/// from the server's current working directory. This is the authoritative
+/// policy the server enforces against client-supplied tool args (F4/F5/F9).
+pub fn mcp_operator_policy() -> mcp::OperatorPolicy {
+    let paths = vec![std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))];
+    let options = CommonOptions::default();
+    match load_config(&paths, &options) {
+        Ok(config) => mcp::OperatorPolicy {
+            curl_policy: curl_policy(&config),
+            allowed_hosts: config.allowed_hosts.clone(),
+            denied_hosts: config.denied_hosts.clone(),
+            allowed_read_roots: config.allowed_read_roots.clone(),
+        },
+        Err(_) => mcp::OperatorPolicy::default(),
+    }
 }
 
 fn curl_policy(config: &EffectiveConfig) -> CurlPolicy {

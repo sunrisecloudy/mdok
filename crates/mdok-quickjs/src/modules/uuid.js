@@ -6,6 +6,12 @@
  * The modern `uuid` package exports {v1,v3,v4,v5,...} instead. This shim
  * provides both shapes, generating v4 UUIDs from Math.random (the compat
  * profile allows QuickJS Math; no host crypto is exposed).
+ *
+ * SECURITY NOTE (F11): these UUIDs are NON-CRYPTOGRAPHIC. They derive their
+ * randomness from QuickJS's deterministic per-context Math.random PRNG and
+ * MUST NOT be used as security-critical tokens, nonces, or any value whose
+ * unguessability an upstream trusts. Servers issue real tokens; mdok workflows
+ * should rely on those rather than sandbox-generated UUIDs.
  */
 (function () {
   'use strict';

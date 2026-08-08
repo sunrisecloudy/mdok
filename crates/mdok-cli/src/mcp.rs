@@ -47,10 +47,31 @@ pub fn serve() -> Result<(), String> {
     })
 }
 
+/// Operator policy loaded from the discovered `mdok.toml` at MCP server
+/// startup. This is the authoritative policy the server enforces against
+/// client-supplied tool args, so a (potentially prompt-injected) MCP client
+/// cannot widen or replace what the operator configured. See security findings
+/// F4 (fetch egress), F5 (document policy widening), F9 (import read roots).
+#[derive(Clone, Debug, Default)]
+pub struct OperatorPolicy {
+    /// Egress policy applied to `pm.sendRequest` when `network:"fetch"` is used
+    /// (F4). Built from the operator's mdok.toml; defaults to denying private
+    /// network and non-http(s) schemes.
+    pub curl_policy: mdok_curl::CurlPolicy,
+    /// Operator allowlist; client `allow_hosts` may only narrow it (F5).
+    pub allowed_hosts: Vec<String>,
+    /// Operator denylist; client `deny_hosts` may only add to it (F5).
+    pub denied_hosts: Vec<String>,
+    /// Roots the import tool may read from (F9). Empty means the import tool
+    /// restricts reads to the server working directory.
+    pub allowed_read_roots: Vec<PathBuf>,
+}
+
 #[derive(Clone)]
 pub struct MdokMcp {
     #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
+    operator_policy: OperatorPolicy,
 }
 
 #[derive(Debug, Clone, Deserialize, schemars::JsonSchema)]
@@ -164,8 +185,15 @@ fn default_true() -> bool {
 #[tool_router]
 impl MdokMcp {
     pub fn new() -> Self {
+        Self::with_operator_policy(crate::mcp_operator_policy())
+    }
+
+    /// Construct the server with an explicit operator policy (used by tests and
+    /// by `new()` which loads the policy from the discovered mdok.toml).
+    pub fn with_operator_policy(operator_policy: OperatorPolicy) -> Self {
         Self {
             tool_router: Self::tool_router(),
+            operator_policy,
         }
     }
 
@@ -226,13 +254,16 @@ impl MdokMcp {
         let network = args.network;
         let timeout =
             Duration::from_millis(input.profile.script_timeout_ms.max(1).saturating_add(5_000));
+        let fetch_policy = self.operator_policy.curl_policy.clone();
         let output = tokio::time::timeout(
             timeout,
             tokio::task::spawn_blocking(move || {
                 if network == "fetch" {
                     let request_timeout =
                         Duration::from_millis(input.profile.script_timeout_ms.max(1));
-                    let mut executor = fetch_executor(request_timeout);
+                    // Apply the operator's egress policy (F4): pm.sendRequest
+                    // respects the same host/SSRF rules as curl fences.
+                    let mut executor = fetch_executor(request_timeout, fetch_policy);
                     run_script_with_executor(&input, &mut executor)
                 } else {
                     run_script(&input)
@@ -255,7 +286,11 @@ impl MdokMcp {
         &self,
         Parameters(args): Parameters<ImportToolArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let result = tokio::task::spawn_blocking(move || import_postman(args)).await;
+        let allowed_read_roots = self.operator_policy.allowed_read_roots.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            import_postman(args, &allowed_read_roots)
+        })
+        .await;
         match result {
             Ok(Ok(value)) => Ok(json_result(&value)),
             Ok(Err(error)) => Ok(tool_error(error)),
@@ -290,7 +325,7 @@ impl MdokMcp {
             .timeout_secs
             .unwrap_or(DEFAULT_CHILD_TIMEOUT_SECS)
             .clamp(1, MAX_CHILD_TIMEOUT_SECS);
-        let (argv, env) = match build_document_argv(operation, &args) {
+        let (argv, env) = match build_document_argv(operation, &args, &self.operator_policy) {
             Ok(value) => value,
             Err(error) => return Ok(tool_error(error)),
         };
@@ -348,17 +383,16 @@ impl ServerHandler for MdokMcp {
 fn build_document_argv(
     operation: &str,
     args: &DocumentToolArgs,
+    operator: &OperatorPolicy,
 ) -> Result<(Vec<String>, BTreeMap<String, String>), String> {
     let mut argv = vec![operation.to_owned(), "--json".to_owned()];
     if args.offline {
         argv.push("--offline".to_owned());
     }
-    if let Some(config) = &args.config {
-        if config.is_empty() {
-            return Err("config must not be empty".to_owned());
-        }
-        argv.extend(["--config".to_owned(), config.clone()]);
-    }
+    // F5: a client-supplied `config` REPLACES the operator's mdok.toml (pure
+    // widening), so it must never be honored. The child discovers the same
+    // mdok.toml the operator configured. Ignore `args.config` entirely.
+    let _ = args.config;
     if let Some(environment) = &args.environment {
         argv.extend(["--env".to_owned(), environment.clone()]);
     }
@@ -373,8 +407,20 @@ fn build_document_argv(
         argv.extend(["--secret".to_owned(), format!("{key}=@env:{env_key}")]);
         env.insert(env_key, value.clone());
     }
-    for host in &args.allow_hosts {
-        argv.extend(["--allow-host".to_owned(), host.clone()]);
+    // F5: client `allow_hosts` may only NARROW the operator allowlist, never
+    // widen it. The child already loads the operator allowlist from mdok.toml,
+    // so forwarding `--allow-host` would only union (widen). Instead, deny every
+    // operator-allowed host the client did not also allow. When the operator has
+    // no allowlist (empty = all allowed), client narrowing has no effect and is
+    // ignored (you cannot narrow "all"). Client `deny_hosts` always add to the
+    // operator denylist and are safe to forward.
+    if !operator.allowed_hosts.is_empty() && !args.allow_hosts.is_empty() {
+        let client_allowed: std::collections::HashSet<&String> = args.allow_hosts.iter().collect();
+        for host in &operator.allowed_hosts {
+            if !client_allowed.contains(host) {
+                argv.extend(["--deny-host".to_owned(), host.clone()]);
+            }
+        }
     }
     for host in &args.deny_hosts {
         argv.extend(["--deny-host".to_owned(), host.clone()]);
@@ -450,6 +496,11 @@ fn build_probe_input(args: ProbeToolArgs) -> Result<ProbeInput, String> {
 
 impl ProfileInput {
     fn into_profile(self) -> Profile {
+        use mdok_quickjs::{
+            DEFAULT_MAX_LOG_ENTRIES, DEFAULT_MAX_LOG_ENTRY_BYTES, DEFAULT_MAX_MEMORY_BYTES,
+            DEFAULT_MAX_STACK_BYTES, DEFAULT_MAX_TRANSCRIPT_BYTES,
+            DEFAULT_MAX_VISUALIZER_DATA_BYTES, DEFAULT_MAX_VISUALIZER_TEMPLATE_BYTES,
+        };
         let mut profile = Profile::default();
         if let Some(value) = self.api_version {
             profile.api_version = value;
@@ -457,26 +508,32 @@ impl ProfileInput {
         if let Some(value) = self.script_timeout_ms {
             profile.script_timeout_ms = value;
         }
+        // F7: clamp every client-supplied budget DOWN to the server default so a
+        // (potentially prompt-injected) MCP client cannot disable a sandbox
+        // limit (e.g. max_memory_bytes = usize::MAX) and DoS the long-lived MCP
+        // server. Clients may tighten budgets, never loosen them.
         if let Some(value) = self.max_stack_bytes {
-            profile.max_stack_bytes = value;
+            profile.max_stack_bytes = value.min(DEFAULT_MAX_STACK_BYTES).max(1);
         }
         if let Some(value) = self.max_memory_bytes {
-            profile.max_memory_bytes = value;
+            profile.max_memory_bytes = value.min(DEFAULT_MAX_MEMORY_BYTES).max(1);
         }
         if let Some(value) = self.max_log_entries {
-            profile.max_log_entries = value;
+            profile.max_log_entries = value.min(DEFAULT_MAX_LOG_ENTRIES).max(1);
         }
         if let Some(value) = self.max_log_entry_bytes {
-            profile.max_log_entry_bytes = value;
+            profile.max_log_entry_bytes = value.min(DEFAULT_MAX_LOG_ENTRY_BYTES).max(1);
         }
         if let Some(value) = self.max_transcript_bytes {
-            profile.max_transcript_bytes = value;
+            profile.max_transcript_bytes = value.min(DEFAULT_MAX_TRANSCRIPT_BYTES).max(1);
         }
         if let Some(value) = self.max_visualizer_template_bytes {
-            profile.max_visualizer_template_bytes = value;
+            profile.max_visualizer_template_bytes =
+                value.min(DEFAULT_MAX_VISUALIZER_TEMPLATE_BYTES).max(1);
         }
         if let Some(value) = self.max_visualizer_data_bytes {
-            profile.max_visualizer_data_bytes = value;
+            profile.max_visualizer_data_bytes =
+                value.min(DEFAULT_MAX_VISUALIZER_DATA_BYTES).max(1);
         }
         profile
     }
@@ -493,13 +550,41 @@ fn decode_optional<T: DeserializeOwned>(
         .transpose()
 }
 
-fn import_postman(args: ImportToolArgs) -> Result<Value, String> {
+fn import_postman(
+    args: ImportToolArgs,
+    allowed_read_roots: &[PathBuf],
+) -> Result<Value, String> {
     let (bytes, source_path): (Vec<u8>, Option<PathBuf>) = match (args.collection_json, args.path) {
         (Some(_), Some(_)) => return Err("provide collection_json or path, not both".to_owned()),
         (None, None) => return Err("one of collection_json or path is required".to_owned()),
         (Some(json), None) => (json.into_bytes(), None),
         (None, Some(path)) => {
-            let path_buf = PathBuf::from(path);
+            // F9: confine the import path to the operator's allowed_read_roots
+            // (the same policy document @file reads enforce), so an MCP client
+            // cannot read arbitrary local files via this tool. When the operator
+            // has configured no roots, restrict to the server's working
+            // directory so the tool still works for collections in the project.
+            let path_buf = PathBuf::from(&path);
+            let canonical = std::fs::canonicalize(&path_buf)
+                .map_err(|error| format!("cannot read collection: {error}"))?;
+            let permitted = if allowed_read_roots.is_empty() {
+                std::env::current_dir()
+                    .ok()
+                    .and_then(|cwd| std::fs::canonicalize(&cwd).ok())
+                    .map(|root| canonical.starts_with(&root))
+                    .unwrap_or(true)
+            } else {
+                allowed_read_roots.iter().any(|root| {
+                    std::fs::canonicalize(root)
+                        .map(|canon_root| canonical.starts_with(&canon_root))
+                        .unwrap_or(false)
+                })
+            };
+            if !permitted {
+                return Err(format!(
+                    "collection path `{path}` is outside the allowed import roots"
+                ));
+            }
             let bytes = std::fs::read(&path_buf)
                 .map_err(|error| format!("cannot read collection: {error}"))?;
             (bytes, Some(path_buf))
@@ -569,13 +654,53 @@ mod tests {
                 offline: false,
                 timeout_secs: Some(5),
             };
-            let (argv, env) = build_document_argv("test", &args).expect("argv");
+            let (argv, env) =
+                build_document_argv("test", &args, &OperatorPolicy::default()).expect("argv");
             let joined = argv.join(" ");
             assert!(!joined.contains("secret-value"));
             assert!(joined.contains("@env:MDOK_MCP_SECRET_0"));
             assert_eq!(
                 env.get("MDOK_MCP_SECRET_0"),
                 Some(&"secret-value".to_owned())
+            );
+        });
+    }
+
+    /// F7 regression: client-supplied profile budgets must be clamped DOWN to
+    /// the server defaults (a client cannot disable a sandbox limit to DoS the
+    /// long-lived MCP server).
+    #[test]
+    fn profile_input_clamps_budgets_to_defaults() {
+        run_bounded(|| {
+            let profile = ProfileInput {
+                api_version: None,
+                script_timeout_ms: None,
+                max_stack_bytes: Some(usize::MAX),
+                max_memory_bytes: Some(usize::MAX),
+                max_log_entries: Some(usize::MAX),
+                max_log_entry_bytes: Some(usize::MAX),
+                max_transcript_bytes: Some(usize::MAX),
+                max_visualizer_template_bytes: Some(usize::MAX),
+                max_visualizer_data_bytes: Some(usize::MAX),
+            };
+            let result = profile.into_profile();
+            use mdok_quickjs::{
+                DEFAULT_MAX_LOG_ENTRIES, DEFAULT_MAX_LOG_ENTRY_BYTES, DEFAULT_MAX_MEMORY_BYTES,
+                DEFAULT_MAX_STACK_BYTES, DEFAULT_MAX_TRANSCRIPT_BYTES,
+                DEFAULT_MAX_VISUALIZER_DATA_BYTES, DEFAULT_MAX_VISUALIZER_TEMPLATE_BYTES,
+            };
+            assert_eq!(result.max_stack_bytes, DEFAULT_MAX_STACK_BYTES);
+            assert_eq!(result.max_memory_bytes, DEFAULT_MAX_MEMORY_BYTES);
+            assert_eq!(result.max_log_entries, DEFAULT_MAX_LOG_ENTRIES);
+            assert_eq!(result.max_log_entry_bytes, DEFAULT_MAX_LOG_ENTRY_BYTES);
+            assert_eq!(result.max_transcript_bytes, DEFAULT_MAX_TRANSCRIPT_BYTES);
+            assert_eq!(
+                result.max_visualizer_template_bytes,
+                DEFAULT_MAX_VISUALIZER_TEMPLATE_BYTES
+            );
+            assert_eq!(
+                result.max_visualizer_data_bytes,
+                DEFAULT_MAX_VISUALIZER_DATA_BYTES
             );
         });
     }

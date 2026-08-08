@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+base64.workspace = true
+mdok-curl = { path = "../mdok-curl" }
+percent-encoding.workspace = true
 reqwest.workspace = true
 rquickjs = { version = "0.12", features = ["macro"] }
 serde.workspace = true

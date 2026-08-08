@@ -142,14 +142,20 @@ impl CurlPolicy {
             ));
         }
         if !self.allow_private_network
-            && let Some(host) = url.host_str()
+            && let Some(host) = url.host()
         {
-            let private = host == "localhost"
-                || host == "localhost.localdomain"
-                || host
-                    .parse::<std::net::IpAddr>()
-                    .map(denied_address)
-                    .unwrap_or(false);
+            // F3: use the typed `url.host()` rather than `host_str().parse()`.
+            // For an IPv6 literal, `host_str()` returns the bracketed hex form
+            // (e.g. "[::ffff:7f00:1]"), which does not parse as `IpAddr`, so the
+            // private-network string gate was bypassable. The typed accessor
+            // yields a real `Ipv6Addr` that `denied_address` can evaluate.
+            let private = host == url::Host::Domain("localhost")
+                || host == url::Host::Domain("localhost.localdomain")
+                || match host {
+                    url::Host::Ipv4(ip) => denied_address(std::net::IpAddr::V4(ip)),
+                    url::Host::Ipv6(ip) => denied_address(std::net::IpAddr::V6(ip)),
+                    url::Host::Domain(_) => false,
+                };
             if private {
                 return Err(CurlError::new(
                     E_POLICY,
@@ -205,6 +211,63 @@ impl CurlPolicy {
             }
         }
         Ok(addresses)
+    }
+
+    /// Enforce the policy against a URL (scheme/host allow+deny, private-network
+    /// guard, post-DNS resolved-address check). Public so non-curl execution
+    /// paths (e.g. the QuickJS `pm.sendRequest` fetch executor) can apply the
+    /// same egress policy before any transfer. See security finding F4.
+    pub fn enforce_url(&self, url: &Url) -> Result<(), CurlError> {
+        self.check_url(url)?;
+        self.check_resolved_url(url)?;
+        Ok(())
+    }
+
+    /// Build a `reqwest::blocking::Client` gated by this policy: a custom DNS
+    /// resolver that filters resolved IPs through the SSRF/private-network guard,
+    /// a per-hop redirect policy that re-runs `check_url`/`check_resolved_url`
+    /// on every Location, and inherited proxy disabled. Mirrors the curl
+    /// fallback path so the fetch executor cannot widen egress beyond what
+    /// `mdok.toml` allows. See security finding F4.
+    pub fn build_gated_blocking_client(
+        &self,
+        request_timeout: Option<std::time::Duration>,
+        max_redirs: usize,
+        follow_redirects: bool,
+    ) -> Result<Client, CurlError> {
+        let redirect_policy = if follow_redirects {
+            let redirect_policy = self.clone();
+            reqwest::redirect::Policy::custom(move |attempt| {
+                if let Err(error) = redirect_policy.check_url(attempt.url()) {
+                    return attempt.error(RedirectPolicyError(error.to_string()));
+                }
+                if let Err(error) = redirect_policy.check_resolved_url(attempt.url()) {
+                    return attempt.error(RedirectPolicyError(error.to_string()));
+                }
+                if attempt.previous().len() > max_redirs {
+                    return attempt.error(RedirectLimitError);
+                }
+                attempt.follow()
+            })
+        } else {
+            reqwest::redirect::Policy::none()
+        };
+        let mut builder = ClientBuilder::new()
+            .redirect(redirect_policy)
+            // Never inherit HTTP(S)_PROXY from the host process implicitly.
+            .no_proxy();
+        if let Some(timeout) = request_timeout {
+            builder = builder.timeout(timeout);
+        }
+        builder = builder.dns_resolver(Arc::new(PolicyDnsResolver {
+            policy: self.clone(),
+        }));
+        builder.build().map_err(|error| {
+            CurlError::new(
+                E_CONNECT_POLICY,
+                format!("gated client setup failed: {error}"),
+            )
+        })
     }
 
     fn read_file(&self, raw: &str) -> Result<Vec<u8>, CurlError> {
@@ -2892,6 +2955,16 @@ fn denied_address(address: std::net::IpAddr) -> bool {
                 || address == std::net::IpAddr::V4(std::net::Ipv4Addr::new(169, 254, 169, 254))
         }
         std::net::IpAddr::V6(ip) => {
+            // F3: IPv4-mapped (`::ffff:a.b.c.d`) and IPv4-compatible (`::a.b.c.d`)
+            // IPv6 addresses embed an IPv4 destination. Map them back to IPv4 so
+            // they cannot bypass the private-network guard via the v6 form (e.g.
+            // `::ffff:169.254.169.254` reaching cloud metadata).
+            if let Some(v4) = ip.to_ipv4_mapped() {
+                return denied_address(std::net::IpAddr::V4(v4));
+            }
+            if let Some(v4) = ip.to_ipv4() {
+                return denied_address(std::net::IpAddr::V4(v4));
+            }
             ip.is_loopback()
                 || ip.is_unspecified()
                 || ip.is_unique_local()
@@ -3017,6 +3090,27 @@ fn classify_reqwest_error_code(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F3 regression: IPv4-mapped IPv6 addresses (`::ffff:a.b.c.d`) must be
+    /// denied just like their IPv4 form.
+    #[test]
+    fn denied_address_rejects_ipv4_mapped_ipv6() {
+        for mapped in [
+            "::ffff:127.0.0.1",
+            "::ffff:169.254.169.254",
+            "::ffff:10.0.0.1",
+            "::ffff:192.168.1.1",
+        ] {
+            let ip: std::net::IpAddr = mapped.parse().unwrap();
+            assert!(
+                denied_address(ip),
+                "IPv4-mapped IPv6 `{mapped}` should be denied"
+            );
+        }
+        // Sanity: plain IPv4 still denied.
+        assert!(denied_address("127.0.0.1".parse().unwrap()));
+        assert!(denied_address("169.254.169.254".parse().unwrap()));
+    }
 
     struct ChunkReader {
         bytes: Vec<u8>,

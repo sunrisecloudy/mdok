@@ -406,6 +406,23 @@ fn validate_argv<'a>(
                 ),
             ));
         }
+        // F8: the basename-only `is_shell_interpreter` check above can be
+        // defeated by a profile whose program is a non-shell-named script
+        // (e.g. validate.sh, or an extensionless file) with a `#!/bin/sh`
+        // shebang — the kernel would exec it under a shell. Read the first line
+        // of the canonical program file and reject any shebang that names a
+        // blocked interpreter (directly or via `#!/usr/bin/env <interp>`).
+        if let Some(interpreter) = read_shebang_interpreter(&profile.program) {
+            if is_shell_interpreter(&interpreter) {
+                return Err(CommandError::new(
+                    E_POLICY,
+                    format!(
+                        "command profile `{}` runs under a shell interpreter (`#!{interpreter}`), which is not allowed",
+                        profile.program.display()
+                    ),
+                ));
+            }
+        }
     }
     if let Some(directory) = &profile.working_directory
         && !directory.is_absolute()
@@ -436,13 +453,30 @@ fn validate_profile_environment(profile: &CommandProfile) -> Result<(), CommandE
 
 fn is_dangerous_environment_name(name: &str) -> bool {
     let upper = name.to_ascii_uppercase();
-    matches!(
-        upper.as_str(),
-        "LD_PRELOAD" | "LD_LIBRARY_PATH" | "DYLD_INSERT_LIBRARIES" | "DYLD_LIBRARY_PATH"
-    ) || upper.starts_with("PYTHONPATH")
+    // F12: cover the full set of interpreter/library injection env vars and
+    // treat LD_*/DYLD_* as prefixes (e.g. LD_PRELOAD_ALT, DYLD_FALLBACK_*).
+    upper.starts_with("LD_")
+        || upper.starts_with("DYLD_")
+        || upper.starts_with("PYTHONPATH")
+        || upper.starts_with("PYTHON")
         || matches!(
             upper.as_str(),
-            "PYTHONINSPECT" | "NODE_OPTIONS" | "RUBYOPT" | "PERL5OPT" | "BASH_ENV" | "ENV"
+            "NODE_OPTIONS"
+                | "NODE_PATH"
+                | "RUBYOPT"
+                | "RUBYLIB"
+                | "PERL5OPT"
+                | "PERL5LIB"
+                | "PERLLIB"
+                | "BASH_ENV"
+                | "ENV"
+                | "JAVA_TOOL_OPTIONS"
+                | "_JAVA_OPTIONS"
+                | "JAVA_OPTIONS"
+                | "CLASSPATH"
+                | "GCONV_PATH"
+                | "LOCPATH"
+                | "GLIBC_TUNABLES"
         )
 }
 
@@ -465,6 +499,49 @@ fn is_shell_interpreter(executable: &str) -> bool {
             | "pwsh"
             | "pwsh.exe"
     )
+}
+
+/// Read the interpreter from a program file's `#!shebang` line, if any.
+///
+/// Handles direct (`#!/bin/sh`), `/usr/bin/env` (`#!/usr/bin/env bash`), and
+/// `/usr/bin/env -S` (`#!/usr/bin/env -S bash`) forms. For the `env` forms, it
+/// scans past option flags (tokens starting with `-`, e.g. `-S`, `-i`, `-C`) to
+/// find the actual interpreter token, so `#!/usr/bin/env -S bash` resolves to
+/// `bash` rather than `-S`. Returns `None` if the file cannot be read or has no
+/// shebang. Basename matching is done by the caller via [`is_shell_interpreter`].
+/// See security findings F8 and F8-V1.
+#[cfg(unix)]
+fn read_shebang_interpreter(program: &std::path::Path) -> Option<String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(program).ok()?;
+    let mut buf = [0u8; 128];
+    let n = file.read(&mut buf).ok()?;
+    let first_line = buf[..n].split(|&b| b == b'\n').next()?;
+    let line = std::str::from_utf8(first_line).ok()?.trim_start();
+    let after_bang = line.strip_prefix("#!")?;
+    let mut parts = after_bang.split_whitespace();
+    let interpreter = parts.next()?;
+    let is_env = std::path::Path::new(interpreter)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n == "env")
+        .unwrap_or(false);
+    if is_env {
+        // `/usr/bin/env [-flags] <interp> [interp-args]`: skip option flags
+        // (tokens starting with `-`, such as `-S`/`-i`/`-C`/`-v`) to reach the
+        // real interpreter. Without this, `#!/usr/bin/env -S bash` would yield
+        // `-S` (which is not in the denylist) and the script would be allowed
+        // even though the kernel runs bash. See finding F8-V1.
+        for real in parts {
+            if real.starts_with('-') {
+                continue;
+            }
+            return Some(real.to_string());
+        }
+        // `env` with only flags and no interpreter: nothing to match.
+        return None;
+    }
+    Some(interpreter.to_string())
 }
 
 struct OutputState {
@@ -559,6 +636,106 @@ mod tests {
             max_output_bytes: 4096,
             ..CommandPolicy::default()
         }
+    }
+
+    /// F8 regression: a profile whose program is a script with a `#!/bin/sh`
+    /// shebang must be rejected (the basename-only check otherwise misses it
+    /// and the kernel would exec it under a shell).
+    #[cfg(unix)]
+    #[test]
+    fn shebang_shell_interpreter_is_rejected() {
+        let dir = std::env::temp_dir();
+        let script_path = dir.join("mdok_f8_shebang_probe.sh");
+        std::fs::write(&script_path, "#!/bin/sh\necho hi\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let canonical = std::fs::canonicalize(&script_path).unwrap();
+        let policy = CommandPolicy {
+            profiles: [(
+                "shscript".to_string(),
+                CommandProfile {
+                    program: canonical,
+                    ..CommandProfile::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+            ..CommandPolicy::default()
+        };
+        let argv = vec!["shscript".to_string()];
+        let result = validate_argv(&argv, &policy);
+        let err = result.expect_err("shebang shell should be rejected");
+        assert_eq!(err.code, E_POLICY);
+        let _ = std::fs::remove_file(&script_path);
+    }
+
+    /// F8-V1 regression: a shebang of the form `#!/usr/bin/env -S bash` must
+    /// also be rejected. The earlier F8 fix took the token after `/usr/bin/env`
+    /// verbatim, which yielded `-S` (an option flag, not in the denylist) and
+    /// allowed the script even though the kernel runs bash. The fix scans past
+    /// option flags to find the real interpreter.
+    #[cfg(unix)]
+    #[test]
+    fn shebang_env_s_shell_interpreter_is_rejected() {
+        let dir = std::env::temp_dir();
+        for shebang in [
+            "#!/usr/bin/env -S bash\necho hi\n",
+            "#!/usr/bin/env -S sh\necho hi\n",
+            "#!/usr/bin/env bash\necho hi\n",
+        ] {
+            let script_path = dir.join("mdok_f8v1_probe.sh");
+            std::fs::write(&script_path, shebang).unwrap();
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+            let canonical = std::fs::canonicalize(&script_path).unwrap();
+            let policy = CommandPolicy {
+                profiles: [(
+                    "shscript".to_string(),
+                    CommandProfile {
+                        program: canonical,
+                        ..CommandProfile::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..CommandPolicy::default()
+            };
+            let argv = vec!["shscript".to_string()];
+            let result = validate_argv(&argv, &policy);
+            let err = result.expect_err(&format!("shebang `{shebang}` should be rejected"));
+            assert_eq!(err.code, E_POLICY);
+            let _ = std::fs::remove_file(&script_path);
+        }
+    }
+
+    /// F8-V1 sanity: a shebang pointing at a non-shell interpreter must still be
+    /// allowed (the fix must not over-block legitimate scripts).
+    #[cfg(unix)]
+    #[test]
+    fn shebang_non_shell_interpreter_is_allowed() {
+        let dir = std::env::temp_dir();
+        let script_path = dir.join("mdok_f8v1_ok_probe.sh");
+        // `cat` is not a shell interpreter and is harmless; use it as the stand-in.
+        std::fs::write(&script_path, "#!/bin/cat\nhello\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let canonical = std::fs::canonicalize(&script_path).unwrap();
+        let policy = CommandPolicy {
+            profiles: [(
+                "catscript".to_string(),
+                CommandProfile {
+                    program: canonical,
+                    ..CommandProfile::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+            ..CommandPolicy::default()
+        };
+        let argv = vec!["catscript".to_string()];
+        validate_argv(&argv, &policy).expect("non-shell shebang should be allowed");
+        let _ = std::fs::remove_file(&script_path);
     }
 
     #[test]

