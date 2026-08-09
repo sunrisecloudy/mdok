@@ -20,15 +20,48 @@ pub(crate) fn sensitive_header(name: &str) -> bool {
     ) || looks_secret(name)
 }
 
+/// Canonical encodings of a tainted value.
+///
+/// Redaction matches by exact substring, so a reversibly-transformed copy of a
+/// secret (base64/hex/percent/reversed) would otherwise evade it. Adding these
+/// forms to the taint set closes that gap. See security finding F2.
+fn encoded_forms(secret: &str) -> Vec<String> {
+    use base64::Engine as _;
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    let bytes = secret.as_bytes();
+    let mut forms = Vec::with_capacity(5);
+    forms.push(base64::engine::general_purpose::STANDARD.encode(bytes));
+    forms.push(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes));
+    forms.push(bytes.iter().map(|b| format!("{b:02x}")).collect());
+    forms.push(utf8_percent_encode(secret, NON_ALPHANUMERIC).to_string());
+    forms.push(secret.chars().rev().collect());
+    forms
+}
+
 /// Collect every tainted value string reachable from the probe case.
 pub(crate) fn taint_from_input(input: &ProbeInput) -> Vec<String> {
     let mut taint = Vec::new();
     let mut add = |v: &serde_json::Value| match v {
-        serde_json::Value::String(s) if !s.is_empty() => taint.push(s.clone()),
+        serde_json::Value::String(s) if !s.is_empty() => {
+            // Include canonical encodings so transformed copies are also redacted.
+            let forms = encoded_forms(s);
+            taint.push(s.clone());
+            for form in forms {
+                if !form.is_empty() {
+                    taint.push(form);
+                }
+            }
+        }
         serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
             let s = v.to_string();
             if !s.is_empty() {
+                let forms = encoded_forms(&s);
                 taint.push(s);
+                for form in forms {
+                    if !form.is_empty() {
+                        taint.push(form);
+                    }
+                }
             }
         }
         _ => {}
@@ -56,6 +89,11 @@ pub(crate) fn taint_from_input(input: &ProbeInput) -> Vec<String> {
             && !header.value.is_empty()
         {
             taint.push(header.value.clone());
+            for form in encoded_forms(&header.value) {
+                if !form.is_empty() {
+                    taint.push(form);
+                }
+            }
         }
     }
     taint.sort();

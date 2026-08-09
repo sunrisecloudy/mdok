@@ -36,6 +36,16 @@ pub fn run_script_with_executor(
     rt.set_memory_limit(profile.max_memory_bytes);
     let deadline = started + Duration::from_millis(profile.script_timeout_ms.max(1));
     rt.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    // NOTE: the Eval intrinsic must remain enabled because host-side loading
+    // (prelude, user script, and module source via __mdok_eval_module) all go
+    // through Rust `ctx.eval`, which calls JS_Eval -> JS_EvalInternal and
+    // throws "eval is not supported" when the intrinsic is absent. F1's
+    // exploitable host-side eval sink (__mdok_eval_module) is closed by
+    // token-gating it (pm.rs). The prototype-chain constructor bypass
+    // (`(function(){}).constructor('...')()`) cannot be defeated from JS in
+    // QuickJS (it resolves to an internal native constructor), but it runs only
+    // inside the sandbox — no FS/process access, policy-gated network (F4), and
+    // post-run redaction of encoded secret forms (F2). It is not a host escape.
     let ctx = match Context::full(&rt) {
         Ok(ctx) => ctx,
         Err(e) => return harness_error(format!("context setup failed: {e}")),
@@ -352,12 +362,28 @@ fn truncate_output(output: &mut ProbeOutput, max: usize) {
     }
 }
 
+/// Truncate a string to a byte limit, landing on a UTF-8 char boundary.
+///
+/// `String::truncate` panics when the limit falls inside a multi-byte sequence;
+/// attacker-controlled JS/JSON text (e.g. `console.log('日'.repeat(20000))`)
+/// can force a non-char-boundary cut and, under `panic = "abort"`, abort the
+/// long-lived MCP server — a one-line DoS. This helper walks back to the
+/// nearest char boundary so truncation never panics. See finding F10.
+pub(crate) fn truncate_bytes(s: &mut String, max: usize) {
+    if s.len() <= max {
+        return;
+    }
+    let mut end = max;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s.truncate(end);
+}
+
 fn truncate_value(value: &mut serde_json::Value, max: usize) {
     match value {
         serde_json::Value::String(s) => {
-            if s.len() > max {
-                s.truncate(max);
-            }
+            truncate_bytes(s, max);
         }
         serde_json::Value::Array(items) => {
             for item in items {

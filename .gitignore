@@ -8,3 +8,6 @@ __pycache__/
 mdok-report.json
 tests/artifacts/*
 !tests/artifacts/.gitkeep
+# Generated libfuzzer seed corpora (regenerate via `cargo +nightly fuzz run`)
+fuzz/corpus/
+fuzz/artifacts/

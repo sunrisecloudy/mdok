@@ -1079,6 +1079,30 @@ pub struct Redactor {
     secrets: Vec<String>,
 }
 
+/// Canonical encodings of a secret value.
+///
+/// Redaction matches by exact substring. A captured or logged value that is a
+/// reversible transform of a secret (base64, hex, percent-encoded, reversed)
+/// is not a substring of the original and would otherwise evade redaction.
+/// Adding these encoded forms to the taint set closes that gap. See security
+/// finding F2 (secret exfiltration via transformed captures).
+fn encoded_forms(secret: &str) -> Vec<String> {
+    use base64::Engine as _;
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    let bytes = secret.as_bytes();
+    let mut forms = Vec::with_capacity(5);
+    // Base64 (standard and URL-safe).
+    forms.push(base64::engine::general_purpose::STANDARD.encode(bytes));
+    forms.push(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes));
+    // Hex (lowercase).
+    forms.push(bytes.iter().map(|b| format!("{b:02x}")).collect());
+    // Percent-encoding (as produced by the `url` template filter).
+    forms.push(utf8_percent_encode(secret, NON_ALPHANUMERIC).to_string());
+    // Reversed.
+    forms.push(secret.chars().rev().collect());
+    forms
+}
+
 impl Redactor {
     pub fn new<I, S>(secrets: I) -> Self
     where
@@ -1088,6 +1112,12 @@ impl Redactor {
         let mut values: Vec<String> = secrets
             .into_iter()
             .map(Into::into)
+            .filter(|value| !value.is_empty())
+            .flat_map(|value| {
+                let mut forms = vec![value.clone()];
+                forms.extend(encoded_forms(&value));
+                forms
+            })
             .filter(|value| !value.is_empty())
             .collect();
         values.sort_by_key(|value| std::cmp::Reverse(value.len()));
@@ -2046,5 +2076,27 @@ mod tests {
             diagnostic.cause_chain[0].observed,
             Some(Value::String("[REDACTED]".to_string()))
         );
+    }
+
+    /// F2 regression: a reversibly-transformed copy of a secret (base64, hex,
+    /// url-encoded, reversed) must also be redacted, not just the raw value.
+    #[test]
+    fn redactor_matches_encoded_forms_of_secrets() {
+        use base64::Engine as _;
+        let secret = "SUPERSECRET-LEAK-ME-12345";
+        let redactor = Redactor::new([secret]);
+        let b64 = base64::engine::general_purpose::STANDARD.encode(secret);
+        let hex = secret
+            .as_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+        let reversed: String = secret.chars().rev().collect();
+        for encoded in [b64.as_str(), hex.as_str(), reversed.as_str()] {
+            assert!(
+                redactor.redact_text(encoded).contains("[REDACTED]"),
+                "encoded form should be redacted: {encoded}"
+            );
+        }
     }
 }

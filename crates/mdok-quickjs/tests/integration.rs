@@ -765,18 +765,22 @@ fn test_run_request_unsupported() {
 #[test]
 fn test_vault_granted_and_denied() {
     run_bounded(|| {
+        // F6: pm.vault.get now resolves with an opaque redacted placeholder for
+        // both granted and denied names (no enumeration oracle), and never
+        // returns the raw secret value.
         let mut input = case(
             r#"
+        var results = {};
         pm.vault.get("token").then(function (v) {
-            pm.test("granted", function () { pm.expect(v).to.equal("opaque-secret"); });
-        }).catch(function () {
-            pm.test("granted failed", function () { pm.expect(true).to.be.false; });
+            results.token = v;
+            pm.test("token resolved placeholder", function () {
+                pm.expect(v).to.equal("[redacted-vault-value]");
+            });
         });
-        pm.vault.get("missing").then(function () {
-            pm.test("missing granted", function () { pm.expect(true).to.be.false; });
-        }).catch(function (e) {
-            pm.test("denied", function () {
-                pm.expect(String(e)).to.include("MDOK-PM-SECRET-DENIED");
+        pm.vault.get("missing").then(function (v) {
+            results.missing = v;
+            pm.test("missing resolved placeholder", function () {
+                pm.expect(v).to.equal("[redacted-vault-value]");
             });
         });
         "#,
@@ -791,6 +795,7 @@ fn test_vault_granted_and_denied() {
             output.transcript.errors
         );
         let blob = serde_json::to_string(&output).unwrap();
+        // The raw secret value must never appear in the transcript/output.
         assert!(!blob.contains("opaque-secret"));
     });
 }
@@ -1423,5 +1428,39 @@ fn test_crypto_js_module() {
         );
         let output = run_script(&input);
         assert_eq!(output.outcome, Outcome::Passed, "errors: {:?}", output.transcript.errors);
+    });
+}
+
+/// F10 regression: logging a long run of a 3-byte UTF-8 character must not
+/// panic. The byte-limit truncation (4096, 4096 % 3 == 1) previously cut
+/// mid-character and `String::truncate` aborted the process (panic=abort),
+/// a one-line DoS of the long-lived MCP server. The char-boundary-safe
+/// helper must truncate without panicking.
+#[test]
+fn test_multibyte_log_truncation_does_not_panic() {
+    run_bounded(|| {
+        let input = case(
+            // '日' is U+65E5 (3 bytes in UTF-8); 20000 reps = 60000 bytes, far
+            // over the 4096-byte log limit. The truncate point (4096) is not a
+            // char boundary (4096 % 3 == 1).
+            "console.log('\u{65e5}'.repeat(20000));",
+        );
+        // This call must not abort the test process. If the fix regresses, the
+        // binary exits 134 (SIGABRT) and this test fails to even report.
+        let output = run_script(&input);
+        assert_eq!(
+            output.outcome,
+            Outcome::Passed,
+            "errors: {:?}",
+            output.transcript.errors
+        );
+        // The log was truncated to a char boundary under the byte limit.
+        let logged = output
+            .transcript
+            .logs
+            .first()
+            .map(|l| l.message.len())
+            .unwrap_or(0);
+        assert!(logged <= 4096, "log must be truncated to <= 4096 bytes, got {logged}");
     });
 }

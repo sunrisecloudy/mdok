@@ -122,7 +122,10 @@ fn run() -> Result<(), String> {
     }
     let output = if args.network == "fetch" {
         let timeout = Duration::from_millis(input.profile.script_timeout_ms.max(1));
-        let mut executor = fetch_executor(timeout);
+        // Apply the default egress policy (http/https only, private network
+        // denied) so pm.sendRequest cannot reach loopback/metadata unless the
+        // operator opts in. See security finding F4.
+        let mut executor = fetch_executor(timeout, mdok_curl::CurlPolicy::default());
         run_script_with_executor(&input, &mut executor)
     } else {
         run_script(&input)

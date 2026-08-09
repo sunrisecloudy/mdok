@@ -17,6 +17,16 @@
   var PROFILE = 'postman-cli-v1';
   var DATA_GET = Symbol('mdokDataGet');
 
+  // Capture the per-run eval-module token from the host and immediately remove
+  // it from the global scope so user script cannot reach it. Only legitimate
+  // require() calls inside this closure pass it to __mdok_eval_module. See
+  // security finding F1.
+  var EVAL_MODULE_TOKEN = '';
+  try {
+    EVAL_MODULE_TOKEN = String(globalThis.__mdok_eval_token_once || '');
+    delete globalThis.__mdok_eval_token_once;
+  } catch (e) { EVAL_MODULE_TOKEN = ''; }
+
   /* ------------------------------------------------------------------ *
    * helpers
    * ------------------------------------------------------------------ */
@@ -980,7 +990,7 @@
       return requireModule(spec);
     };
     try {
-      __mdok_eval_module(src);
+      __mdok_eval_module(EVAL_MODULE_TOKEN, src);
       var result = globalThis.module.exports;
       if (result === undefined || result === null || Object.keys(result).length === 0) {
         // UMD may have fallen back to a global (e.g. `re._ = be`).
@@ -1406,5 +1416,19 @@
     __mdok_eval_used('Function');
     throw new Error('MDOK-PM-EVAL: Function is disabled in the hardened ' + PROFILE + ' profile');
   };
+
+  // F1 note: the global-only `eval`/`Function` stubs above are best-effort and
+  // are bypassable via the prototype chain in QuickJS (`(function(){}).constructor('...')()`),
+  // because QuickJS resolves function `.constructor` to an internal native
+  // constructor that is not overwritable from JS. Removing the Eval intrinsic
+  // to defeat this at the engine level is not viable here because host-side
+  // loading (prelude, user script, vendored modules) goes through Rust
+  // `ctx.eval`, which requires the intrinsic. The exploitable half of F1 — the
+  // `__mdok_eval_module` global sink that called Rust `ctx.eval` on
+  // attacker-controlled source — IS closed by token-gating that host function
+  // (pm.rs). The constructor chain can run arbitrary JS only *inside* the
+  // sandbox, which has no FS/process access and (since F4) policy-gated network;
+  // it is not a host escape. Secrets reachable to such JS are still redacted by
+  // the post-run taint sweep (which, since F2, matches encoded forms too).
 
 })();

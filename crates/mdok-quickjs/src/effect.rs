@@ -57,17 +57,29 @@ pub type ChildRequestExecutor = dyn FnMut(&ChildRequest) -> ChildRequestResult;
 /// transcript redaction for secret-bearing request metadata before output.
 pub fn fetch_executor(
     request_timeout: Duration,
+    policy: mdok_curl::CurlPolicy,
 ) -> impl FnMut(&ChildRequest) -> ChildRequestResult {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(request_timeout)
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .build();
     const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
+    let client = policy.build_gated_blocking_client(Some(request_timeout), 10, true);
     move |req: &ChildRequest| {
         let client = match &client {
             Ok(client) => client,
-            Err(error) => return request_error(req, format!("http client setup failed: {error}")),
+            Err(error) => {
+                return request_error(req, format!("gated http client setup failed: {error}"));
+            }
         };
+        // Pre-flight the URL through the same egress policy the curl path
+        // enforces (scheme/host allow+deny, SSRF/private-network guard,
+        // post-DNS resolved-address check). See security finding F4.
+        let parsed = match reqwest::Url::parse(&req.url) {
+            Ok(url) => url,
+            Err(error) => {
+                return request_error(req, format!("invalid request url: {error}"));
+            }
+        };
+        if let Err(error) = policy.enforce_url(&parsed) {
+            return request_error(req, format!("request blocked by policy: {error}"));
+        }
         let method = req
             .method
             .parse::<reqwest::Method>()
