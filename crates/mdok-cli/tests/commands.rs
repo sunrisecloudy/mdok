@@ -492,26 +492,18 @@ fn run_accepts_inline_and_stdin_and_enforces_input_limits() {
     assert_eq!(stdin_json["documents"][0]["path"], "<stdin>");
     assert_eq!(stdin_json["documents"][0]["status"], "passed");
 
-    // The line-limit payload is small enough to pass as one process argument,
-    // while still exercising the inline parser/resource-limit path.
-    let oversized_inline = "x\n".repeat(MAX_SOURCE_LINES + 1);
-    let inline_limit = run_mdok(
-        &root,
-        vec![
-            OsStr::new("--json"),
-            OsStr::new("run"),
-            OsStr::new("--content"),
-            OsStr::new(&oversized_inline),
-        ],
-    );
-    assert_eq!(inline_limit.status.code(), Some(2));
-    let inline_limit_json = json_output(&inline_limit);
+    // Use stdin for the line-limit payload because Linux limits each execve
+    // argument to less than this otherwise valid MDOK input size.
+    let oversized_lines = "x\n".repeat(MAX_SOURCE_LINES + 1);
+    let line_limit = run_mdok_with_stdin(&root, ["--json", "run"], oversized_lines.as_bytes());
+    assert_eq!(line_limit.status.code(), Some(2));
+    let line_limit_json = json_output(&line_limit);
     assert_eq!(
-        inline_limit_json["documents"][0]["diagnostics"][0]["code"],
+        line_limit_json["documents"][0]["diagnostics"][0]["code"],
         "MDOK-E700"
     );
     assert!(
-        inline_limit_json["documents"][0]["diagnostics"][0]["message"]
+        line_limit_json["documents"][0]["diagnostics"][0]["message"]
             .as_str()
             .is_some_and(|message| message.contains("maximum is 100000"))
     );
