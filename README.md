@@ -4,15 +4,24 @@ MDOK turns Markdown into executable API workflows. Write a readable API
 example once, then lint it, plan it safely, run it, and keep it as a verified
 contract for agents, humans, and CI.
 
-## Try it
+## Install
 
-Build MDOK and validate the included example without making a network request:
+With [Homebrew](https://brew.sh/):
+
+```sh
+brew install sunrisecloudy/tap/mdok
+```
+
+Or build from source with Rust 1.85 or newer, then validate the included
+example without making a network request:
 
 ```sh
 cargo build --release
 cargo run -p mdok-cli -- lint mdok-prd/examples/auth-flow.md
 cargo run -p mdok-cli -- plan mdok-prd/examples/auth-flow.md --offline
 ```
+
+## Try it
 
 Run the complete deterministic local E2E suite with its fixture server:
 

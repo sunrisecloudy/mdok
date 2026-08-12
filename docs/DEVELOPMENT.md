@@ -54,12 +54,14 @@ operator can supply an Ed25519 PEM key through `MDOK_SIGNING_KEY`; signed
 manifests retain provenance and checksums. Verify a signed release with:
 
 ```sh
+version=$(awk -F '"' '/^version = / { print $2; exit }' crates/mdok-cli/Cargo.toml)
+target=$(rustc -vV | awk '/^host:/ { print $2 }')
 python3 scripts/verify_release.py \
   --key mdok-release-key.pub.pem \
-  --manifest dist/mdok-0.0.0-$(rustc -vV | awk '/^host:/ { print $2 }').release.json
+  --manifest "dist/mdok-$version-$target.release.json"
 python3 scripts/release_smoke.py \
   --key mdok-release-key.pub.pem \
-  --manifest dist/mdok-0.0.0-$(rustc -vV | awk '/^host:/ { print $2 }').release.json
+  --manifest "dist/mdok-$version-$target.release.json"
 ```
 
 The credential-free local gate creates an ephemeral key and removes it after
