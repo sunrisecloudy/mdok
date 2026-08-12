@@ -29,6 +29,7 @@ jobs:
         run: python3 mdok-prd/scripts/validate_corpus.py
       - name: Generate and validate SBOM
         run: |
+          cargo fetch --locked
           python3 scripts/generate_sbom.py --output /tmp/mdok.spdx.json
           python3 -c 'import json; d=json.load(open("/tmp/mdok.spdx.json")); assert d["spdxVersion"] == "SPDX-2.3" and any(p["name"] == "curl" for p in d["packages"])'
       - name: Build CLI

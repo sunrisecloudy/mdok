@@ -47,6 +47,7 @@ if [ -n "$signing_key" ] && [ "$dirty" = true ] && [ "$allow_dirty" != 1 ]; then
   exit 2
 fi
 
+cargo fetch --locked --manifest-path "$root/Cargo.toml"
 cargo build --locked --manifest-path "$root/Cargo.toml" --release --package mdok-cli --target "$target"
 binary="$root/target/$target/release/mdok"
 binary_name=mdok
