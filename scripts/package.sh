@@ -79,6 +79,7 @@ import tarfile
 archive_path = pathlib.Path(sys.argv[1])
 version = sys.argv[2]
 prefix = f"mdok-{version}-source/"
+root = prefix.rstrip("/")
 try:
     with tarfile.open(archive_path, mode="r:gz") as archive:
         members = archive.getmembers()
@@ -89,7 +90,11 @@ if not members:
     raise SystemExit("source archive validation failed: archive is empty")
 for member in members:
     name = pathlib.PurePosixPath(member.name)
-    if member.name.startswith("/") or ".." in name.parts or not member.name.startswith(prefix):
+    if (
+        member.name.startswith("/")
+        or ".." in name.parts
+        or (member.name != root and not member.name.startswith(prefix))
+    ):
         raise SystemExit(f"source archive validation failed: unsafe member {member.name!r}")
 PY
 
