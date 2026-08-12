@@ -1,10 +1,12 @@
-.PHONY: fmt lint test corpus bench bench-perf profile-perf deps-audit sbom release-smoke tls-matrix options
+.PHONY: fmt lint test corpus e2e-md bench bench-perf profile-perf deps-audit sbom release-smoke tls-matrix options
 fmt:
 	cargo fmt --all --check
 lint:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 corpus:
 	python3 mdok-prd/scripts/validate_corpus.py
+e2e-md:
+	python3 scripts/run_md_e2e.py
 options:
 	python3 scripts/sync_curl_options.py
 test:

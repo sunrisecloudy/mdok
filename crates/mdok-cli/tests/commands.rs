@@ -112,6 +112,169 @@ fn assert_private_file(path: &Path) {
 }
 
 #[test]
+fn explicit_env_files_load_in_order_and_cli_values_win() {
+    let directory = tempdir().expect("temporary directory should be available");
+    let root = canonical_temp_root(&directory);
+    let first = root.join("first.env");
+    let second = root.join("second.env");
+    let document = root.join("api.md");
+    fs::write(
+        &first,
+        "base_url=https://first.example.test\nregion=first\nAPI_TOKEN=never-print\n",
+    )
+    .expect("first environment file should be writable");
+    fs::write(
+        &second,
+        "export base_url=https://second.example.test # selected\nregion='quoted value'\n",
+    )
+    .expect("second environment file should be writable");
+    fs::write(
+        &document,
+        "```curl mdok name=example\ncurl \"{{base_url}}/{{region|url}}/{{mode|url}}\" --header \"Authorization: Bearer {{API_TOKEN|header}}\"\n```\n",
+    )
+    .expect("Markdown document should be writable");
+
+    let output = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("--env-file"),
+            first.as_os_str().to_os_string(),
+            OsString::from("--env-file"),
+            second.as_os_str().to_os_string(),
+            OsString::from("--var"),
+            OsString::from("mode=cli"),
+            OsString::from("plan"),
+            document.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let report = json_output(&output);
+    let command = report["documents"][0]["steps"][0]["command"]
+        .as_array()
+        .expect("planned command should be an array");
+    assert_eq!(command[1], "https://second.example.test/quoted%20value/cli");
+    assert_eq!(command[3], "Authorization: Bearer [REDACTED]");
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("never-print"));
+}
+
+#[test]
+fn invalid_explicit_env_file_fails_before_planning() {
+    let directory = tempdir().expect("temporary directory should be available");
+    let root = canonical_temp_root(&directory);
+    let environment = root.join("invalid.env");
+    let document = root.join("api.md");
+    fs::write(&environment, "VALID=one\nnot an assignment\n")
+        .expect("environment file should be writable");
+    fs::write(&document, "# API example\n").expect("Markdown document should be writable");
+
+    let output = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("--env-file"),
+            environment.as_os_str().to_os_string(),
+            OsString::from("plan"),
+            document.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let report = json_output(&output);
+    assert_eq!(
+        report["diagnostics"][0]["title"],
+        "Invalid environment file"
+    );
+    assert!(
+        report["diagnostics"][0]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains(":2: expected NAME=VALUE"))
+    );
+}
+
+#[test]
+fn dotenv_files_are_never_discovered_implicitly() {
+    let directory = tempdir().expect("temporary directory should be available");
+    let root = canonical_temp_root(&directory);
+    let document = root.join("api.md");
+    fs::write(root.join(".env"), "base_url=https://example.test\n")
+        .expect("dotenv file should be writable");
+    fs::write(
+        &document,
+        "```curl mdok name=example\ncurl \"{{base_url}}/users\"\n```\n",
+    )
+    .expect("Markdown document should be writable");
+
+    let output = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("plan"),
+            document.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let report = json_output(&output);
+    assert!(
+        report["documents"][0]["diagnostics"]
+            .as_array()
+            .is_some_and(|diagnostics| !diagnostics.is_empty())
+    );
+}
+
+#[test]
+fn strict_replay_detects_explicit_env_file_changes() {
+    let directory = tempdir().expect("temporary directory should be available");
+    let root = canonical_temp_root(&directory);
+    let environment = root.join("replay.env");
+    let recording = root.join("recording.md");
+    fs::write(&environment, "region=first\n").expect("environment file should be writable");
+
+    let created = run_mdok(
+        &root,
+        vec![
+            OsString::from("--env-file"),
+            environment.as_os_str().to_os_string(),
+            OsString::from("record"),
+            OsString::from("--output"),
+            recording.as_os_str().to_os_string(),
+            OsString::from("--content"),
+            OsString::from("# Recorded example\n"),
+        ],
+    );
+    assert_eq!(created.status.code(), Some(0));
+
+    let exact = run_mdok(
+        &root,
+        vec![
+            OsString::from("--env-file"),
+            environment.as_os_str().to_os_string(),
+            OsString::from("replay"),
+            OsString::from("--strict"),
+            recording.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(exact.status.code(), Some(0));
+
+    fs::write(&environment, "region=changed\n").expect("environment file should be writable");
+    let changed = run_mdok(
+        &root,
+        vec![
+            OsString::from("--json"),
+            OsString::from("--env-file"),
+            environment.as_os_str().to_os_string(),
+            OsString::from("replay"),
+            OsString::from("--strict"),
+            recording.as_os_str().to_os_string(),
+        ],
+    );
+    assert_eq!(changed.status.code(), Some(2));
+    assert_eq!(
+        json_output(&changed)["diagnostics"][0]["message"],
+        "recording source, configuration, or secret input identifiers changed"
+    );
+}
+
+#[test]
 fn postman_import_writes_canonical_markdown_and_manifest() {
     let directory = tempdir().expect("temporary directory should be available");
     let root = canonical_temp_root(&directory);

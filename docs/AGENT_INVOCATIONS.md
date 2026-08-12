@@ -23,7 +23,7 @@ subcommand in scripts so that `--` unambiguously marks the end of MDOK options
 and the beginning of direct argv:
 
 ```sh
-mdok --config ./mdok.toml --env staging run request.md
+mdok --config ./mdok.toml --env staging --env-file .env.staging run request.md
 mdok --allow-host api.example.com call -- curl --fail https://api.example.com/health
 ```
 
@@ -71,9 +71,16 @@ cat request.md | mdok --json run -
 ```
 
 `--report PATH` writes the JSON report atomically, and `--junit PATH` writes
-JUnit output. `--timeout`, `--max-body`, `--offline`, `--env`, `--var`,
+JUnit output. `--timeout`, `--max-body`, `--offline`, `--env`, `--env-file`, `--var`,
 `--secret`, host policy options, and the other common execution options apply
 to the transient run in the same way that they apply to `test`.
+
+`--env-file PATH` is repeatable and never performs automatic discovery. Later
+files override earlier files; explicit `--var` and `--secret` assignments win
+afterward. Dotenv values are parsed literally without interpolation or command
+execution. Secret-looking names are tainted and redacted. Recording provenance
+includes each canonical env-file path and digest, so strict replay detects file
+changes.
 
 The report exit status is independent of its output format:
 

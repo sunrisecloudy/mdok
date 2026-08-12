@@ -17,6 +17,7 @@ mdok version                 Print MDOK, curl, libcurl, TLS, and feature version
 ```text
 --config <path>              Project configuration; default search is mdok.toml upward.
 --env <name>                 Select environment profile.
+--env-file <path>            Load an explicit dotenv file; repeatable.
 --var key=value              Set a non-secret variable; repeatable.
 --secret key=value           Set a secret; repeatable.
 --allow-host <pattern>       Add an allowed destination host.
@@ -33,6 +34,11 @@ mdok version                 Print MDOK, curl, libcurl, TLS, and feature version
 --offline                    Deny all network execution; useful with lint/plan.
 --seed <u64>                 Deterministic seed for future generators.
 ```
+
+`--env-file` never performs discovery. Files are parsed literally without
+variable interpolation or command execution. Later files override earlier
+files, and explicit `--var`/`--secret` assignments override env-file values.
+Secret-looking names are tainted and redacted. Files are limited to 1 MiB.
 
 ## 6.3 Exit codes
 

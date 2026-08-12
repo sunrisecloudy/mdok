@@ -1,118 +1,52 @@
 # MDOK
 
-MDOK turns ordinary Markdown into executable API workflow tests. Request blocks use copied `curl` syntax, checks and captures use standard JMESPath, and the CLI produces human, JSON, JSON Lines, and JUnit reports.
+MDOK turns Markdown into executable API workflows. Write a readable API
+example once, then lint it, plan it safely, run it, and keep it as a verified
+contract for agents, humans, and CI.
 
-## Quick start
+## Try it
+
+Build MDOK and validate the included example without making a network request:
 
 ```sh
 cargo build --release
 cargo run -p mdok-cli -- lint mdok-prd/examples/auth-flow.md
-cargo run -p mdok-cli -- plan mdok-prd/examples/auth-flow.md --var base_url=http://127.0.0.1:9800
-cargo run -p mdok-cli -- test mdok-prd/examples/auth-flow.md --var base_url=http://127.0.0.1:9800
+cargo run -p mdok-cli -- plan mdok-prd/examples/auth-flow.md --offline
 ```
 
-The bare form `mdok file.md` is an alias for `mdok test file.md`. Use `mdok-test-server --listen 127.0.0.1:0 --json-ready` for deterministic local HTTP fixtures.
-
-Postman Collection v2.1 files can be converted into reviewable canonical
-Markdown:
+Run the complete deterministic local E2E suite with its fixture server:
 
 ```sh
-mdok import postman collection.json --out api.mdok.md
+make e2e-md
 ```
 
-The importer writes a provenance/diagnostic manifest beside the Markdown and
-fails closed on semantics that cannot be represented safely. See
-[docs/POSTMAN_IMPORT.md](docs/POSTMAN_IMPORT.md) for the supported subset and
-runtime boundary.
+## Your first workflow
 
-## MCP server
-
-MDOK includes a stdio [Model Context Protocol](https://modelcontextprotocol.io/)
-server for agent workflows. Build the CLI, then register it with an MCP client:
+Start with [`mdok-prd/examples/auth-flow.md`](mdok-prd/examples/auth-flow.md),
+or create your own Markdown file with a request, variables, and checks. For a
+live run, provide the API host explicitly:
 
 ```sh
-cargo build --release -p mdok-cli
-mdok mcp serve
+cargo run -p mdok-cli -- test api.md \
+  --var base_url=https://api.example.test \
+  --allow-host api.example.test
 ```
 
-The server advertises tools for linting, planning, listing, and running Markdown
-API workflows, Postman import, bounded Postman JavaScript probes, and version
-information. Tool calls return JSON reports and preserve MDOK policy,
-redaction, and review-first import behavior. See [docs/MCP.md](docs/MCP.md).
+Keep credentials out of the file. Pass them with `--secret` or load a dotenv
+file only when you explicitly name it with `--env-file`.
 
-The reusable agent instructions are checked in at
-[`skills/mdok/SKILL.md`](skills/mdok/SKILL.md); they can also be installed into
-an agent's skill directory.
+## Where to go next
 
-## Project files
+- [Getting started](docs/GETTING_STARTED.md) — variables, dotenv files,
+  Postman import, reports, and local fixtures.
+- [Agent workflow](docs/AGENT_WORKFLOW.md) — intent → example → plan/debug →
+  approval → verified workflow → CI.
+- [MCP server](docs/MCP.md) — tool schemas, policy, and agent integration.
+- [Markdown E2E suite](tests/e2e/INDEX.md) — one focused feature per file plus
+  a combined workflow.
+- [Developer and maintainer guide](docs/DEVELOPMENT.md) — repository layout,
+  command tests, performance, release signing, and TLS validation.
+- [Documentation index](docs/README.md) — all product and engineering docs.
 
-- `mdok.toml` controls language, execution limits, variables, and network/filesystem policy.
-- `mdok-prd/` contains the product contract and the 495-fixture corpus.
-- `crates/` contains the parser, template, restricted shell, curl, runtime, reporting, CLI, and fixture-server components.
-
-MDOK performs whole-document planning before a request is sent. Interpolated values are data inside one argv element; they are never reparsed as shell source. HTTP/HTTPS and loopback-safe local testing are the default execution surface.
-
-`curl` remains the default request fence. For repository-local agent tools,
-MDOK also supports trusted-profile direct-process `exec` fences; command tests can
-be stored as versioned Markdown and rerun over time. See
-[docs/COMMAND_TESTS.md](docs/COMMAND_TESTS.md) for the policy and context
-contract.
-
-## Performance
-
-The Criterion suite covers parser, Markdown, template, JMESPath, report, body
-spill, normal/intense end-to-end, and one-shot versus reused-session cases:
-
-```sh
-make bench
-python3 scripts/bench_performance.py --runs 10 --warmups 2
-python3 scripts/audit_dependencies.py
-```
-
-The process harness builds the release CLI, runs deterministic loopback
-fixtures, and records wall time plus peak RSS for normal and intense `lint`,
-`plan`, and `test` workloads. See [docs/PERFORMANCE_CHECKLIST.md](docs/PERFORMANCE_CHECKLIST.md)
-and [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md) for targets and
-interpretation.
-
-## Release signing
-
-`scripts/package.sh` produces deterministic unsigned local archives by default. Checksums are generated with the Python standard library, so the sidecars do not depend on `shasum` or `sha256sum`. A release operator can supply an Ed25519 PEM key through `MDOK_SIGNING_KEY`; signing writes base64 `.sig` sidecars and a signed `mdok-<version>-<target>.release.json` manifest. The verifier accepts the corresponding public PEM key (or the private key) through `MDOK_SIGNING_PUBLIC_KEY`.
-
-```sh
-openssl genpkey -algorithm ED25519 -out mdok-release-key.pem
-openssl pkey -in mdok-release-key.pem -pubout -out mdok-release-key.pub.pem
-MDOK_SIGNING_KEY="$PWD/mdok-release-key.pem" \
-MDOK_SIGNING_PUBLIC_KEY="$PWD/mdok-release-key.pub.pem" \
-MDOK_REQUIRE_SIGNATURE=1 \
-./scripts/package.sh
-
-python3 scripts/verify_release.py \
-  --key mdok-release-key.pub.pem \
-  --manifest dist/mdok-0.0.0-$(rustc -vV | awk '/host:/ { print $2 }').release.json
-python3 scripts/release_smoke.py \
-  --key mdok-release-key.pub.pem \
-  --manifest dist/mdok-0.0.0-$(rustc -vV | awk '/host:/ { print $2 }').release.json
-```
-
-Signed packaging fails closed when the key is absent or the checkout is dirty. `MDOK_ALLOW_DIRTY_RELEASE=1` is an explicit local exception; its signed manifest and embedded provenance retain the `HEAD` revision, a dirty flag, and a hash of the complete porcelain status. `MDOK_RELEASE_SMOKE=1` verifies signatures before extracting and running the packaged binary. Unsigned local packaging remains available without that release gate.
-
-The repository also provides a credential-free signed-release gate. It creates
-an ephemeral Ed25519 key in a private temporary directory, packages and
-verifies a signed release, checks the extracted binary and provenance bindings,
-and removes the key on exit:
-
-```sh
-make release-smoke
-```
-
-For HTTPS/session portability, run the Tier-1 host matrix on each supported
-platform and retain the JSON output:
-
-```sh
-make tls-matrix
-```
-
-See [docs/TLS_MATRIX.md](docs/TLS_MATRIX.md) for the target list and the four
-cases that must pass on every host. The matrix is intentionally a manual
-release gate; no CI workflow is added here.
+For coding agents, the reusable instructions are in
+[`skills/mdok/SKILL.md`](skills/mdok/SKILL.md).

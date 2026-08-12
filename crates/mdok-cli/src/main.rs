@@ -56,6 +56,7 @@ const MAX_CAPTURE_KEYS: usize = 256;
 const MAX_CAPTURE_DEPTH: usize = 32;
 const MAX_CAPTURE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_CAPTURE_TOTAL_BYTES: usize = 8 * 1024 * 1024;
+const MAX_ENV_FILE_BYTES: u64 = 1024 * 1024;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -82,6 +83,9 @@ struct CommonOptions {
     /// Select an environment profile from mdok.toml.
     #[arg(long, global = true, value_name = "NAME")]
     env: Option<String>,
+    /// Load variables from an explicit dotenv file. Repeatable; later files win.
+    #[arg(long, global = true, value_name = "PATH")]
+    env_file: Vec<PathBuf>,
     /// Set a non-secret variable. Repeatable.
     #[arg(long, global = true, value_name = "KEY=VALUE")]
     var: Vec<String>,
@@ -415,6 +419,7 @@ fn default_jobs() -> usize {
 struct EffectiveConfig {
     config_path: Option<PathBuf>,
     config_root: PathBuf,
+    env_files: Vec<PathBuf>,
     vars: BTreeMap<String, Variable>,
     allowed_hosts: Vec<String>,
     denied_hosts: Vec<String>,
@@ -2114,6 +2119,10 @@ fn provenance_snapshot(config: &EffectiveConfig, options: &CommonOptions) -> Val
         "config_path": config.config_path,
         "config_sha256": config.config_path.as_deref().and_then(sha256_file),
         "config_root": config.config_root,
+        "env_files": config.env_files.iter().map(|path| json!({
+            "path": path,
+            "sha256": sha256_file(path),
+        })).collect::<Vec<_>>(),
         "working_directory": cwd,
         "environment_profile": options.env,
         "allowed_hosts": config.allowed_hosts,
@@ -5431,6 +5440,20 @@ fn load_config(
             );
         }
     }
+    let mut env_files = Vec::with_capacity(options.env_file.len());
+    for path in &options.env_file {
+        let (canonical_path, entries) = load_env_file(path)?;
+        env_files.push(canonical_path);
+        for (key, value) in entries {
+            vars.insert(
+                key.clone(),
+                Variable {
+                    value: Value::String(value),
+                    secret: is_secret_name(&key),
+                },
+            );
+        }
+    }
     for entry in &options.var {
         let (key, value) = parse_assignment(entry)?;
         vars.insert(
@@ -5530,6 +5553,7 @@ fn load_config(
     Ok(EffectiveConfig {
         config_path: config_path.map(|path| fs::canonicalize(&path).unwrap_or(path)),
         config_root,
+        env_files,
         vars,
         allowed_hosts: options
             .allow_host
@@ -5824,6 +5848,154 @@ fn parse_assignment(input: &str) -> Result<(String, String), Box<CliError>> {
     Ok((key.to_string(), value.to_string()))
 }
 
+fn load_env_file(path: &Path) -> Result<(PathBuf, BTreeMap<String, String>), Box<CliError>> {
+    let canonical_path = fs::canonicalize(path).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Cannot read environment file",
+                format!("{}: {error}", path.display()),
+            ),
+        )
+    })?;
+    let metadata = fs::metadata(&canonical_path).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Cannot read environment file",
+                format!("{}: {error}", canonical_path.display()),
+            ),
+        )
+    })?;
+    if metadata.len() > MAX_ENV_FILE_BYTES {
+        return Err(cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Environment file too large",
+                format!(
+                    "{} is {} bytes; the maximum is {MAX_ENV_FILE_BYTES} bytes",
+                    canonical_path.display(),
+                    metadata.len()
+                ),
+            ),
+        ));
+    }
+    let text = fs::read_to_string(&canonical_path).map_err(|error| {
+        cli_error(
+            EXIT_INPUT,
+            Diagnostic::error(
+                "MDOK-E001",
+                "Cannot read environment file",
+                format!("{}: {error}", canonical_path.display()),
+            ),
+        )
+    })?;
+    let mut values = BTreeMap::new();
+    for (index, raw_line) in text.lines().enumerate() {
+        let raw_line = if index == 0 {
+            raw_line.strip_prefix('\u{feff}').unwrap_or(raw_line)
+        } else {
+            raw_line
+        };
+        let Some((key, value)) = parse_env_file_line(raw_line).map_err(|message| {
+            cli_error(
+                EXIT_INPUT,
+                Diagnostic::error(
+                    "MDOK-E001",
+                    "Invalid environment file",
+                    format!("{}:{}: {message}", canonical_path.display(), index + 1),
+                ),
+            )
+        })?
+        else {
+            continue;
+        };
+        values.insert(key, value);
+    }
+    Ok((canonical_path, values))
+}
+
+fn parse_env_file_line(line: &str) -> Result<Option<(String, String)>, String> {
+    let mut line = line.trim();
+    if line.is_empty() || line.starts_with('#') {
+        return Ok(None);
+    }
+    if let Some(rest) = line.strip_prefix("export ") {
+        line = rest.trim_start();
+    }
+    let Some((key, raw_value)) = line.split_once('=') else {
+        return Err("expected NAME=VALUE".to_string());
+    };
+    let key = key.trim();
+    if !valid_name(key) {
+        return Err(format!("invalid variable name `{key}`"));
+    }
+    let value = parse_env_file_value(raw_value.trim_start())?;
+    Ok(Some((key.to_string(), value)))
+}
+
+fn parse_env_file_value(value: &str) -> Result<String, String> {
+    let Some(quote) = value
+        .chars()
+        .next()
+        .filter(|value| matches!(value, '\'' | '"'))
+    else {
+        let comment = value.char_indices().find_map(|(index, character)| {
+            (character == '#'
+                && (index == 0
+                    || value[..index]
+                        .chars()
+                        .next_back()
+                        .is_some_and(char::is_whitespace)))
+            .then_some(index)
+        });
+        return Ok(value[..comment.unwrap_or(value.len())]
+            .trim_end()
+            .to_string());
+    };
+    let mut result = String::new();
+    let mut escaped = false;
+    let mut closing_index = None;
+    for (index, character) in value[quote.len_utf8()..].char_indices() {
+        let absolute_index = quote.len_utf8() + index;
+        if quote == '"' && escaped {
+            match character {
+                'n' => result.push('\n'),
+                'r' => result.push('\r'),
+                't' => result.push('\t'),
+                '"' => result.push('"'),
+                '\\' => result.push('\\'),
+                other => {
+                    result.push('\\');
+                    result.push(other);
+                }
+            }
+            escaped = false;
+        } else if quote == '"' && character == '\\' {
+            escaped = true;
+        } else if character == quote {
+            closing_index = Some(absolute_index + character.len_utf8());
+            break;
+        } else {
+            result.push(character);
+        }
+    }
+    if escaped {
+        result.push('\\');
+    }
+    let Some(closing_index) = closing_index else {
+        return Err("unterminated quoted value".to_string());
+    };
+    let trailing = value[closing_index..].trim();
+    if !trailing.is_empty() && !trailing.starts_with('#') {
+        return Err("unexpected characters after quoted value".to_string());
+    }
+    Ok(result)
+}
+
 fn resolve_secret_spec(spec: &SecretSpec) -> Result<String, Box<CliError>> {
     match spec {
         SecretSpec::Source { from_env } => std::env::var(from_env).map_err(|_| {
@@ -6105,6 +6277,28 @@ mod tests {
     fn oversized_cli_durations_are_normal_input_errors() {
         let error = parse_duration("1e300").unwrap_err();
         assert_eq!(error.diagnostic.code, "MDOK-E001");
+    }
+
+    #[test]
+    fn dotenv_parser_is_literal_and_supports_common_quoting() {
+        assert_eq!(
+            parse_env_file_line("export BASE_URL=https://example.test # comment").unwrap(),
+            Some(("BASE_URL".to_string(), "https://example.test".to_string()))
+        );
+        assert_eq!(
+            parse_env_file_line("LABEL='literal $NAME # value'").unwrap(),
+            Some(("LABEL".to_string(), "literal $NAME # value".to_string()))
+        );
+        assert_eq!(
+            parse_env_file_line("MESSAGE=\"first\\nsecond ${UNCHANGED}\"").unwrap(),
+            Some((
+                "MESSAGE".to_string(),
+                "first\nsecond ${UNCHANGED}".to_string()
+            ))
+        );
+        assert_eq!(parse_env_file_line(" # ignored").unwrap(), None);
+        assert!(parse_env_file_line("BROKEN").is_err());
+        assert!(parse_env_file_line("VALUE='unterminated").is_err());
     }
 
     #[test]

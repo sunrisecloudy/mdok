@@ -6,12 +6,17 @@ Variable lookup order during a request:
 
 1. captures from completed earlier steps;
 2. CLI `--var` and `--secret` values;
-3. selected environment profile;
-4. inline `toml mdok vars` blocks;
-5. project defaults;
-6. built-in read-only values.
+3. explicitly supplied `--env-file` values, in command-line order;
+4. selected environment profile;
+5. inline `toml mdok vars` blocks;
+6. project defaults;
+7. built-in read-only values.
 
-Duplicate definitions at the same level are errors. Environment variables from the process are not imported unless explicitly mapped in `mdok.toml` or passed with `--allow-env NAME`.
+Duplicate definitions at the same level are errors, except repeated env files
+use last-assignment-wins semantics. Environment variables from the process are
+not imported unless explicitly mapped as a secret in `mdok.toml` or supplied
+through an explicit dotenv file. Dotenv values are not expanded from the
+ambient process environment.
 
 ## 5.2 Template grammar
 

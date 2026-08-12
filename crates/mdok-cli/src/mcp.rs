@@ -96,6 +96,9 @@ pub struct DocumentToolArgs {
     /// Optional named environment profile from mdok.toml.
     #[serde(default)]
     pub environment: Option<String>,
+    /// Explicit dotenv files to load. Reads are confined to operator-approved roots.
+    #[serde(default)]
+    pub env_files: Vec<String>,
     /// Refuse network execution when true.
     #[serde(default)]
     pub offline: bool,
@@ -375,7 +378,7 @@ impl ServerHandler for MdokMcp {
                 .with_description("Markdown-native API testing, Postman compatibility, and reusable workflows"),
         )
         .with_instructions(
-            "Use mdok_lint and mdok_plan before mdok_test. Prefer Markdown documents for reusable API workflows; use mdok_import_postman to migrate collections. Network and secrets remain subject to mdok policy and report redaction.".to_owned(),
+            "Use mdok_list to inspect a Markdown workflow, then mdok_lint and mdok_plan before mdok_test. Prefer one Markdown artifact from API example through verified CI workflow; the agent/workspace owns saving files. Use mdok_import_postman to migrate collections. Record/replay remain CLI operations. Network and secrets remain subject to mdok policy and report redaction.".to_owned(),
         )
     }
 }
@@ -395,6 +398,13 @@ fn build_document_argv(
     let _ = args.config;
     if let Some(environment) = &args.environment {
         argv.extend(["--env".to_owned(), environment.clone()]);
+    }
+    for path in &args.env_files {
+        let canonical = confined_read_path(path, &operator.allowed_read_roots, "environment")?;
+        argv.extend([
+            "--env-file".to_owned(),
+            canonical.to_string_lossy().into_owned(),
+        ]);
     }
     for (key, value) in &args.vars {
         validate_env_key(key)?;
@@ -444,6 +454,34 @@ fn validate_env_key(key: &str) -> Result<(), String> {
         return Err(format!("invalid variable name {key:?}"));
     }
     Ok(())
+}
+
+fn confined_read_path(
+    path: &str,
+    allowed_read_roots: &[PathBuf],
+    kind: &str,
+) -> Result<PathBuf, String> {
+    let canonical =
+        std::fs::canonicalize(path).map_err(|error| format!("cannot read {kind} file: {error}"))?;
+    let permitted = if allowed_read_roots.is_empty() {
+        std::env::current_dir()
+            .ok()
+            .and_then(|cwd| std::fs::canonicalize(&cwd).ok())
+            .map(|root| canonical.starts_with(&root))
+            .unwrap_or(false)
+    } else {
+        allowed_read_roots.iter().any(|root| {
+            std::fs::canonicalize(root)
+                .map(|canonical_root| canonical.starts_with(canonical_root))
+                .unwrap_or(false)
+        })
+    };
+    if !permitted {
+        return Err(format!(
+            "{kind} file `{path}` is outside the allowed read roots"
+        ));
+    }
+    Ok(canonical)
 }
 
 fn document_result(operation: &str, output: std::process::Output) -> CallToolResult {
@@ -651,6 +689,7 @@ mod tests {
                 deny_hosts: Vec::new(),
                 config: None,
                 environment: None,
+                env_files: Vec::new(),
                 offline: false,
                 timeout_secs: Some(5),
             };
@@ -663,6 +702,48 @@ mod tests {
                 env.get("MDOK_MCP_SECRET_0"),
                 Some(&"secret-value".to_owned())
             );
+        });
+    }
+
+    #[test]
+    fn document_env_files_are_confined_to_operator_read_roots() {
+        run_bounded(|| {
+            let directory = tempfile::tempdir().expect("temporary directory");
+            let env_file = directory.path().join("local.env");
+            std::fs::write(&env_file, "base_url=https://example.test\n").expect("environment file");
+            let args = DocumentToolArgs {
+                paths: vec!["api.md".to_owned()],
+                vars: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                allow_hosts: Vec::new(),
+                deny_hosts: Vec::new(),
+                config: None,
+                environment: None,
+                env_files: vec![env_file.to_string_lossy().into_owned()],
+                offline: true,
+                timeout_secs: None,
+            };
+            let operator = OperatorPolicy {
+                allowed_read_roots: vec![directory.path().to_path_buf()],
+                ..OperatorPolicy::default()
+            };
+            let (argv, _) = build_document_argv("plan", &args, &operator).expect("argv");
+            let canonical_env_file = std::fs::canonicalize(&env_file)
+                .expect("environment file should canonicalize")
+                .to_string_lossy()
+                .into_owned();
+            assert!(argv.iter().any(|value| value == "--env-file"));
+            assert!(argv.iter().any(|value| value == &canonical_env_file));
+
+            let denied = build_document_argv(
+                "plan",
+                &args,
+                &OperatorPolicy {
+                    allowed_read_roots: vec![directory.path().join("other")],
+                    ..OperatorPolicy::default()
+                },
+            );
+            assert!(denied.is_err());
         });
     }
 
