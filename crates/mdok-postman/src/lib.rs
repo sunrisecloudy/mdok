@@ -213,7 +213,9 @@ pub fn import_collection_bytes(
         importer.issue(
             "MDOK-PM-INFO-ID",
             IssueSeverity::Warning,
-            format!("collection info._postman_id {id:?} is an internal identifier and is not imported"),
+            format!(
+                "collection info._postman_id {id:?} is an internal identifier and is not imported"
+            ),
             "/info/_postman_id",
         );
     }
@@ -528,7 +530,9 @@ impl Importer {
                 );
             }
             if request_object.contains_key("certificate")
-                && request_object.get("certificate").is_some_and(Value::is_object)
+                && request_object
+                    .get("certificate")
+                    .is_some_and(Value::is_object)
             {
                 self.issue(
                     "MDOK-PM-CERT",
@@ -710,7 +714,10 @@ impl Importer {
             for folder in request.folder_path.iter().skip(common) {
                 let level = 2 + last_folder.len();
                 writeln!(output, "{} {}", "#".repeat(level), markdown_heading(folder)).unwrap();
-                if let Some(description) = self.folder_descriptions.get(&folder_path_key(&last_folder, folder)) {
+                if let Some(description) = self
+                    .folder_descriptions
+                    .get(&folder_path_key(&last_folder, folder))
+                {
                     output.push('\n');
                     writeln!(output, "<!-- description: {description} -->").unwrap();
                 }
@@ -1426,7 +1433,8 @@ fn description_text(value: Option<&Value>) -> Option<String> {
             .map(str::to_owned),
         _ => None,
     };
-    text.map(|text| markdown_heading(&text)).filter(|text| !text.is_empty())
+    text.map(|text| markdown_heading(&text))
+        .filter(|text| !text.is_empty())
 }
 
 fn script_source(event: &Value) -> Option<String> {

@@ -21,17 +21,13 @@ proptest! {
         let mut vars = ValueMap::new();
         let safe_value: String = value.chars().filter(|c| *c != '\u{0}').collect();
         vars.insert("value".to_owned(), json!(safe_value));
-        match template.render(&vars) {
-            Ok(rendered) => {
-                prop_assert!(
-                    !rendered.contains('\r') && !rendered.contains('\n'),
-                    "header filter output must not contain CR/LF: rendered={rendered:?}"
-                );
-            }
-            // A rejection (UnsafeHeader) is an acceptable outcome — the filter
-            // may reject rather than emit. The invariant is that it never
-            // *emits* CR/LF.
-            Err(_) => {}
+        // A rejection (UnsafeHeader) is an acceptable outcome — the filter may
+        // reject rather than emit. The invariant is that it never *emits* CR/LF.
+        if let Ok(rendered) = template.render(&vars) {
+            prop_assert!(
+                !rendered.contains('\r') && !rendered.contains('\n'),
+                "header filter output must not contain CR/LF: rendered={rendered:?}"
+            );
         }
     }
 
@@ -45,14 +41,11 @@ proptest! {
         let mut vars = ValueMap::new();
         let safe_value: String = value.chars().filter(|c| *c != '\u{0}').collect();
         vars.insert("value".to_owned(), json!(safe_value));
-        match template.render(&vars) {
-            Ok(rendered) => {
-                prop_assert!(
-                    !rendered.contains('\n') && !rendered.contains('\r'),
-                    "url filter output must not contain CR/LF: rendered={rendered:?}"
-                );
-            }
-            Err(_) => {}
+        if let Ok(rendered) = template.render(&vars) {
+            prop_assert!(
+                !rendered.contains('\n') && !rendered.contains('\r'),
+                "url filter output must not contain CR/LF: rendered={rendered:?}"
+            );
         }
     }
 }

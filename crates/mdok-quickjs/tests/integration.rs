@@ -972,7 +972,14 @@ fn test_list_api_contract() {
         assert!(api.supported.contains(&"require:lodash".to_string()));
         assert_eq!(
             api.modules,
-            vec!["lodash", "moment", "ajv", "uuid", "querystring", "crypto-js"]
+            vec![
+                "lodash",
+                "moment",
+                "ajv",
+                "uuid",
+                "querystring",
+                "crypto-js"
+            ]
         );
         for code in [
             "MDOK-PM-UNSUPPORTED",
@@ -1427,7 +1434,12 @@ fn test_crypto_js_module() {
         });"#,
         );
         let output = run_script(&input);
-        assert_eq!(output.outcome, Outcome::Passed, "errors: {:?}", output.transcript.errors);
+        assert_eq!(
+            output.outcome,
+            Outcome::Passed,
+            "errors: {:?}",
+            output.transcript.errors
+        );
     });
 }
 
@@ -1461,6 +1473,9 @@ fn test_multibyte_log_truncation_does_not_panic() {
             .first()
             .map(|l| l.message.len())
             .unwrap_or(0);
-        assert!(logged <= 4096, "log must be truncated to <= 4096 bytes, got {logged}");
+        assert!(
+            logged <= 4096,
+            "log must be truncated to <= 4096 bytes, got {logged}"
+        );
     });
 }

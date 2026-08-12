@@ -897,7 +897,13 @@ fn run_replay(args: ReplayArgs, options: &CommonOptions) -> Result<u8, Box<CliEr
 fn probe_fetch_policy(case: &Path) -> CurlPolicy {
     let parent = case
         .parent()
-        .map(|p| if p.as_os_str().is_empty() { Path::new(".") } else { p })
+        .map(|p| {
+            if p.as_os_str().is_empty() {
+                Path::new(".")
+            } else {
+                p
+            }
+        })
         .unwrap_or_else(|| Path::new("."));
     let paths = vec![parent.to_path_buf()];
     let options = CommonOptions::default();

@@ -290,10 +290,8 @@ impl MdokMcp {
         Parameters(args): Parameters<ImportToolArgs>,
     ) -> Result<CallToolResult, McpError> {
         let allowed_read_roots = self.operator_policy.allowed_read_roots.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            import_postman(args, &allowed_read_roots)
-        })
-        .await;
+        let result =
+            tokio::task::spawn_blocking(move || import_postman(args, &allowed_read_roots)).await;
         match result {
             Ok(Ok(value)) => Ok(json_result(&value)),
             Ok(Err(error)) => Ok(tool_error(error)),
@@ -551,27 +549,26 @@ impl ProfileInput {
         // limit (e.g. max_memory_bytes = usize::MAX) and DoS the long-lived MCP
         // server. Clients may tighten budgets, never loosen them.
         if let Some(value) = self.max_stack_bytes {
-            profile.max_stack_bytes = value.min(DEFAULT_MAX_STACK_BYTES).max(1);
+            profile.max_stack_bytes = value.clamp(1, DEFAULT_MAX_STACK_BYTES);
         }
         if let Some(value) = self.max_memory_bytes {
-            profile.max_memory_bytes = value.min(DEFAULT_MAX_MEMORY_BYTES).max(1);
+            profile.max_memory_bytes = value.clamp(1, DEFAULT_MAX_MEMORY_BYTES);
         }
         if let Some(value) = self.max_log_entries {
-            profile.max_log_entries = value.min(DEFAULT_MAX_LOG_ENTRIES).max(1);
+            profile.max_log_entries = value.clamp(1, DEFAULT_MAX_LOG_ENTRIES);
         }
         if let Some(value) = self.max_log_entry_bytes {
-            profile.max_log_entry_bytes = value.min(DEFAULT_MAX_LOG_ENTRY_BYTES).max(1);
+            profile.max_log_entry_bytes = value.clamp(1, DEFAULT_MAX_LOG_ENTRY_BYTES);
         }
         if let Some(value) = self.max_transcript_bytes {
-            profile.max_transcript_bytes = value.min(DEFAULT_MAX_TRANSCRIPT_BYTES).max(1);
+            profile.max_transcript_bytes = value.clamp(1, DEFAULT_MAX_TRANSCRIPT_BYTES);
         }
         if let Some(value) = self.max_visualizer_template_bytes {
             profile.max_visualizer_template_bytes =
-                value.min(DEFAULT_MAX_VISUALIZER_TEMPLATE_BYTES).max(1);
+                value.clamp(1, DEFAULT_MAX_VISUALIZER_TEMPLATE_BYTES);
         }
         if let Some(value) = self.max_visualizer_data_bytes {
-            profile.max_visualizer_data_bytes =
-                value.min(DEFAULT_MAX_VISUALIZER_DATA_BYTES).max(1);
+            profile.max_visualizer_data_bytes = value.clamp(1, DEFAULT_MAX_VISUALIZER_DATA_BYTES);
         }
         profile
     }
@@ -588,10 +585,7 @@ fn decode_optional<T: DeserializeOwned>(
         .transpose()
 }
 
-fn import_postman(
-    args: ImportToolArgs,
-    allowed_read_roots: &[PathBuf],
-) -> Result<Value, String> {
+fn import_postman(args: ImportToolArgs, allowed_read_roots: &[PathBuf]) -> Result<Value, String> {
     let (bytes, source_path): (Vec<u8>, Option<PathBuf>) = match (args.collection_json, args.path) {
         (Some(_), Some(_)) => return Err("provide collection_json or path, not both".to_owned()),
         (None, None) => return Err("one of collection_json or path is required".to_owned()),

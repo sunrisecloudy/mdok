@@ -22,7 +22,14 @@ const QUERYSTRING_SOURCE: &str = include_str!("modules/querystring.js");
 const CRYPTO_JS_SOURCE: &str = include_str!("modules/crypto-js.js");
 
 /// Registered module names (in declaration order).
-const MODULES: &[&str] = &["lodash", "moment", "ajv", "uuid", "querystring", "crypto-js"];
+const MODULES: &[&str] = &[
+    "lodash",
+    "moment",
+    "ajv",
+    "uuid",
+    "querystring",
+    "crypto-js",
+];
 
 /// Return the source of a pinned module, or `None` when unknown.
 pub fn module_source(name: &str) -> Option<&'static str> {
@@ -95,7 +102,14 @@ mod tests {
     #[test]
     fn vendored_modules_are_addressable() {
         run_bounded(|| {
-            for name in ["lodash", "moment", "ajv", "uuid", "querystring", "crypto-js"] {
+            for name in [
+                "lodash",
+                "moment",
+                "ajv",
+                "uuid",
+                "querystring",
+                "crypto-js",
+            ] {
                 let digest = module_sha256(name).expect("module vendored");
                 assert_eq!(digest.len(), 64);
                 assert!(!module_source(name).unwrap().is_empty());

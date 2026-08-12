@@ -29,7 +29,7 @@ proptest! {
         // flag; the template is the value token. Even if `value` contains
         // spaces, `;`, `|`, `$()`, newlines, or quotes, it must not become two
         // tokens or escape its surrounding quotes.
-        let source = format!("curl --header '{{{{value|raw}}}}'");
+        let source = "curl --header '{{value|raw}}'".to_owned();
         let plan = parse_curl_source(&source)
             .expect("valid curl source with one template should parse");
         let mut vars = ValueMap::new();
@@ -81,14 +81,12 @@ proptest! {
         prefix in "[a-z]{0,8}"
     ) {
         let source = format!("{prefix} --url 'x'");
-        match parse_curl_source(&source) {
-            Ok(plan) => {
-                let argv = plan.evaluate(&ValueMap::new()).expect("eval");
-                let first = argv.first().cloned();
-                prop_assert_eq!(first.as_deref(), Some("curl"),
-                    "first argv must be 'curl', got: {:?}", argv);
-            }
-            Err(_) => {} // non-curl prefix correctly rejected
+        // A non-curl prefix is correctly rejected.
+        if let Ok(plan) = parse_curl_source(&source) {
+            let argv = plan.evaluate(&ValueMap::new()).expect("eval");
+            let first = argv.first().cloned();
+            prop_assert_eq!(first.as_deref(), Some("curl"),
+                "first argv must be 'curl', got: {:?}", argv);
         }
     }
 }

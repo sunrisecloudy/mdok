@@ -686,8 +686,7 @@ mod tests {
             let script_path = dir.join("mdok_f8v1_probe.sh");
             std::fs::write(&script_path, shebang).unwrap();
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))
-                .unwrap();
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
             let canonical = std::fs::canonicalize(&script_path).unwrap();
             let policy = CommandPolicy {
                 profiles: [(

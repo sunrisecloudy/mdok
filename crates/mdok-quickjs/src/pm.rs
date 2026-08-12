@@ -61,14 +61,6 @@ impl Scope {
     }
 }
 
-pub(crate) const SCOPE_ORDER: [Scope; 5] = [
-    Scope::Global,
-    Scope::Collection,
-    Scope::Environment,
-    Scope::Data,
-    Scope::Local,
-];
-
 /// Run-level mutable state shared between host functions and the driver.
 pub(crate) struct HostState<'js> {
     pub(crate) scopes: [BTreeMap<String, serde_json::Value>; 5],
@@ -721,9 +713,7 @@ pub(crate) fn install_host<'js>(
                     let _state = state.borrow_mut();
                     let placeholder = json_to_js(
                         &ctx,
-                        &serde_json::Value::String(
-                            "[redacted-vault-value]".to_string(),
-                        ),
+                        &serde_json::Value::String("[redacted-vault-value]".to_string()),
                     )?;
                     let _ = resolve.call::<_, ()>((placeholder,));
                     Ok(())
