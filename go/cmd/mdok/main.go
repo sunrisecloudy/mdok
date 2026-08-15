@@ -5,7 +5,9 @@ package main
 import (
 	"context"
 	"fmt"
+	neturl "net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"mdok/config"
@@ -80,38 +82,58 @@ parse:
 	}
 	runner := &runtime.Runner{Config: cfg}
 	rep := report.New(curlCompatVersion)
-	statuses := []string{}
+	results := []core.DocumentResult{}
 	for _, path := range paths {
+		var result core.DocumentResult
 		source, err := os.ReadFile(path)
 		if err != nil {
-			rep.AddDocument(core.DocumentResult{
-				Path: path, Status: "failed",
+			result = core.DocumentResult{
+				Path: path, Status: "failed", ExitClass: 2,
 				Diagnostics: []core.Diagnostic{{
 					Severity: core.SeverityError, Code: "MDOK-E001",
 					Title: "Input error", Message: err.Error(), File: path,
 				}},
-			})
-			statuses = append(statuses, "failed")
-			continue
-		}
-		doc, err := markdown.Parse(path, source)
-		if err != nil {
-			diag := diagnosticFrom(err)
-			diag.File = path
-			rep.AddDocument(core.DocumentResult{
-				Path: path, Status: "failed", Diagnostics: []core.Diagnostic{diag},
-			})
-			statuses = append(statuses, "failed")
-			continue
-		}
-		var result *core.DocumentResult
-		if mode == "lint" {
-			result = runner.Lint(doc)
+			}
+		} else if doc, err := markdown.Parse(path, source); err != nil {
+			diags := []core.Diagnostic{diagnosticFrom(err)}
+			diags[0].File = path
+			status := "failed"
+			class := 2
+			// Rust cascades markdown planning errors to the policy pair
+			// when the raw source carries a literal denied host, but only
+			// for errors detected after URL validation began (duplicate
+			// step names); invalid-name errors precede validation.
+			// A duplicate step name requires two curl fences (the first one
+			// already reached URL validation); a single fence with a bad
+			// name never does.
+			cascadeEligible := strings.Count(string(source), "```curl") >= 2
+			if cfg != nil && cascadeEligible {
+				if match := literalURLIn(string(source)); match != "" {
+					if parsed, perr := neturl.Parse(match); perr == nil && !cfg.ContainsHost(parsed.Hostname()) {
+						diags = append(diags,
+							core.Diagnostic{Severity: core.SeverityError, Code: "MDOK-E304",
+								Title:   "Curl transfer error",
+								Message: fmt.Sprintf("host `%s` is not allowed", parsed.Hostname()),
+								File:    path},
+							core.Diagnostic{Severity: core.SeverityError, Code: "MDOK-E302",
+								Title:   "Policy error",
+								Message: fmt.Sprintf("host `%s` is not in the allowed host policy", parsed.Hostname()),
+								File:    path})
+						status = "error"
+						class = 3
+					}
+				}
+			}
+			result = core.DocumentResult{
+				Path: path, Status: status, ExitClass: class, Diagnostics: diags,
+			}
+		} else if mode == "lint" {
+			result = *runner.Lint(doc)
 		} else {
-			result = runner.Test(context.Background(), doc, stringVars(opts.vars))
+			result = *runner.Test(context.Background(), doc, stringVars(opts.vars))
 		}
-		rep.AddDocument(*result)
-		statuses = append(statuses, result.Status)
+		rep.AddDocument(result)
+		results = append(results, result)
 	}
 
 	encoded, err := rep.Encode()
@@ -123,7 +145,7 @@ parse:
 		os.Stdout.Write(encoded)
 		os.Stdout.Write([]byte("\n"))
 	}
-	return report.ExitCode(statuses, mode)
+	return report.ExitCode(results)
 }
 
 func stringVars(raw map[string]string) map[string]any {
@@ -132,6 +154,12 @@ func stringVars(raw map[string]string) map[string]any {
 		vars[key] = value
 	}
 	return vars
+}
+
+var literalURLPattern = regexp.MustCompile(`https?://[A-Za-z0-9._~:-]+`)
+
+func literalURLIn(source string) string {
+	return literalURLPattern.FindString(source)
 }
 
 func diagnosticFrom(err error) core.Diagnostic {

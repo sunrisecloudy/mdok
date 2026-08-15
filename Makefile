@@ -1,4 +1,4 @@
-.PHONY: fmt lint test corpus e2e-md mcp-conformance golden golden-update bench bench-perf profile-perf deps-audit sbom release-smoke tls-matrix options
+.PHONY: fmt lint test corpus e2e-md mcp-conformance golden golden-update parity bench bench-perf profile-perf deps-audit sbom release-smoke tls-matrix options
 fmt:
 	cargo fmt --all --check
 lint:
@@ -7,6 +7,8 @@ corpus:
 	python3 mdok-prd/scripts/validate_corpus.py
 e2e-md:
 	python3 scripts/run_md_e2e.py
+parity:
+	python3 scripts/run_parity_suite.py
 mcp-conformance:
 	python3 scripts/run_mcp_conformance.py
 golden:

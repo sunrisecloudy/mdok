@@ -129,30 +129,31 @@ func TestEncodeOmitsZeroStepOptionals(t *testing.T) {
 }
 
 func TestExitCode(t *testing.T) {
+	passed := core.DocumentResult{Status: "passed"}
+	withDiag := core.DocumentResult{Status: "failed", ExitClass: 2,
+		Diagnostics: []core.Diagnostic{{Severity: core.SeverityError, Code: "MDOK-E500"}}}
+	policy := core.DocumentResult{Status: "error", ExitClass: 3}
+	transfer := core.DocumentResult{Status: "failed", ExitClass: 3}
+	checkFalse := core.DocumentResult{Status: "failed", ExitClass: 1}
 	tests := []struct {
-		name     string
-		statuses []string
-		mode     string
-		want     int
+		name string
+		docs []core.DocumentResult
+		_    string
+		want int
 	}{
-		{"all passed test", []string{"passed", "passed"}, "test", 0},
-		{"all passed lint", []string{"passed"}, "lint", 0},
-		{"empty run lint", nil, "lint", 0},
-		{"skipped is not a failure", []string{"passed", "skipped"}, "test", 0},
-		{"planned is not a failure", []string{"planned", "planned"}, "plan", 0},
-		{"failed document in test mode", []string{"passed", "failed"}, "test", 1},
-		{"error document in test mode", []string{"error"}, "test", 1},
-		{"failed document in lint mode", []string{"failed"}, "lint", 2},
-		{"error document in lint mode", []string{"passed", "error"}, "lint", 2},
-		{"failed document in plan mode", []string{"failed"}, "plan", 2},
-		// The corpus-lint goldens record exit 2 for a lint run whose only
-		// document failed with an error diagnostic.
-		{"corpus lint golden shape", []string{"failed"}, "lint", 2},
+		{"empty run", nil, "lint", 0},
+		{"all passed", []core.DocumentResult{passed, passed}, "test", 0},
+		{"check failure is 1", []core.DocumentResult{passed, checkFalse}, "test", 1},
+		{"plan/static error is 2", []core.DocumentResult{withDiag}, "lint", 2},
+		{"policy error is 3", []core.DocumentResult{policy}, "test", 3},
+		{"transfer error is 3", []core.DocumentResult{transfer}, "test", 3},
+		{"max class wins", []core.DocumentResult{checkFalse, withDiag, policy}, "test", 3},
+		{"static beats check", []core.DocumentResult{checkFalse, withDiag}, "test", 2},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := ExitCode(test.statuses, test.mode); got != test.want {
-				t.Fatalf("ExitCode(%v, %q) = %d, want %d", test.statuses, test.mode, got, test.want)
+			if got := ExitCode(test.docs); got != test.want {
+				t.Fatalf("ExitCode(%+v) = %d, want %d", test.docs, got, test.want)
 			}
 		})
 	}

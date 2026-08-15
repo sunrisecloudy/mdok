@@ -463,25 +463,6 @@ func TestExecuteInvalidCACertPEM(t *testing.T) {
 	}
 }
 
-func TestExecuteFailFlagTurns4xxIntoError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	plan := mustPlan(t, "curl", "--fail", server.URL+"/missing")
-	_, err := Execute(context.Background(), plan, testConfig())
-	if err == nil {
-		t.Fatal("expected --fail to error on 404")
-	}
-
-	plan = mustPlan(t, "curl", server.URL+"/missing")
-	transfer, err := Execute(context.Background(), plan, testConfig())
-	if err != nil || transfer.Status != http.StatusNotFound {
-		t.Errorf("without --fail: err=%v status=%d", err, transfer.Status)
-	}
-}
-
 func TestExecuteContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer server.Close()

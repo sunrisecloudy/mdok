@@ -149,8 +149,8 @@ func TestQuoteHandling(t *testing.T) {
 }
 
 func TestWordSyntaxErrors(t *testing.T) {
-	wantCode(t, "curl 'unterminated", "MDOK-E200")
-	wantCode(t, `curl "unterminated`, "MDOK-E200")
+	wantCode(t, "curl 'unterminated", "MDOK-E201")
+	wantCode(t, `curl "unterminated`, "MDOK-E201")
 	wantCode(t, `curl -H "trailing\`, "MDOK-E200")
 	wantCode(t, `curl trailing\`, "MDOK-E200")
 	wantCode(t, "curl x\n--y", "MDOK-E201") // unescaped newline

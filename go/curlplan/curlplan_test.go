@@ -141,14 +141,17 @@ func TestParseRetryAndDurations(t *testing.T) {
 }
 
 func TestParseMappedNoOpAndValueOptions(t *testing.T) {
-	plan, diag := Parse([]string{"curl", "-s", "-S", "-i", "--fail", "--compressed",
+	plan, diag := Parse([]string{"curl", "-s", "-S", "-i", "--compressed",
 		"-u", "alice:secret", "-A", "mdok-e2e", "-e", "http://localhost/ref",
 		"--url", "http://localhost/x"})
 	if diag != nil {
 		t.Fatalf("unexpected diagnostic: %+v", diag)
 	}
-	if !plan.Fail || !plan.Compressed {
-		t.Errorf("fail=%v compressed=%v", plan.Fail, plan.Compressed)
+	if !plan.Compressed {
+		t.Errorf("compressed=%v", plan.Compressed)
+	}
+	if _, diag := Parse([]string{"curl", "--fail", "http://localhost/x"}); diag == nil || diag.Code != "MDOK-E300" {
+		t.Fatalf("--fail should be rejected like the Rust policy: %+v", diag)
 	}
 	if plan.User != "alice:secret" || plan.UserAgent != "mdok-e2e" || plan.Referer != "http://localhost/ref" {
 		t.Errorf("user/agent/referer = %q/%q/%q", plan.User, plan.UserAgent, plan.Referer)

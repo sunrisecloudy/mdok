@@ -210,7 +210,7 @@ func ParseCurlSource(source string) ([]string, error) {
 	}
 
 	if quote != unquoted {
-		return nil, diag("MDOK-E200", "curl source syntax error", "unterminated shell quote")
+		return nil, diag("MDOK-E201", "forbidden shell construct", "unclosed shell quote")
 	}
 	finishWord()
 	if len(words) > MaxArgvArguments {
@@ -221,10 +221,30 @@ func ParseCurlSource(source string) ([]string, error) {
 		return nil, diag("MDOK-E202", "not a curl command", "curl fence is empty")
 	}
 	if words[0] != "curl" {
+		if isAssignment(words[0]) {
+			return nil, diag("MDOK-E201", "forbidden shell construct",
+				"variable assignments are not allowed")
+		}
 		return nil, diag("MDOK-E202", "not a curl command",
 			"first word must be the literal `curl`")
 	}
 	return words, nil
+}
+
+// isAssignment reports whether word is a leading NAME=value assignment,
+// which the Rust tokenizer rejects as a forbidden shell construct.
+func isAssignment(word string) bool {
+	eq := strings.Index(word, "=")
+	if eq <= 0 {
+		return false
+	}
+	for i := 0; i < eq; i++ {
+		c := word[i]
+		if !(c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || i > 0 && c >= '0' && c <= '9') {
+			return false
+		}
+	}
+	return true
 }
 
 // wrapTemplateDiag re-reports a template diagnostic with the full

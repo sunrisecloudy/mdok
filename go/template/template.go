@@ -576,3 +576,26 @@ func limitDiag(message string) *core.Diagnostic {
 		Message:  message,
 	}
 }
+
+// ParseNames returns the root variable names referenced by every template
+// expression in source, for plan-time missing-variable validation. Sources
+// that fail to parse return no names (runtime expansion reports the error).
+func ParseNames(source string) []string {
+	parts, diag := Parse(source)
+	if diag != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, part := range parts {
+		if part.Expr == nil || len(part.Expr.Path) == 0 {
+			continue
+		}
+		root := part.Expr.Path[0]
+		if !root.IsIndex && root.Key != "" && !seen[root.Key] {
+			seen[root.Key] = true
+			names = append(names, root.Key)
+		}
+	}
+	return names
+}

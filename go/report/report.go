@@ -53,28 +53,25 @@ func (r *Report) Encode() ([]byte, error) {
 	return json.Marshal(&r.Report)
 }
 
-// ExitCode maps document statuses and the run mode to the process exit
-// code, mirroring the Rust CLI:
-//
-//   - a fully passing (or skipped/planned-only) run exits 0;
-//   - in test mode a failed or errored document is a failed check run
-//     and exits 1;
-//   - in lint and plan modes a failed or errored document is an input
-//     error and exits 2 (the corpus-lint golden files record exit 2 for
-//     documents with error diagnostics).
-func ExitCode(statuses []string, mode string) int {
-	hasFailure := false
-	for _, status := range statuses {
-		if status == "failed" || status == "error" {
-			hasFailure = true
-			break
+// ExitCode derives the process exit code from document results, mirroring
+// the Rust taxonomy: 0 pass; 1 check/capture failure (silent step failure);
+// 2 plan/static error (error diagnostics present); 3 transfer or policy
+// error (status "error"). The mode no longer changes the mapping.
+func ExitCode(results []core.DocumentResult) int {
+	exit := 0
+	for _, result := range results {
+		class := result.ExitClass
+		switch {
+		case result.Status == "error":
+			class = 3
+		case class == 0 && len(result.Diagnostics) > 0:
+			class = 2
+		case class == 0 && result.Status == "failed":
+			class = 1
+		}
+		if class > exit {
+			exit = class
 		}
 	}
-	if !hasFailure {
-		return 0
-	}
-	if mode == "test" {
-		return 1
-	}
-	return 2
+	return exit
 }

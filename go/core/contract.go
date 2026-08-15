@@ -122,6 +122,10 @@ type DocumentResult struct {
 	DurationMS  int64         `json:"duration_ms"`
 	Steps       []StepResult  `json:"steps"`
 	Diagnostics []Diagnostic  `json:"diagnostics"`
+
+	// ExitClass mirrors the Rust exit taxonomy (not serialized): 0 pass,
+	// 1 assertion/step failure, 2 plan/static error, 3 transfer/policy error.
+	ExitClass int `json:"-"`
 }
 
 // Report is the top-level JSON report emitted for --json modes.

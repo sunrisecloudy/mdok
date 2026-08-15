@@ -5,6 +5,7 @@
 package httpx
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -187,20 +188,19 @@ func formEncode(value string) string {
 	return builder.String()
 }
 
-// buildTransport assembles the HTTP transport: CA pool from --cacert, a
-// dialer with the connect timeout, and no environment proxy inheritance
-// (the Rust client sets no_proxy for the same reason).
-func buildTransport(plan *curlplan.Plan, cfg *core.ExecConfig) (*http.Transport, error) {
+// buildTLSConfig resolves the TLS root pool (from --cacert) and the
+// effective connect timeout shared by the transport and the raw HEAD path.
+func buildTLSConfig(plan *curlplan.Plan, cfg *core.ExecConfig) (*tls.Config, time.Duration, error) {
 	tlsConfig := &tls.Config{}
 	if plan.CACert != "" {
 		data, err := os.ReadFile(plan.CACert)
 		if err != nil {
-			return nil, transferError("MDOK-E303", "File read denied",
+			return nil, 0, transferError("MDOK-E303", "File read denied",
 				fmt.Sprintf("cannot read file: %s", err.Error()))
 		}
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(data) {
-			return nil, transferError("MDOK-E602", "TLS error", "invalid CA certificate")
+			return nil, 0, transferError("MDOK-E602", "TLS error", "invalid CA certificate")
 		}
 		tlsConfig.RootCAs = pool
 	}
@@ -213,9 +213,23 @@ func buildTransport(plan *curlplan.Plan, cfg *core.ExecConfig) (*http.Transport,
 			connect = capped
 		}
 	}
+	return tlsConfig, connect, nil
+}
+
+// buildTransport assembles the HTTP transport: CA pool from --cacert, a
+// dialer with the connect timeout, and no environment proxy inheritance
+// (the Rust client sets no_proxy for the same reason).
+func buildTransport(plan *curlplan.Plan, cfg *core.ExecConfig) (*http.Transport, error) {
+	tlsConfig, connect, err := buildTLSConfig(plan, cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		Proxy:               nil,
+		TLSClientConfig: tlsConfig,
+		Proxy:           nil,
+		// curl never requests compression unless --compressed is given;
+		// Go's transparent gzip would otherwise change server behavior.
+		DisableCompression:  true,
 		DialContext:         (&net.Dialer{Timeout: connect, KeepAlive: 30 * time.Second}).DialContext,
 		MaxIdleConns:        100,
 		IdleConnTimeout:     90 * time.Second,
@@ -301,6 +315,9 @@ func buildRequest(ctx context.Context, plan *curlplan.Plan, target url.URL, meth
 	for _, header := range plan.Headers {
 		request.Header.Add(header.Key, header.Value)
 	}
+	if plan.Compressed && !hasHeader(plan.Headers, "Accept-Encoding") {
+		request.Header.Add("Accept-Encoding", "gzip, deflate")
+	}
 	if hasBody && !hasHeader(plan.Headers, "Content-Type") {
 		request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	}
@@ -346,7 +363,18 @@ func cookieHeader(cookies []core.KV) string {
 // the --fail verdict.
 func finishTransfer(response *http.Response, hops int, attempt int, started time.Time, plan *curlplan.Plan) (*core.Transfer, error) {
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, maxBodyBytes+1))
+	var reader io.Reader = response.Body
+	// --compressed: curl sends Accept-Encoding and decompresses itself.
+	if plan.Compressed && response.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(response.Body)
+		if err != nil {
+			return nil, transferError("MDOK-E600", "Transfer failed",
+				"invalid gzip response: "+err.Error())
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maxBodyBytes+1))
 	if err != nil {
 		return nil, transferError("MDOK-E600", "Transfer failed", err.Error())
 	}
@@ -364,10 +392,6 @@ func finishTransfer(response *http.Response, hops int, attempt int, started time
 		for _, value := range response.Header[key] {
 			headers = append(headers, core.KV{Key: key, Value: value})
 		}
-	}
-	if plan.Fail && response.StatusCode >= 400 {
-		return nil, transferError("MDOK-E600", "Transfer failed",
-			fmt.Sprintf("curl: (22) The requested URL returned error: %d", response.StatusCode))
 	}
 	return &core.Transfer{
 		Status:        response.StatusCode,

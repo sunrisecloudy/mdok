@@ -16,6 +16,7 @@
 package jmespath
 
 import (
+	"errors"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -335,6 +336,21 @@ func compileExpression(source string) (*gojmespath.JMESPath, error) {
 		return nil, syntaxError(err.Error())
 	}
 	return expression, nil
+}
+
+// Validate compiles an expression without evaluating it, for plan-time
+// syntax checking. Returns an MDOK-E500 diagnostic on failure, nil when the
+// expression compiles (mirrors the Rust crate compiling checks at plan).
+func Validate(expr string) *core.Diagnostic {
+	if _, err := compileExpression(expr); err != nil {
+		var jerr *Error
+		if errors.As(err, &jerr) {
+			return &jerr.Diagnostic
+		}
+		return &core.Diagnostic{Severity: core.SeverityError, Code: "MDOK-E500",
+			Title: "Invalid JMESPath", Message: err.Error()}
+	}
+	return nil
 }
 
 // NormalizeExpression rewrites backtick literals that hold a bare

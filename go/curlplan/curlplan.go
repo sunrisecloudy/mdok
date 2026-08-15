@@ -52,7 +52,6 @@ type Plan struct {
 	MaxTimeMS        int
 	ConnectTimeoutMS int
 	Compressed       bool
-	Fail             bool
 }
 
 // Parse converts a curl argv (argv[0] must be "curl") into a Plan. It
@@ -100,8 +99,6 @@ func Parse(argv []string) (*Plan, *core.Diagnostic) {
 			plan.Compressed = true
 		case "--no-compressed":
 			plan.Compressed = false
-		case "--fail":
-			plan.Fail = true
 		case "-i":
 			// Accepted no-op: response headers are always captured.
 		case "-X", "--request":
@@ -224,6 +221,69 @@ func Parse(argv []string) (*Plan, *core.Diagnostic) {
 		plan.Method = "GET"
 	}
 	return plan, nil
+}
+
+
+// ClassifyOptions ports the option-policy classifications the Rust planner
+// applies to options outside the ported execution surface. Options here
+// consume their argument like curl; the diagnostics mirror the Rust
+// planner/policy cascade for each class.
+func ClassifyOptions(argv []string) ([]core.Diagnostic, string) {
+	for i := 1; i < len(argv); i++ {
+		arg := argv[i]
+		name := arg
+		if eq := strings.Index(arg, "="); eq > 2 && strings.HasPrefix(arg, "--") {
+			name = arg[:eq]
+		}
+		consumes := map[string]bool{
+			"--form": true, "-F": true, "--upload-file": true, "-T": true,
+			"--proxy": true, "-x": true, "--resolve": true, "--json": true,
+			"--next": true,
+		}[name]
+		if name == "--parallel" {
+			return []core.Diagnostic{
+				{Severity: core.SeverityError, Code: "MDOK-E301",
+					Title: "Unsupported option", Message: "parallel transfers are not supported"},
+				{Severity: core.SeverityError, Code: "MDOK-E301",
+					Title: "Unsupported option", Message: "parallel transfers are not supported"},
+			}, name
+		}
+		if !consumes {
+			continue
+		}
+		value := ""
+		if i+1 < len(argv) {
+			value = argv[i+1]
+		}
+		switch name {
+		case "--form", "-F", "--resolve", "--json":
+			// These consume the URL operand slot; the planner then reports
+			// the missing transfer URL.
+			return []core.Diagnostic{
+				{Severity: core.SeverityError, Code: "MDOK-E304",
+					Title: "Curl transfer error", Message: "exactly one URL is required"},
+			}, name
+		case "--upload-file", "-T":
+			return []core.Diagnostic{
+				{Severity: core.SeverityError, Code: "MDOK-E303",
+					Title: "File read denied",
+					Message: fmt.Sprintf("file is outside the allowed read roots: %s", value)},
+			}, name
+		case "--proxy", "-x":
+			return []core.Diagnostic{
+				{Severity: core.SeverityError, Code: "MDOK-E304",
+					Title: "Curl transfer error", Message: "exactly one URL is required"},
+				{Severity: core.SeverityError, Code: "MDOK-E604",
+					Title: "Proxy denied", Message: "proxy is not allowed by policy"},
+			}, name
+		case "--next":
+			return []core.Diagnostic{
+				{Severity: core.SeverityError, Code: "MDOK-E301",
+					Title: "Forbidden shell construct", Message: "multiple transfers are not supported"},
+			}, name
+		}
+	}
+	return nil, ""
 }
 
 // CheckPolicy validates a parsed plan against the effective execution
