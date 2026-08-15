@@ -46,8 +46,8 @@ listed = {x['path'] for x in items}
 for p in sorted(actual - listed): errors.append(f"unlisted corpus file {p}")
 for p in sorted(listed - actual): errors.append(f"manifest references absent file {p}")
 
-if len(items) != 495:
-    errors.append(f"expected 495 cases, found {len(items)}")
+if len(items) != 497:
+    errors.append(f"expected 497 cases, found {len(items)}")
 
 if errors:
     print("Corpus validation failed:", file=sys.stderr)

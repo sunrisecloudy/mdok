@@ -1,0 +1,1 @@
+{"exit": 4, "stderr": "", "stdout": "{\"diagnostics\":[{\"code\":\"MDOK-E800\",\"file\":null,\"hint\":null,\"kind\":\"diagnostic\",\"message\":\"could not write report $ERR\",\"observed\":null,\"severity\":\"error\",\"span\":null,\"step\":null,\"title\":\"Report write failed\"}],\"schema_version\":\"1\"}\n"}
