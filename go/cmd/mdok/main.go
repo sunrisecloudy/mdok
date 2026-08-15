@@ -18,7 +18,10 @@ import (
 	"mdok/shell"
 )
 
-const curlCompatVersion = "8.21"
+const (
+	mdokVersion       = "0.2.0"
+	curlCompatVersion = "8.21"
+)
 
 type cliOptions struct {
 	configPath string
@@ -65,8 +68,17 @@ parse:
 		return 2
 	}
 	mode := args[i]
+	if mode == "version" {
+		if opts.jsonOutput {
+			fmt.Printf(`{"mdok_version":"%s","curl_version":"%s","tls":"Go crypto/tls","go":true}`+"\n",
+				mdokVersion, curlCompatVersion)
+		} else {
+			fmt.Printf("mdok %s (Go port; curl compatibility %s)\n", mdokVersion, curlCompatVersion)
+		}
+		return 0
+	}
 	if mode != "lint" && mode != "test" {
-		fmt.Fprintf(os.Stderr, "unsupported command: %s (this port implements lint and test)\n", mode)
+		fmt.Fprintf(os.Stderr, "unsupported command: %s (this port implements lint, test, and version)\n", mode)
 		return 2
 	}
 	paths := args[i+1:]
