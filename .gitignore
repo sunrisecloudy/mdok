@@ -11,3 +11,4 @@ tests/artifacts/*
 # Generated libfuzzer seed corpora (regenerate via `cargo +nightly fuzz run`)
 fuzz/corpus/
 fuzz/artifacts/
+.zcode/

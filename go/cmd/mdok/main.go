@@ -56,6 +56,9 @@ parse:
 			opts.vars[key] = value
 		case args[i] == "--json":
 			opts.jsonOutput = true
+		case args[i] == "--version":
+			fmt.Printf("mdok %s (Go port; curl compatibility %s)\n", mdokVersion, curlCompatVersion)
+			return 0
 		case strings.HasPrefix(args[i], "--"):
 			fmt.Fprintf(os.Stderr, "unknown option: %s\n", args[i])
 			return 2

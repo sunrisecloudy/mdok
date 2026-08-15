@@ -1,0 +1,103 @@
+# mdok
+
+> mdok turns ordinary Markdown into executable API workflow tests: keep copied curl syntax, add standard JMESPath checks and captures, and run the same reviewable source locally, in CI, or through MCP.
+
+## Overview
+
+mdok is a local, CLI-first tool for API workflow tests. The distributed binary (Homebrew and GitHub releases, 0.2.0+) is the Go implementation; the Rust workspace in the repository is the full-feature reference (MCP server, record/replay, Postman import, plan/list). An `.md` or `.mdok.md` document can contain TOML variables, `curl mdok` request fences, `jmespath mdok check` assertions, and `jmespath mdok capture` fences. The document remains API documentation while also becoming an executable test and an agent-readable repair target.
+
+mdok does not replace curl with a new HTTP DSL. Request values are parsed as data inside one argv element, never reparsed as shell source. Planning happens before a request is sent. HTTP/HTTPS and loopback-safe local testing are the default execution surface. Policy controls hosts, schemes, files, redirects, body sizes, commands, and secrets; unsupported behavior is reported instead of silently ignored.
+
+The CLI emits human, JSON, JSON Lines, and JUnit reports. A bare `mdok file.md` is an alias for `mdok test file.md`.
+
+## Quickstart
+
+Build and validate the canonical authentication example:
+
+```sh
+cargo build --release
+cargo run -p mdok-cli -- lint mdok-prd/examples/auth-flow.md
+cargo run -p mdok-cli -- plan mdok-prd/examples/auth-flow.md --var base_url=http://127.0.0.1:9800
+cargo run -p mdok-cli -- test mdok-prd/examples/auth-flow.md --var base_url=http://127.0.0.1:9800
+```
+
+A deterministic local fixture can be started with `mdok-test-server --listen 127.0.0.1:0 --json-ready`.
+
+The canonical workflow syntax is:
+
+````markdown
+# Authentication flow
+
+```toml mdok vars
+base_url = "http://127.0.0.1:9800"
+email = "agent@example.com"
+password = "test-password"
+```
+
+```curl mdok name=login
+curl --request POST "{{base_url}}/auth/login" \
+  --header "Content-Type: application/json" \
+  --data-raw '{"email":{{email|json}},"password":{{password|json}}}'
+```
+
+```jmespath mdok check=login
+status == `200`
+body.user.email == variables.email
+type(body.access_token) == 'string'
+```
+
+```jmespath mdok capture=login
+{access_token: body.access_token, user_id: body.user.id}
+```
+
+```curl mdok name=get_profile
+curl "{{base_url}}/users/{{user_id|url}}" \
+  --header "Authorization: Bearer {{access_token|header}}"
+```
+
+```jmespath mdok check=get_profile
+status == `200`
+body.id == variables.user_id
+```
+````
+
+## MCP
+
+`mdok mcp serve` exposes a stdio Model Context Protocol server. MCP is the preferred interface for coding agents that need discoverable, policy-aware API workflow tools while keeping Markdown as the durable source and JSON as evidence.
+
+The server advertises these seven tools through `tools/list`:
+
+- `mdok_test`: execute a workflow and return the normal redacted JSON report.
+- `mdok_lint`: validate Markdown without network execution.
+- `mdok_plan`: return the normalized, redacted execution plan.
+- `mdok_list`: inventory requests, checks, captures, and dependencies.
+- `mdok_probe`: run bounded Postman-compatible JavaScript in the QuickJS sandbox.
+- `mdok_import_postman`: generate Markdown and a review manifest from Postman Collection v2.1 JSON.
+- `mdok_version`: report MDOK, curl compatibility, TLS, and QuickJS profile versions.
+
+Recommended order: import a collection when needed, store and review the generated Markdown, call `mdok_lint`, call `mdok_plan`, then call `mdok_test`. Treat `requires_review` and manifest diagnostics as a stop condition. Network access defaults to offline in the probe path and remains subject to project policy.
+
+Start the server after building:
+
+```sh
+cargo build --release -p mdok-cli
+./target/release/mdok mcp serve
+```
+
+## Docs
+
+- [README](../README.md): product overview, quickstart, reports, release, and project files.
+- [MCP server guide](../docs/MCP.md): stdio setup, tool schemas, secrets, and recommended agent workflow.
+- [Postman import](../docs/POSTMAN_IMPORT.md): supported Collection v2.1 subset, manifest, strict mode, and runtime boundary.
+- [QuickJS probe contract](../docs/QUICKJS_PROBE_SPEC.md): bounded Postman script input, output, diagnostics, and coverage.
+- [Canonical auth example](../mdok-prd/examples/auth-flow.md): login, JMESPath checks, captures, and dependent profile request.
+- [Product requirements](../mdok-prd/README.md): language, architecture, safety, and implementation contract.
+
+## Repo facts
+
+- Rust workspace with a `mdok` CLI binary; C integrates the pinned curl parser/libcurl boundary.
+- MIT licensed (`../LICENSE`).
+- The release CLI is distributed as a single static binary; the website itself has no build step or external assets.
+- Postman Collection v2.1 import is a review-first, one-way canonicalization into Markdown plus a provenance/diagnostic manifest.
+- The QuickJS sandbox provides a bounded Postman-compatible JavaScript probe surface; unsupported APIs fail with named diagnostics.
+- The repository includes a 495-fixture Markdown corpus and deterministic local HTTP fixture server.

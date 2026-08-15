@@ -7,8 +7,10 @@ that do not belong in the first-time-user README.
 
 - `mdok.toml` — language, execution, variable, and network/filesystem policy.
 - `mdok-prd/` — product contract, examples, and the 495-fixture corpus.
-- `crates/` — parser, template, restricted shell, curl, runtime, reporting,
-  CLI, and fixture-server components.
+- `crates/` — the Rust reference implementation: parser, template, restricted
+  shell, curl, runtime, reporting, CLI, and fixture-server components.
+- `go/` — the Go implementation distributed via Homebrew (`go/cmd/mdok`) and
+  the fixture server (`go/cmd/test-server`). Pure Go, no cgo.
 - `tests/e2e/` — focused Markdown workflows and the combined E2E workflow.
 - `skills/mdok/SKILL.md` — reusable instructions for coding agents.
 
@@ -20,17 +22,54 @@ surface.
 `curl` remains the default request fence. Repository-local agent tools may also
 use trusted-profile `exec` fences; see [COMMAND_TESTS.md](COMMAND_TESTS.md).
 
+## Two implementations
+
+The Rust workspace in `crates/` is the reference implementation and carries
+the full feature set (MCP server, record/replay, import, plan/list, exec
+fences, QuickJS sandbox). The Go module in `go/` is the distributed binary
+(Homebrew, release archives) and implements `lint`, `test`, and `version`
+over the ported feature matrix. The Go port is gated by a differential
+parity suite (`docs/GO_PORT_TEST_PLAN.md` records the full test-asset map;
+`docs/GO_PORT_ESTIMATE.md` the porting roadmap).
+
+Every change to either implementation that shifts exit codes, document or
+step statuses, or diagnostic codes anywhere in the generated matrix must
+keep `make parity` green, or the divergence is intentional and documented.
+
 ## Tests and checks
 
 ```sh
+# Rust reference
 cargo test --locked --workspace
 make e2e-md
 python3 mdok-prd/scripts/validate_corpus.py
+
+# Go implementation
+cd go && go vet ./... && go test ./...
+zsh go/build.sh                       # from repo root: builds go/bin/*
+make parity                           # 891-case Rust-vs-Go differential suite
+make mcp-conformance                  # 22-case MCP wire-protocol suite (Rust)
+make golden                           # normalized-output parity gate
+python3 scripts/run_md_e2e.py \
+  --binary go/bin/mdok --server go/bin/test-server --skip-build
 ```
 
 The E2E runner starts a deterministic loopback fixture and executes every file
-listed in `tests/e2e/manifest.txt`. The PRD corpus validator checks all 495
-fixtures and its manifest.
+listed in `tests/e2e/manifest.txt`. The PRD corpus validator checks all 497
+fixtures and its manifest. The parity suite runs both binaries against the
+Go fixture server and compares normalized outcomes case by case.
+
+## Go release flow
+
+1. Bump `mdokVersion` in `go/cmd/mdok/main.go`.
+2. Verify: `go test ./...`, e2e with both Go binaries, `make parity`.
+3. Cross-compile and package (`mdok-<version>-<target>.tar.gz` per platform
+   plus `.sha256` sidecars), smoke-test the local artifact through the E2E
+   suite.
+4. Tag the version, push, and create the GitHub release with the archives.
+5. Update `sunrisecloudy/homebrew-tap` `Formula/mdok.rb` (version, URLs,
+   digests), then verify `brew install sunrisecloudy/tap/mdok` and run the
+   installed binary through the E2E suite.
 
 ## Performance
 

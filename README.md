@@ -6,6 +6,33 @@
 [![CI](https://github.com/sunrisecloudy/mdok/actions/workflows/ci.yml/badge.svg)](https://github.com/sunrisecloudy/mdok/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+## Two implementations, one tool
+
+MDOK ships as two implementations of the same workflow engine:
+
+- **The Go implementation (default install).** `brew install sunrisecloudy/tap/mdok`
+  installs the Go binary as a static ~3 MB download for macOS (Apple Silicon
+  and Intel) and Linux (arm64 and amd64). It implements `mdok lint`, `mdok
+  test`, and `mdok version` over the full ported feature matrix: curl argv
+  parsing and policy, template filters, JMESPath checks and captures,
+  redirects, cookies, retries, gzip/binary bodies, and verified TLS. It is
+  held to the Rust reference by an 891-case differential parity suite; the
+  two binaries must agree on exit codes, document and step statuses, and
+  diagnostics for every case.
+- **The Rust implementation (reference and full feature set).** Everything
+  else — the stdio MCP server, record/replay, `mdok plan`, `mdok list`,
+  `mdok import postman`, exec fences, and the QuickJS Postman sandbox —
+  lives in the Rust workspace in this repository. Build it from source:
+
+  ```sh
+  git clone https://github.com/sunrisecloudy/mdok
+  cd mdok && cargo build --release -p mdok-cli
+  ./target/release/mdok --version
+  ```
+
+See `docs/GO_PORT_ESTIMATE.md` for the porting roadmap that brings the
+remaining surface into the Go implementation.
+
 ## Use MDOK with your AI agent
 
 Run the three setup commands below. Then open Codex, Claude Code, Cursor, or
@@ -76,24 +103,26 @@ Install once:
 
 ```sh
 brew install sunrisecloudy/tap/mdok
-mdok --version
+mdok version
 ```
 
-Use these commands to lint, plan, and test a workflow:
+Use these commands to lint and test a workflow (the Homebrew Go binary), or
+plan as well with the Rust build:
 
 ```sh
 mdok lint api.md
-mdok plan api.md --offline
 mdok test api.md --allow-host api.example.com
 ```
 
-Use `--json`, `--json-lines`, or `--junit` for agents and CI. Pass non-secret
-values with `--var`. Pass credentials with `--secret`. Load a dotenv file only
-when you name it with `--env-file`.
+(`mdok plan` is available in the Rust build.) Use `--json` for agents and CI
+with the Go binary; the Rust build also provides `--json-lines` and `--junit`.
+Pass non-secret values with `--var`. Pass credentials with `--secret`. Load a
+dotenv file only when you name it with `--env-file`.
 
 ### MCP server
 
-The Homebrew package includes the stdio MCP server:
+The stdio MCP server is part of the Rust build (build from source as shown
+above, then register `mdok mcp serve`):
 
 ```sh
 mdok mcp serve
