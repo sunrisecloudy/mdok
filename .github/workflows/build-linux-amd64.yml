@@ -1,0 +1,50 @@
+name: Build Linux x86_64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build and package
+        run: |
+          version=$(awk -F '"' '/mdokVersion[[:space:]]*=/ { print $2; exit }' go/cmd/mdok/main.go)
+          if [ -z "$version" ]; then
+            echo "could not extract mdokVersion from go/cmd/mdok/main.go" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_ENV"
+
+          mkdir -p "stage/mdok-$version-linux-amd64"
+          cd go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w" \
+            -o "$OLDPWD/stage/mdok-$version-linux-amd64/mdok" ./cmd/mdok
+
+          cd ..
+          cp LICENSE THIRD_PARTY.md "stage/mdok-$version-linux-amd64/"
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+            -czf "mdok-$version-linux-amd64.tar.gz" -C stage "mdok-$version-linux-amd64"
+          sha256sum "mdok-$version-linux-amd64.tar.gz" > "mdok-$version-linux-amd64.tar.gz.sha256"
+
+          file "stage/mdok-$version-linux-amd64/mdok"
+          "./stage/mdok-$version-linux-amd64/mdok" --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mdok-${{ env.version }}-linux-amd64
+          path: |
+            mdok-${{ env.version }}-linux-amd64.tar.gz
+            mdok-${{ env.version }}-linux-amd64.tar.gz.sha256
+          if-no-files-found: error
